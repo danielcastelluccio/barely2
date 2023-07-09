@@ -138,7 +138,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                             memset(buffer, 0, 128);
 
-                            sprintf(buffer, "  mov [rbp-%i], rax\n", location - i);
+                            sprintf(buffer, "  mov [rbp-%i], rax\n", location + size - i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             i += 8;
@@ -149,7 +149,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                             memset(buffer, 0, 128);
 
-                            sprintf(buffer, "  mov [rbp-%i], al\n", location - i);
+                            sprintf(buffer, "  mov [rbp-%i], al\n", location + size - i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             i += 1;
@@ -242,37 +242,42 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     if (assign_part->data.single.expression != NULL) {
                         Type from_expression = assign_part->data.single.added_type;
 
-                        Basic_Type* child;
+                        Type* child;
                         if (from_expression.kind == Type_Pointer) {
-                            child = &from_expression.data.pointer.child->data.basic;
+                            child = from_expression.data.pointer.child;
                         } else {
                             state->in_reference = true;
-                            child = &from_expression.data.basic;
+                            child = &from_expression;
                         }
-                        Complex_Name complex_name = {};
-                        if (child->kind == Type_Single) {
-                            complex_name.data.single.name = child->data.single;
-                            complex_name.kind = Complex_Single;
+
+                        size_t location = 0;
+                        size_t size = 0;
+                        if (strcmp(assign_part->data.single.name, "*") == 0) {
+                            size = get_size(child, state);
                         } else {
-                            complex_name.data.multi = child->data.multi;
-                            complex_name.kind = Complex_Multi;
+                            Complex_Name complex_name = {};
+                            if (child->kind == Type_Single) {
+                                complex_name.data.single.name = child->data.basic.data.single;
+                                complex_name.kind = Complex_Single;
+                            } else {
+                                complex_name.data.multi = child->data.basic.data.multi;
+                                complex_name.kind = Complex_Multi;
+                            }
+
+                            Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
+                            Struct_Node* struct_ = &definition->data.type.data.struct_;
+                            for (size_t i = 0; i < struct_->items.count; i++) {
+                                Declaration* declaration = &struct_->items.elements[i];
+                                size_t temp_size = get_size(&declaration->type, state);
+                                if (strcmp(declaration->name, assign_part->data.single.name) == 0) {
+                                    size = temp_size;
+                                    break;
+                                }
+                                location += temp_size;
+                            }
                         }
 
                         output_expression_fasm_linux_x86_64(assign_part->data.single.expression, state);
-
-                        Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
-                        Struct_Node* struct_ = &definition->data.type.data.struct_;
-                        size_t location = 0;
-                        size_t size = 0;
-                        for (size_t i = 0; i < struct_->items.count; i++) {
-                            Declaration* declaration = &struct_->items.elements[i];
-                            size_t temp_size = get_size(&declaration->type, state);
-                            if (strcmp(declaration->name, assign_part->data.single.name) == 0) {
-                                size = temp_size;
-                                break;
-                            }
-                            location += temp_size;
-                        }
 
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                             
@@ -335,7 +340,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rbp-%i], rax\n", location - i);
+                                sprintf(buffer, "  mov [rbp-%i], rax\n", location + size - i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 8;
@@ -346,7 +351,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rbp-%i], al\n", location - i);
+                                sprintf(buffer, "  mov [rbp-%i], al\n", location + size - i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 1;
@@ -631,37 +636,41 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     if (retrieve->data.single.expression != NULL) {
                         Type from_expression = retrieve->data.single.added_type;
 
-                        Basic_Type* child;
+                        Type* child;
                         if (from_expression.kind == Type_Pointer) {
-                            child = &from_expression.data.pointer.child->data.basic;
+                            child = from_expression.data.pointer.child;
                         } else {
                             state->in_reference = true;
-                            child = &from_expression.data.basic;
+                            child = &from_expression;
                         }
-                        Complex_Name complex_name = {};
-                        if (child->kind == Type_Single) {
-                            complex_name.data.single.name = child->data.single;
-                            complex_name.kind = Complex_Single;
+                        size_t location = 0;
+                        size_t size = 0;
+                        if (strcmp(retrieve->data.single.name, "*") == 0) {
+                            size = get_size(child, state);
                         } else {
-                            complex_name.data.multi = child->data.multi;
-                            complex_name.kind = Complex_Multi;
+                            Complex_Name complex_name = {};
+                            if (child->kind == Type_Single) {
+                                complex_name.data.single.name = child->data.basic.data.single;
+                                complex_name.kind = Complex_Single;
+                            } else {
+                                complex_name.data.multi = child->data.basic.data.multi;
+                                complex_name.kind = Complex_Multi;
+                            }
+
+                            Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
+                            Struct_Node* struct_ = &definition->data.type.data.struct_;
+                            for (size_t i = 0; i < struct_->items.count; i++) {
+                                Declaration* declaration = &struct_->items.elements[i];
+                                size_t temp_size = get_size(&declaration->type, state);
+                                if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
+                                    size = temp_size;
+                                    break;
+                                }
+                                location += temp_size;
+                            }
                         }
 
                         output_expression_fasm_linux_x86_64(retrieve->data.single.expression, state);
-
-                        Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
-                        Struct_Node* struct_ = &definition->data.type.data.struct_;
-                        size_t location = 0;
-                        size_t size = 0;
-                        for (size_t i = 0; i < struct_->items.count; i++) {
-                            Declaration* declaration = &struct_->items.elements[i];
-                            size_t temp_size = get_size(&declaration->type, state);
-                            if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
-                                size = temp_size;
-                                break;
-                            }
-                            location += temp_size;
-                        }
 
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
 
@@ -733,7 +742,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             while (i < size) {
                                 if (size - i >= 8) {
                                     char buffer[128] = {};
-                                    sprintf(buffer, "  mov rax, [rbp-%i]\n", location - i);
+                                    sprintf(buffer, "  mov rax, [rbp-%i]\n", location + size - i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     memset(buffer, 0, 128);
@@ -744,7 +753,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     i += 8;
                                 } else if (size - i >= 1) {
                                     char buffer[128] = {};
-                                    sprintf(buffer, "  mov al, [rbp-%i]\n", location - i);
+                                    sprintf(buffer, "  mov al, [rbp-%i]\n", location + size - i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     memset(buffer, 0, 128);

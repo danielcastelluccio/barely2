@@ -429,7 +429,12 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             *previous_result = result;
             node.data.single.expression = previous_result;
 
-            node.data.single.name = consume_identifier(tokens, &index);
+            if (peek(tokens, index) == Token_Asterisk) {
+                consume(tokens, &index);
+                node.data.single.name = "*";
+            } else {
+                node.data.single.name = consume_identifier(tokens, &index);
+            }
 
             result.kind = Expression_Retrieve;
             result.data.retrieve = node;

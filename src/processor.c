@@ -295,28 +295,33 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 
                         assign_part->data.single.added_type = popped;
 
-                        Basic_Type* child;
+                        Type* child;
                         if (popped.kind == Type_Pointer) {
-                            child = &popped.data.pointer.child->data.basic;
+                            child = popped.data.pointer.child;
                         } else {
-                            child = &popped.data.basic;
-                        }
-                        Complex_Name complex_name = {};
-                        if (child->kind == Type_Single) {
-                            complex_name.data.single.name = child->data.single;
-                            complex_name.kind = Complex_Single;
-                        } else {
-                            complex_name.data.multi = child->data.multi;
-                            complex_name.kind = Complex_Multi;
+                            child = &popped;
                         }
 
-                        Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
-                        Struct_Node* struct_ = &definition->data.type.data.struct_;
                         Type type;
-                        for (size_t i = 0; i < struct_->items.count; i++) {
-                            Declaration* declaration = &struct_->items.elements[i];
-                            if (strcmp(declaration->name, assign_part->data.single.name) == 0) {
-                                type = declaration->type;
+                        if (strcmp(assign_part->data.single.name, "*") == 0) {
+                            type = *child;
+                        } else {
+                            Complex_Name complex_name = {};
+                            if (child->kind == Type_Single) {
+                                complex_name.data.single.name = child->data.basic.data.single;
+                                complex_name.kind = Complex_Single;
+                            } else {
+                                complex_name.data.multi = child->data.basic.data.multi;
+                                complex_name.kind = Complex_Multi;
+                            }
+
+                            Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
+                            Struct_Node* struct_ = &definition->data.type.data.struct_;
+                            for (size_t i = 0; i < struct_->items.count; i++) {
+                                Declaration* declaration = &struct_->items.elements[i];
+                                if (strcmp(declaration->name, assign_part->data.single.name) == 0) {
+                                    type = declaration->type;
+                                }
                             }
                         }
 
@@ -329,7 +334,6 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                             print_type_inline(&type);
                             printf("'\n");
                             exit(1);
-                            
                         }
                     }
                 }
@@ -607,28 +611,33 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                         retrieve->data.single.added_type = popped;
 
-                        Basic_Type* child;
+                        Type* child;
                         if (popped.kind == Type_Pointer) {
-                            child = &popped.data.pointer.child->data.basic;
+                            child = popped.data.pointer.child;
                         } else {
-                            child = &popped.data.basic;
-                        }
-                        Complex_Name complex_name = {};
-                        if (child->kind == Type_Single) {
-                            complex_name.data.single.name = child->data.single;
-                            complex_name.kind = Complex_Single;
-                        } else {
-                            complex_name.data.multi = child->data.multi;
-                            complex_name.kind = Complex_Multi;
+                            child = &popped;
                         }
 
-                        Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
-                        Struct_Node* struct_ = &definition->data.type.data.struct_;
                         Type type;
-                        for (size_t i = 0; i < struct_->items.count; i++) {
-                            Declaration* declaration = &struct_->items.elements[i];
-                            if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
-                                type = declaration->type;
+                        if (strcmp(retrieve->data.single.name, "*") == 0) {
+                            type = *child;
+                        } else {
+                            Complex_Name complex_name = {};
+                            if (child->kind == Type_Single) {
+                                complex_name.data.single.name = child->data.basic.data.single;
+                                complex_name.kind = Complex_Single;
+                            } else {
+                                complex_name.data.multi = child->data.basic.data.multi;
+                                complex_name.kind = Complex_Multi;
+                            }
+
+                            Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
+                            Struct_Node* struct_ = &definition->data.type.data.struct_;
+                            for (size_t i = 0; i < struct_->items.count; i++) {
+                                Declaration* declaration = &struct_->items.elements[i];
+                                if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
+                                    type = declaration->type;
+                                }
                             }
                         }
 
@@ -686,6 +695,12 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             exit(1);
                     }
                 }
+            }
+
+            if (!found) {
+                print_error_stub(&retrieve->location);
+                printf("Retrieve not found\n");
+                exit(1);
             }
 
             break;
