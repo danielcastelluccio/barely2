@@ -26,8 +26,11 @@ typedef enum {
     Token_Minus,
     Token_Asterisk,
     Token_Slash,
+    Token_Ampersand,
     Token_LeftCurlyBrace,
     Token_RightCurlyBrace,
+    Token_LeftBracket,
+    Token_RightBracket,
     Token_NewLine,
     Token_Space,
     Token_Identifier,
@@ -37,13 +40,20 @@ typedef enum {
 } Token_Kind;
 
 typedef struct {
+    char* file;
+    size_t row;
+    size_t col;
+} Location;
+
+typedef struct {
     Token_Kind kind;
     char* data;
+    Location location;
 } Token;
 
 Dynamic_Array_Def(Token, Tokens, tokens_)
 
-Tokens tokenize(char* contents);
+Tokens tokenize(char* file, char* contents);
 void print_token(Token* token, bool newline);
 
 #endif

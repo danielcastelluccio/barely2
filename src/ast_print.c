@@ -126,7 +126,7 @@ void print_statement_node(Statement_Node* statement, size_t* indent) {
                 *indent += 1;
 
                 switch (part->kind) {
-                    case Assign_Single: {
+                    case Complex_Single: {
                         print_indents(*indent);
                         printf("name: %s\n", part->data.single.name);
 
@@ -139,7 +139,7 @@ void print_statement_node(Statement_Node* statement, size_t* indent) {
                         }
                         break;
                     }
-                    case Assign_Multi: {
+                    case Complex_Multi: {
                         print_indents(*indent);
                         printf("names: [");
                         for (int i = 0; i < part->data.multi.count; i++) {
@@ -173,7 +173,7 @@ void print_statement_node(Statement_Node* statement, size_t* indent) {
                 printf("NULL\n");
             }
 
-            *indent -= 1;
+            *indent -= 2;
             print_indents(*indent);
             printf("}\n");
             break;
@@ -226,7 +226,7 @@ void print_expression_node(Expression_Node* expression, size_t* indent) {
                 case Invoke_Operator:
                     print_indents(*indent);
                     printf("operator: ");
-                    switch (invoke->data.operator) {
+                    switch (invoke->data.operator.operator) {
                         case Operator_Add:
                             printf("ADD");
                             break;
@@ -380,7 +380,7 @@ void print_expression_node(Expression_Node* expression, size_t* indent) {
             *indent += 1;
 
             switch (retrieve->kind) {
-                case Retrieve_Single: {
+                case Complex_Single: {
                     print_indents(*indent);
                     printf("name: %s\n", retrieve->data.single.name);
 
@@ -393,7 +393,7 @@ void print_expression_node(Expression_Node* expression, size_t* indent) {
                     }
                     break;
                 }
-                case Retrieve_Multi: {
+                case Complex_Multi: {
                     print_indents(*indent);
                     printf("names: [");
                     for (int i = 0; i < retrieve->data.multi.count; i++) {
@@ -524,6 +524,33 @@ void print_definition_node(Definition_Node* definition, size_t* indent) {
                 *indent -= 1;
                 print_indents(*indent);
                 printf("}\n");
+            }
+
+            *indent -= 1;
+            print_indents(*indent);
+            printf("]\n");
+
+            *indent -= 1;
+
+            print_indents(*indent);
+            printf("}\n");
+            break;
+        }
+        case Definition_Module: {
+            Module_Node* node = &definition->data.module;
+            print_indents(*indent);
+            printf("Module {\n");
+
+            *indent += 1;
+            print_indents(*indent);
+            printf("name: %s\n", definition->name);
+
+            print_indents(*indent);
+            printf("definitions: [\n");
+            *indent += 1;
+
+            for (int i = 0; i < node->definitions.count; i++) {
+                print_definition_node(&node->definitions.elements[i], indent);
             }
 
             *indent -= 1;

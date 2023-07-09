@@ -83,7 +83,38 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
     Type result;
 
-    if (false) {
+    if (peek(tokens, index) == Token_Asterisk) {
+        Pointer_Type pointer;
+
+        consume(tokens, &index);
+
+        Type child = parse_type(tokens, &index);
+        Type* child_allocated = malloc(sizeof(Type));
+        *child_allocated = child;
+        pointer.child = child_allocated;
+
+        result.kind = Type_Pointer;
+        result.data.pointer = pointer;
+    } else if (peek(tokens, index) == Token_LeftBracket) {
+        consume(tokens, &index);
+        
+        BArray_Type array = {};
+
+        if (peek(tokens, index) != Token_RightBracket) {
+            array.has_size = true;
+            char* size = consume_number(tokens, &index);
+            array.size = atoi(size);
+        }
+
+        consume_check(tokens, &index, Token_RightBracket);
+
+        Type child = parse_type(tokens, &index);
+        Type* child_allocated = malloc(sizeof(Type));
+        *child_allocated = child;
+        array.element_type = child_allocated;
+
+        result.kind = Type_Array;
+        result.data.array = array;
     } else {
         Basic_Type basic;
         basic.kind = Type_Single;
@@ -110,9 +141,6 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
-Statement_Node convert_to_assign(Expression_Node* node) {
-}
-
 Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
     Statement_Node result;
@@ -130,6 +158,7 @@ Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
                 continue;
             }
             Declaration declaration;
+            declaration.location = tokens->elements[index].location;
             declaration.name = consume_identifier(tokens, &index);
             consume_check(tokens, &index, Token_Colon);
             declaration.type = parse_type(tokens, &index);
@@ -155,6 +184,21 @@ Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
 
         result.kind = Statement_Declare;
         result.data.declare = node;
+    } else if (token == Token_Keyword && strcmp(tokens->elements[index].data, "return") == 0) {
+        Statement_Return_Node node;
+        node.location = tokens->elements[index].location;
+
+        consume(tokens, &index);
+
+        Expression_Node expression = parse_expression(tokens, &index);
+        Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
+        *expression_allocated = expression;
+        node.expression = expression_allocated;
+
+        consume_check(tokens, &index, Token_Semicolon);
+
+        result.kind = Statement_Return;
+        result.data.return_ = node;
     } else {
         Statement_Expression_Node node;
 
@@ -171,6 +215,7 @@ Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
 
                 if (expression.kind == Expression_Retrieve) {
                     Statement_Assign_Part assign_part;
+                    assign_part.location = expression.data.retrieve.location;
                     assign_part.kind = expression.data.retrieve.kind;
                     assign_part.data = expression.data.retrieve.data;
                     array_statement_assign_part_append(&assign.parts, assign_part);
@@ -259,14 +304,14 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             break;
         }
         case Token_Identifier: {
-            char* name = consume_identifier(tokens, &index);
             Retrieve_Node node = {};
-            // TODO: do not assume this is a single
-            node.kind = Retrieve_Single;
+            node.location = tokens->elements[index].location;
+            char* name = consume_identifier(tokens, &index);
+            node.kind = Complex_Single;
             node.data.single.name = name;
 
             if (peek(tokens, index) == Token_DoubleColon) {
-                node.kind = Retrieve_Multi;
+                node.kind = Complex_Multi;
                 Array_String names = array_string_new(2);
                 array_string_append(&names, name);
                 while (peek(tokens, index) == Token_DoubleColon) {
@@ -348,6 +393,20 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             }
             break;
         }
+        case Token_Ampersand: {
+            Reference_Node node;
+
+            consume(tokens, &index);
+            
+            Expression_Node inner = parse_expression(tokens, &index);
+            Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
+            *inner_allocated = inner;
+            node.inner = inner_allocated;
+
+            result.kind = Expression_Reference;
+            result.data.reference = node;
+            break;
+        }
         default: {
             printf("Error: Unexpected token ");
             print_token(&tokens->elements[index], false);
@@ -362,7 +421,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         if (peek(tokens, index) == Token_Period) {
             running = true;
             Retrieve_Node node;
-            node.kind = Retrieve_Single;
+            node.kind = Complex_Single;
 
             consume(tokens, &index);
 
@@ -377,9 +436,34 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             continue;
         }
 
+        if (peek(tokens, index) == Token_LeftBracket) {
+            running = true;
+            Retrieve_Node node;
+            node.kind = Complex_Array;
+            node.location = tokens->elements[index].location;
+
+            Expression_Node* previous_result = malloc(sizeof(Expression_Node));
+            *previous_result = result;
+            node.data.array.expression_outer = previous_result;
+
+            consume(tokens, &index);
+
+            Expression_Node inner = parse_expression(tokens, &index);
+            Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
+            *inner_allocated = inner;
+            node.data.array.expression_inner = inner_allocated;
+
+            consume_check(tokens, &index, Token_RightBracket);
+
+            result.kind = Expression_Retrieve;
+            result.data.retrieve = node;
+            continue;
+        }
+
         if (peek(tokens, index) == Token_LeftParenthesis) {
             running = true;
             Invoke_Node node;
+            node.location = tokens->elements[index].location;
             node.kind = Invoke_Standard;
 
             Expression_Node* previous_result = malloc(sizeof(Expression_Node));
@@ -389,13 +473,15 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
 
             Array_Expression_Node arguments = array_expression_node_new(32);
 
-            Expression_Node expression = parse_expression(tokens, &index);
-            Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
-            *expression_allocated = expression;
-            if (expression_allocated->kind == Expression_Multi) {
-                arguments = expression_allocated->data.multi.expressions;
-            } else {
-                array_expression_node_append(&arguments, expression_allocated);
+            if (peek(tokens, index) != Token_RightParenthesis) {
+                Expression_Node expression = parse_expression(tokens, &index);
+                Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
+                *expression_allocated = expression;
+                if (expression_allocated->kind == Expression_Multi) {
+                    arguments = expression_allocated->data.multi.expressions;
+                } else {
+                    array_expression_node_append(&arguments, expression_allocated);
+                }
             }
 
             node.arguments = arguments;
@@ -419,6 +505,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             running = true;
             Invoke_Node node;
             node.kind = Invoke_Operator;
+            node.location = tokens->elements[index].location;
 
             Operator operator;
             switch (consume(tokens, &index)) {
@@ -450,7 +537,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                     operator = Operator_LessEqual;
                     break;
             }
-            node.data.operator = operator;
+            node.data.operator.operator = operator;
 
             Expression_Node* left_side = malloc(sizeof(Expression_Node));
             *left_side = result;
@@ -486,7 +573,13 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 Expression_Node next = parse_expression(tokens, &index);
                 Expression_Node* next_allocated = malloc(sizeof(Expression_Node));
                 *next_allocated = next;
-                array_expression_node_append(&node.expressions, next_allocated);
+                if (next_allocated->kind == Expression_Multi) {
+                    for (size_t i = 0; i < next_allocated->data.multi.expressions.count; i++) {
+                        array_expression_node_append(&node.expressions, next_allocated->data.multi.expressions.elements[i]);
+                    }
+                } else {
+                    array_expression_node_append(&node.expressions, next_allocated);
+                }
 
                 result.kind = Expression_Multi;
                 result.data.multi = node;
@@ -531,6 +624,25 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
                 }
                 literal_node.arguments = arguments;
                 consume_check(tokens, &index, Token_RightParenthesis);
+
+                literal_node.returns = array_type_new(1);
+                if (peek(tokens, index) == Token_Colon) {
+                    consume(tokens, &index);
+
+                    bool running = true;
+                    while (running) {
+                        Type type = parse_type(tokens, &index);
+                        Type* type_allocated = malloc(sizeof(Type));
+                        *type_allocated = type;
+
+                        array_type_append(&literal_node.returns, type_allocated);
+                        running = false;
+                        if (peek(tokens, index) == Token_Comma) {
+                            running = true;
+                            consume(tokens, &index);
+                        }
+                    }
+                }
 
                 Expression_Node body = parse_expression(tokens, &index);
                 Expression_Node* body_allocated = malloc(sizeof(Expression_Node));
@@ -596,6 +708,26 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
 
         result.kind = Definition_Type;
         result.data.type = node;
+    } else if (strcmp(keyword, "mod") == 0) {
+        Module_Node node;
+        node.definitions = array_definition_node_new(8);
+        
+        char* name = consume_identifier(tokens, &index);
+        consume_check(tokens, &index, Token_Colon);
+        consume_check(tokens, &index, Token_LeftCurlyBrace);
+
+        while (peek(tokens, index) != Token_RightCurlyBrace) {
+            Definition_Node definition = parse_definition(tokens, &index);
+            Definition_Node* definition_allocated = malloc(sizeof(Definition_Node));
+            *definition_allocated = definition;
+            array_definition_node_append(&node.definitions, definition);
+        }
+
+        consume(tokens, &index);
+        consume_check(tokens, &index, Token_Semicolon);
+
+        result.kind = Definition_Module;
+        result.data.module = node;
     } else {
         printf("Error: Unexpected token ");
         print_token(&tokens->elements[index - 1], false);

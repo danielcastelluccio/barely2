@@ -1,27 +1,27 @@
 #ifndef FILE_DYNARRAY
 #define FILE_DYNARRAY
 
-#define Dynamic_Array_Def(Type_Inner, Array_Type, name) \
+#define Dynamic_Array_Def(Type_Inner, Array_Type_, name) \
 typedef struct { \
     Type_Inner* elements; \
     size_t count; \
     size_t capacity; \
-} Array_Type; \
+} Array_Type_; \
 \
-Array_Type name##new(size_t size); \
-void name##append(Array_Type* array, Type_Inner element); \
-void name##clear(Array_Type* array); \
-void name##free(Array_Type* array);
+Array_Type_ name##new(size_t size); \
+void name##append(Array_Type_* array, Type_Inner element); \
+void name##clear(Array_Type_* array); \
+void name##free(Array_Type_* array);
 
-#define Dynamic_Array_Impl(Type_Inner, Array_Type, name) \
-Array_Type name##new(size_t size) { \
-    return (Array_Type) { \
+#define Dynamic_Array_Impl(Type_Inner, Array_Type_, name) \
+Array_Type_ name##new(size_t size) { \
+    return (Array_Type_) { \
         malloc(sizeof(Type_Inner) * size), \
         0, \
         size \
     }; \
 } \
-void name##append(Array_Type* array, Type_Inner element) { \
+void name##append(Array_Type_* array, Type_Inner element) { \
     if (array->count == array->capacity) { \
         size_t new_capacity = array->capacity * 2; \
         Type_Inner* elements_new = (Type_Inner*) malloc(sizeof(Type_Inner) * new_capacity); \
@@ -35,12 +35,12 @@ void name##append(Array_Type* array, Type_Inner element) { \
     array->count++; \
 } \
 \
-void name##clear(Array_Type* array) { \
+void name##clear(Array_Type_* array) { \
     memset(array->elements, 0, array->count); \
     array->count = 0; \
 } \
 \
-void name##free(Array_Type* array) { \
+void name##free(Array_Type_* array) { \
     free(array->elements); \
 } \
 
