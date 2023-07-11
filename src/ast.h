@@ -39,6 +39,7 @@ typedef struct {
 
 struct Type {
     enum {
+        Type_None,
         Type_Basic,
         Type_Pointer,
         Type_Procedure,
@@ -74,11 +75,16 @@ typedef struct {
 
 typedef struct {
     int value;
+    Type* type;
 } Number_Node;
 
 typedef struct {
     char* value;
 } String_Node;
+
+typedef struct {
+    bool value;
+} Boolean_Node;
 
 struct If_Node;
 typedef struct If_Node If_Node;
@@ -87,6 +93,7 @@ struct If_Node {
     Expression_Node* condition;
     Expression_Node* inside;
     If_Node* next;
+    Location location;
 };
 
 typedef struct {
@@ -100,6 +107,7 @@ typedef enum {
     Operator_Multiply,
     Operator_Divide,
     Operator_Equal,
+    Operator_NotEqual,
     Operator_Greater,
     Operator_GreaterEqual,
     Operator_Less,
@@ -168,6 +176,7 @@ struct Expression_Node {
         Expression_While,
         Expression_Multi,
         Expression_Reference,
+        Expression_Boolean,
     } kind;
     union {
         Block_Node block;
@@ -179,6 +188,7 @@ struct Expression_Node {
         While_Node while_;
         Multi_Expression_Node multi;
         Reference_Node reference;
+        Boolean_Node boolean;
     } data;
 };
 

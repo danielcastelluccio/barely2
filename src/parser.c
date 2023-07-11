@@ -43,6 +43,18 @@ char* consume_string(Tokens* tokens, size_t* index) {
     return current->data;
 }
 
+char* consume_boolean(Tokens* tokens, size_t* index) {
+    Token* current = &tokens->elements[*index];
+    if (current->kind != Token_Boolean) {
+        printf("Error: Expected Boolean, got ");
+        print_token(current, false);
+        printf("\n");
+        exit(1);
+    }
+    (*index)++;
+    return current->data;
+}
+
 char* consume_number(Tokens* tokens, size_t* index) {
     Token* current = &tokens->elements[*index];
     if (current->kind != Token_Number) {
@@ -303,6 +315,15 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             result.data.string = node;
             break;
         }
+        case Token_Boolean: {
+            Boolean_Node node;
+
+            node.value = strcmp(consume_boolean(tokens, &index), "true") == 0;
+
+            result.kind = Expression_Boolean;
+            result.data.boolean = node;
+            break;
+        }
         case Token_Identifier: {
             Retrieve_Node node = {};
             node.location = tokens->elements[index].location;
@@ -330,7 +351,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             char* name = consume_keyword(tokens, &index);
 
             if (strcmp(name, "if") == 0) {
-                If_Node node;
+                If_Node node = {};
 
                 Expression_Node condition = parse_expression(tokens, &index);
                 Expression_Node* condition_allocated = malloc(sizeof(Expression_Node));
@@ -503,6 +524,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 peek(tokens, index) == Token_Asterisk ||
                 peek(tokens, index) == Token_Slash ||
                 peek(tokens, index) == Token_DoubleEquals ||
+                peek(tokens, index) == Token_ExclamationEquals ||
                 peek(tokens, index) == Token_GreaterThan ||
                 peek(tokens, index) == Token_LessThan ||
                 peek(tokens, index) == Token_LessThanEqual ||
@@ -528,6 +550,9 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                     break;
                 case Token_DoubleEquals:
                     operator = Operator_Equal;
+                    break;
+                case Token_ExclamationEquals:
+                    operator = Operator_NotEqual;
                     break;
                 case Token_GreaterThan:
                     operator = Operator_Greater;

@@ -16,8 +16,10 @@ typedef enum {
     Token_Semicolon,
     Token_Comma,
     Token_Period,
+    Token_Exclamation,
     Token_Equals,
     Token_DoubleEquals,
+    Token_ExclamationEquals,
     Token_LessThan,
     Token_GreaterThan,
     Token_LessThanEqual,
@@ -37,6 +39,7 @@ typedef enum {
     Token_Keyword,
     Token_Number,
     Token_String,
+    Token_Boolean,
 } Token_Kind;
 
 typedef struct {

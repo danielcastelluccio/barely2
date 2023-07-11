@@ -11,6 +11,7 @@ typedef struct {
     String_Buffer instructions;
     String_Buffer data;
     size_t string_index;
+    size_t flow_index;
     Array_Declaration current_declares;
     Array_Declaration current_arguments;
     Array_Type current_returns;
@@ -27,7 +28,11 @@ size_t get_size(Type* type, Output_State* state) {
 
                 if (strcmp(name, "u64") == 0) {
                     return 8;
+                } else if (strcmp(name, "u32") == 0) {
+                    return 4;
                 } else if (strcmp(name, "u8") == 0) {
+                    return 1;
+                } else if (strcmp(name, "bool") == 0) {
                     return 1;
                 }
             }
@@ -563,6 +568,47 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         
                         break;
                     }
+                    case Operator_Equal:
+                    case Operator_NotEqual:
+                    case Operator_Greater:
+                    case Operator_GreaterEqual:
+                    case Operator_Less:
+                    case Operator_LessEqual: {
+                        Type u64 = create_basic_single_type("u64");
+                        Type operator_type = invoke->data.operator.added_type;
+
+                        if (is_type(&u64, &operator_type)) {
+                            stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
+                            stringbuffer_appendstring(&state->instructions, "  pop rax\n");
+                            stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+                            switch (invoke->data.operator.operator) {
+                                case Operator_Equal:
+                                    stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
+                                    break;
+                                case Operator_NotEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovne rcx, rdx\n");
+                                    break;
+                                case Operator_Less:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovb rcx, rdx\n");
+                                    break;
+                                case Operator_LessEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovbe rcx, rdx\n");
+                                    break;
+                                case Operator_Greater:
+                                    stringbuffer_appendstring(&state->instructions, "  cmova rcx, rdx\n");
+                                    break;
+                                case Operator_GreaterEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
+                                    break;
+                            }
+                            stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
+                        }
+                        
+                        break;
+                    }
                 }
             }
             break;
@@ -838,11 +884,76 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             break;
         }
+        case Expression_If: {
+            size_t main_end = state->flow_index;
+            state->flow_index++;
+
+            size_t individual_start = state->flow_index;
+            state->flow_index++;
+
+            If_Node* node = &expression->data.if_;
+            while (node != NULL) {
+                char buffer[128] = {};
+                sprintf(buffer, "  __%i:\n", individual_start);
+                stringbuffer_appendstring(&state->instructions, buffer);
+
+                individual_start = state->flow_index;
+                state->flow_index++;
+                
+                if (node->condition != NULL) {
+                    output_expression_fasm_linux_x86_64(node->condition, state);
+
+                    stringbuffer_appendstring(&state->instructions, "  mov rbx, 1\n");
+                    stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
+                    stringbuffer_appendstring(&state->instructions, "  mov al, [rsp]\n");
+                    stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
+                    stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+                    char buffer[128] = {};
+                    sprintf(buffer, "  jne __%i\n", node->next != NULL ? individual_start : main_end);
+                    stringbuffer_appendstring(&state->instructions, buffer);
+                }
+
+                output_expression_fasm_linux_x86_64(node->inside, state);
+
+                memset(buffer, 0, 128);
+                sprintf(buffer, "  jmp __%i\n", main_end);
+                stringbuffer_appendstring(&state->instructions, buffer);
+
+                node = node->next;
+            }
+
+            char buffer[128] = {};
+            sprintf(buffer, "  __%i:\n", main_end);
+            stringbuffer_appendstring(&state->instructions, buffer);
+            break;
+        }
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
+            char* basic_name = number->type->data.basic.data.single;
+            if (strcmp(basic_name, "u64") == 0) {
+                char buffer[128] = {};
+                sprintf(buffer, "  push %i\n", number->value);
+                stringbuffer_appendstring(&state->instructions, buffer);
+            } else if (strcmp(basic_name, "u32") == 0) {
+                stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
+                char buffer[128] = {};
+                sprintf(buffer, "  mov dword [rsp], %i\n", number->value);
+                stringbuffer_appendstring(&state->instructions, buffer);
+            } else if (strcmp(basic_name, "u8") == 0) {
+                stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
+                char buffer[128] = {};
+                sprintf(buffer, "  mov byte [rsp], %i\n", number->value);
+                stringbuffer_appendstring(&state->instructions, buffer);
+            }
+            break;
+        }
+        case Expression_Boolean: {
+            Boolean_Node* boolean = &expression->data.boolean;
             char buffer[128] = {};
-            sprintf(buffer, "  push %i\n", number->value);
+            sprintf(buffer, "  mov rax, %i\n", boolean->value);
             stringbuffer_appendstring(&state->instructions, buffer);
+            stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+            stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
             break;
         }
         case Expression_String: {
@@ -850,8 +961,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             char buffer[128] = {};
             sprintf(buffer, "  push _%i\n", state->string_index);
             stringbuffer_appendstring(&state->instructions, buffer);
-            memset(buffer, 0, 128);
 
+            memset(buffer, 0, 128);
             sprintf(buffer, "  _%i: db \"%s\"\n", state->string_index, string->value);
             stringbuffer_appendstring(&state->data, buffer);
 

@@ -120,6 +120,8 @@ void check_append_string_token(Tokens* tokens, String_Buffer* buffer, char* file
         kind = Token_Keyword;
     } else if (buffer_contents[0] >= '0' && buffer_contents[0] <= '9') {
         kind = Token_Number;
+    } else if (strcmp(buffer_contents, "true") == 0 || strcmp(buffer_contents, "false") == 0) {
+        kind = Token_Boolean;
     } else {
         kind = Token_Identifier;
     }
@@ -240,6 +242,16 @@ Tokens tokenize(char* file, char* contents) {
                         i += 2;
                     } else {
                         tokens_append(&tokens, (Token) { Token_LessThan, 0, LOCATION(file, row, col) });
+                        i++;
+                    }
+                    break;
+                case '!':
+                    check_append_string_token(&tokens, &buffer, file, &row, &col);
+                    if (contents[i + 1] == '=') {
+                        tokens_append(&tokens, (Token) { Token_ExclamationEquals, 0, LOCATION(file, row, col) });
+                        i += 2;
+                    } else {
+                        tokens_append(&tokens, (Token) { Token_Exclamation, 0, LOCATION(file, row, col) });
                         i++;
                     }
                     break;

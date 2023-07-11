@@ -23,6 +23,7 @@ typedef struct {
     Array_Type current_returns;
     Expression_Node* current_body;
     bool in_reference;
+    Type* wanted_type;
 } Process_State;
 
 Definition_Node* resolve_definition(File_Node* file_node, Complex_Name* data) {
@@ -180,7 +181,18 @@ void process_statement(Statement_Node* statement, Process_State* state) {
         case Statement_Declare: {
             Statement_Declare_Node* declare = &statement->data.declare;
             if (declare->expression != NULL) {
-                process_expression(declare->expression, state);
+                if (declare->expression->kind == Expression_Multi) {
+                    size_t declare_index = 0;
+                    for (int i = 0; i < declare->expression->data.multi.expressions.count; i++) {
+                        size_t stack_start = state->stack.count;
+                        state->wanted_type = &declare->declarations.elements[declare_index].type;
+                        process_expression(declare->expression->data.multi.expressions.elements[i], state);
+                        declare_index += state->stack.count - stack_start;
+                    }
+                } else {
+                    state->wanted_type = &declare->declarations.elements[declare->declarations.count - 1].type;
+                    process_expression(declare->expression, state);
+                }
 
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
                     Declaration declaration = declare->declarations.elements[i];
@@ -390,9 +402,6 @@ void process_expression(Expression_Node* expression, Process_State* state) {
         }
         case Expression_Invoke: {
             Invoke_Node* invoke = &expression->data.invoke;
-            for (size_t i = 0; i < invoke->arguments.count; i++) {
-                process_expression(invoke->arguments.elements[i], state);
-            }
 
             if (invoke->kind == Invoke_Standard) {
                 Expression_Node* procedure = invoke->data.procedure;
@@ -486,6 +495,12 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         }
                         handled = true;
                     }
+
+                    if (handled) {
+                        for (size_t i = 0; i < invoke->arguments.count; i++) {
+                            process_expression(invoke->arguments.elements[i], state);
+                        }
+                    }
                 }
 
                 if (!handled) {
@@ -499,6 +514,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     }
 
                     Procedure_Type* procedure_type = &type.data.procedure;
+                    size_t arg_index = 0;
+                    for (size_t i = 0; i < invoke->arguments.count; i++) {
+                        size_t stack_start = state->stack.count;
+                        state->wanted_type = procedure_type->arguments.elements[arg_index];
+                        process_expression(invoke->arguments.elements[i], state);
+                        arg_index += state->stack.count - stack_start;
+                    }
+
                     for (int i = procedure_type->arguments.count - 1; i >= 0; i--) {
                         if (state->stack.count == 0) {
                             print_error_stub(&invoke->location);
@@ -525,6 +548,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             } else if (invoke->kind == Invoke_Operator) {
                 Operator operator = invoke->data.operator.operator;
 
+                for (size_t i = 0; i < invoke->arguments.count; i++) {
+                    process_expression(invoke->arguments.elements[i], state);
+                }
+
                 if (operator == Operator_Add ||
                         operator == Operator_Subtract ||
                         operator == Operator_Multiply ||
@@ -544,6 +571,30 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                     invoke->data.operator.added_type = first;
                     stack_type_push(&state->stack, first);
+                }
+
+                if (operator == Operator_Equal ||
+                        operator == Operator_NotEqual ||
+                        operator == Operator_Greater ||
+                        operator == Operator_GreaterEqual ||
+                        operator == Operator_Less ||
+                        operator == Operator_LessEqual) {
+                    Type first = stack_type_pop(&state->stack);
+                    Type second = stack_type_pop(&state->stack);
+
+                    if (!is_type(&first, &second)) {
+                        print_error_stub(&invoke->location);
+                        printf("Type '");
+                        print_type_inline(&second);
+                        printf("' cannot be operated on with type '");
+                        print_type_inline(&first);
+                        printf("'\n");
+                        exit(1);
+                    }
+
+                    invoke->data.operator.added_type = first;
+
+                    stack_type_push(&state->stack, create_basic_single_type("bool"));
                 }
             }
             break;
@@ -705,13 +756,64 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
             break;
         }
+        case Expression_If: {
+            If_Node* node = &expression->data.if_;
+            while (node != NULL) {
+                if (node->condition != NULL) {
+                    process_expression(node->condition, state);
+
+                    if (state->stack.count == 0) {
+                        print_error_stub(&node->location);
+                        printf("Ran out of values for if\n");
+                        exit(1);
+                    }
+
+                    Type given = stack_type_pop(&state->stack);
+                    Type bool_type = create_basic_single_type("bool");
+                    if (!is_type(&bool_type, &given)) {
+                        print_error_stub(&node->location);
+                        printf("Type '");
+                        print_type_inline(&given);
+                        printf("' is not a boolean\n");
+                        exit(1);
+                    }
+                }
+
+                process_expression(node->inside, state);
+
+                node = node->next;
+            }
+            break;
+        }
         case Expression_Number: {
-            // TODO: Do I want type inference for numbers?
-            stack_type_push(&state->stack, create_basic_single_type("u64"));
+            Number_Node* number = &expression->data.number;
+            Type* wanted = state->wanted_type;
+
+            bool found = false;
+            if (wanted != NULL && wanted->kind == Type_Basic) {
+                char* basic_name = wanted->data.basic.data.single;
+
+                if (strcmp(basic_name, "u64") == 0 || strcmp(basic_name, "u32") == 0 || strcmp(basic_name, "u8") == 0) {
+                    found = true;
+                }
+            }
+
+            if (found) {
+                stack_type_push(&state->stack, *wanted);
+                number->type = wanted;
+            } else {
+                Type* u64 = malloc(sizeof(Type));
+                *u64 = create_basic_single_type("u64");
+                stack_type_push(&state->stack, *u64);
+                number->type = u64;
+            }
+            break;
+        }
+        case Expression_Boolean: {
+            stack_type_push(&state->stack, create_basic_single_type("bool"));
             break;
         }
         case Expression_String: {
-            // TODO: Do I want a dedicated string type?
             stack_type_push(&state->stack, create_pointer_type(create_array_type(create_basic_single_type("u8"))));
             break;
         }
