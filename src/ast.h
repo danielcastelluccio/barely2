@@ -11,6 +11,13 @@ typedef struct Type Type;
 
 Dynamic_Array_Def(Type*, Array_Type, array_type_)
 
+typedef enum {
+    Type_U64,
+    Type_U32,
+    Type_U16,
+    Type_U8,
+} Internal_Type;
+
 typedef struct {
     enum {
         Type_Single,
@@ -44,12 +51,14 @@ struct Type {
         Type_Pointer,
         Type_Procedure,
         Type_Array,
+        Type_Internal
     } kind;
     union {
         Basic_Type basic;
         Pointer_Type pointer;
         Procedure_Type procedure;
         BArray_Type array;
+        Internal_Type internal;
     } data;
 };
 

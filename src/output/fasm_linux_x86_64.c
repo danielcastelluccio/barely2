@@ -71,6 +71,21 @@ size_t get_size(Type* type, Output_State* state) {
             }
             break;
         }
+        case Type_Internal: {
+            Internal_Type* internal = &type->data.internal;
+
+            switch (*internal) {
+                case Type_U64:
+                    return 8;
+                case Type_U32:
+                    return 4;
+                case Type_U16:
+                    return 2;
+                case Type_U8:
+                    return 1;
+            }
+            break;
+        }
         case Type_Pointer: {
             return 8;
         }
@@ -261,7 +276,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                             size = get_size(child, state);
                         } else {
                             Complex_Name complex_name = {};
-                            if (child->kind == Type_Single) {
+                            if (child->data.basic.kind == Type_Single) {
                                 complex_name.data.single.name = child->data.basic.data.single;
                                 complex_name.kind = Complex_Single;
                             } else {
@@ -695,7 +710,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             size = get_size(child, state);
                         } else {
                             Complex_Name complex_name = {};
-                            if (child->kind == Type_Single) {
+                            if (child->data.basic.kind == Type_Single) {
                                 complex_name.data.single.name = child->data.basic.data.single;
                                 complex_name.kind = Complex_Single;
                             } else {
@@ -929,17 +944,17 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         }
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
-            char* basic_name = number->type->data.basic.data.single;
-            if (strcmp(basic_name, "u64") == 0) {
+            Internal_Type type = number->type->data.internal;
+            if (type == Type_U64) {
                 char buffer[128] = {};
                 sprintf(buffer, "  push %i\n", number->value);
                 stringbuffer_appendstring(&state->instructions, buffer);
-            } else if (strcmp(basic_name, "u32") == 0) {
+            } else if (type == Type_U32) {
                 stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
                 char buffer[128] = {};
                 sprintf(buffer, "  mov dword [rsp], %i\n", number->value);
                 stringbuffer_appendstring(&state->instructions, buffer);
-            } else if (strcmp(basic_name, "u8") == 0) {
+            } else if (type == Type_U8) {
                 stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
                 char buffer[128] = {};
                 sprintf(buffer, "  mov byte [rsp], %i\n", number->value);

@@ -128,25 +128,43 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
         result.kind = Type_Array;
         result.data.array = array;
     } else {
-        Basic_Type basic;
-        basic.kind = Type_Single;
+        char* name = consume_identifier(tokens, &index);
+        if (strcmp(name, "u64") == 0 || strcmp(name, "u32") == 0 || strcmp(name, "u16") == 0 || strcmp(name, "u8") == 0) {
+            Internal_Type internal;
 
-        basic.data.single = consume_identifier(tokens, &index);
-
-        if (peek(tokens, index) == Token_DoubleColon) {
-            Array_String names = array_string_new(2);
-            array_string_append(&names, basic.data.single);
-            while (peek(tokens, index) == Token_DoubleColon) {
-                consume(tokens, &index);
-                array_string_append(&names, consume_identifier(tokens, &index));
+            if (strcmp(name, "u64") == 0) {
+                internal = Type_U64;
+            } else if (strcmp(name, "u32") == 0) {
+                internal = Type_U32;
+            } else if (strcmp(name, "u16") == 0) {
+                internal = Type_U16;
+            } else if (strcmp(name, "u8") == 0) {
+                internal = Type_U8;
             }
 
-            basic.kind = Type_Multi;
-            basic.data.multi = names;
-        }
+            result.kind = Type_Internal;
+            result.data.internal = internal;
+        } else {
+            Basic_Type basic;
+            basic.kind = Type_Single;
 
-        result.kind = Type_Basic;
-        result.data.basic = basic;
+            basic.data.single = name;
+
+            if (peek(tokens, index) == Token_DoubleColon) {
+                Array_String names = array_string_new(2);
+                array_string_append(&names, basic.data.single);
+                while (peek(tokens, index) == Token_DoubleColon) {
+                    consume(tokens, &index);
+                    array_string_append(&names, consume_identifier(tokens, &index));
+                }
+
+                basic.kind = Type_Multi;
+                basic.data.multi = names;
+            }
+
+            result.kind = Type_Basic;
+            result.data.basic = basic;
+        }
     }
 
     *index_in = index;
