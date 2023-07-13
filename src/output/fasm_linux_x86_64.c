@@ -941,7 +941,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
             Internal_Type type = number->type->data.internal;
-            if (type == Type_U64) {
+            if (type == Type_U64 || type == Type_USize) {
                 char buffer[128] = {};
                 sprintf(buffer, "  push %i\n", number->value);
                 stringbuffer_appendstring(&state->instructions, buffer);
@@ -996,9 +996,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 Internal_Type output_internal = cast->type.data.internal;
                 Internal_Type input_internal = cast->added_type.data.internal;
 
-                if ((input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
-                        (output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
-                    if (input_internal == Type_U64) {
+                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
+                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
+                    if (input_internal == Type_USize || input_internal == Type_U64) {
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     } else if (input_internal == Type_U32) {
                         stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
@@ -1014,7 +1014,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
                     }
 
-                    if (output_internal == Type_U64) {
+                    if (output_internal == Type_USize || output_internal == Type_U64) {
                         stringbuffer_appendstring(&state->instructions, "  push rax\n");
                     } else if (output_internal == Type_U32) {
                         stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");

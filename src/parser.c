@@ -129,10 +129,12 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
         result.data.array = array;
     } else {
         char* name = consume_identifier(tokens, &index);
-        if (strcmp(name, "u64") == 0 || strcmp(name, "u32") == 0 || strcmp(name, "u16") == 0 || strcmp(name, "u8") == 0) {
+        if (strcmp(name, "usize") == 0 || strcmp(name, "u64") == 0 || strcmp(name, "u32") == 0 || strcmp(name, "u16") == 0 || strcmp(name, "u8") == 0) {
             Internal_Type internal;
 
-            if (strcmp(name, "u64") == 0) {
+            if (strcmp(name, "usize") == 0) {
+                internal = Type_USize;
+            } else if (strcmp(name, "u64") == 0) {
                 internal = Type_U64;
             } else if (strcmp(name, "u32") == 0) {
                 internal = Type_U32;

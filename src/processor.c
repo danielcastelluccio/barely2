@@ -179,6 +179,9 @@ void print_type_inline(Type* type) {
             Internal_Type* internal = &type->data.internal;
 
             switch (*internal) {
+                case Type_USize:
+                    printf("usize");
+                    break;
                 case Type_U64:
                     printf("u64");
                     break;
@@ -465,6 +468,13 @@ void process_statement(Statement_Node* statement, Process_State* state) {
     }
 }
 
+bool is_register_sized(Type* type) {
+    if (type->kind == Type_Pointer) return true;
+    if (type->kind == Type_Internal && type->data.internal == Type_USize) return true;
+
+    return false;
+}
+
 void process_expression(Expression_Node* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
@@ -499,7 +509,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     if (is_internal) {
                         for (size_t i = 0; i < invoke->arguments.count; i++) {
                             Type* u64 = malloc(sizeof(Type));
-                            *u64 = create_internal_type(Type_U64);
+                            *u64 = create_internal_type(Type_USize);
                             state->wanted_type = u64;
                             process_expression(invoke->arguments.elements[i], state);
                         }
@@ -513,7 +523,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             for (int i = 0; i < count; i++) {
-                                stack_type_pop(&state->stack);
+                                Type type = stack_type_pop(&state->stack);
+                                if (!is_register_sized(&type)) {
+                                    print_error_stub(&invoke->location);
+                                    printf("Type '");
+                                    print_type_inline(&type);
+                                    printf("' cannot be passed to a syscall\n");
+                                    exit(1);
+                                }
                             }
                         } else if (strcmp(name, "syscall5") == 0) {
                             size_t count = 6;
@@ -524,7 +541,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             for (int i = 0; i < count; i++) {
-                                stack_type_pop(&state->stack);
+                                Type type = stack_type_pop(&state->stack);
+                                if (!is_register_sized(&type)) {
+                                    print_error_stub(&invoke->location);
+                                    printf("Type '");
+                                    print_type_inline(&type);
+                                    printf("' cannot be passed to a syscall\n");
+                                    exit(1);
+                                }
                             }
                         } else if (strcmp(name, "syscall4") == 0) {
                             size_t count = 5;
@@ -535,7 +559,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             for (int i = 0; i < count; i++) {
-                                stack_type_pop(&state->stack);
+                                Type type = stack_type_pop(&state->stack);
+                                if (!is_register_sized(&type)) {
+                                    print_error_stub(&invoke->location);
+                                    printf("Type '");
+                                    print_type_inline(&type);
+                                    printf("' cannot be passed to a syscall\n");
+                                    exit(1);
+                                }
                             }
                         } else if (strcmp(name, "syscall3") == 0) {
                             size_t count = 4;
@@ -546,7 +577,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             for (int i = 0; i < count; i++) {
-                                stack_type_pop(&state->stack);
+                                Type type = stack_type_pop(&state->stack);
+                                if (!is_register_sized(&type)) {
+                                    print_error_stub(&invoke->location);
+                                    printf("Type '");
+                                    print_type_inline(&type);
+                                    printf("' cannot be passed to a syscall\n");
+                                    exit(1);
+                                }
                             }
                         } else if (strcmp(name, "syscall2") == 0) {
                             size_t count = 3;
@@ -557,7 +595,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             for (int i = 0; i < count; i++) {
-                                stack_type_pop(&state->stack);
+                                Type type = stack_type_pop(&state->stack);
+                                if (!is_register_sized(&type)) {
+                                    print_error_stub(&invoke->location);
+                                    printf("Type '");
+                                    print_type_inline(&type);
+                                    printf("' cannot be passed to a syscall\n");
+                                    exit(1);
+                                }
                             }
                         } else if (strcmp(name, "syscall1") == 0) {
                             size_t count = 2;
@@ -568,7 +613,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             for (int i = 0; i < count; i++) {
-                                stack_type_pop(&state->stack);
+                                Type type = stack_type_pop(&state->stack);
+                                if (!is_register_sized(&type)) {
+                                    print_error_stub(&invoke->location);
+                                    printf("Type '");
+                                    print_type_inline(&type);
+                                    printf("' cannot be passed to a syscall\n");
+                                    exit(1);
+                                }
                             }
                         } else if (strcmp(name, "syscall0") == 0) {
                             size_t count = 1;
@@ -579,7 +631,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             for (int i = 0; i < count; i++) {
-                                stack_type_pop(&state->stack);
+                                Type type = stack_type_pop(&state->stack);
+                                if (!is_register_sized(&type)) {
+                                    print_error_stub(&invoke->location);
+                                    printf("Type '");
+                                    print_type_inline(&type);
+                                    printf("' cannot be passed to a syscall\n");
+                                    exit(1);
+                                }
                             }
                         }
 
@@ -702,7 +761,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     retrieve->data.array.added_type = popped;
 
                     Type* u64 = malloc(sizeof(Type));
-                    *u64 = create_internal_type(Type_U64);
+                    *u64 = create_internal_type(Type_USize);
                     state->wanted_type = u64;
                     process_expression(retrieve->data.array.expression_inner, state);
                     Type inner_popped = stack_type_pop(&state->stack);
@@ -880,7 +939,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             if (wanted != NULL && wanted->kind == Type_Internal) {
                 Internal_Type internal = wanted->data.internal;
 
-                if (internal == Type_U64 || internal == Type_U32 || internal == Type_U16 || internal == Type_U8) {
+                if (internal == Type_USize || internal == Type_U64 || internal == Type_U32 || internal == Type_U16 || internal == Type_U8) {
                     found = true;
                 }
             }
@@ -890,7 +949,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 number->type = wanted;
             } else {
                 Type* u64 = malloc(sizeof(Type));
-                *u64 = create_internal_type(Type_U64);
+                *u64 = create_internal_type(Type_USize);
                 stack_type_push(&state->stack, *u64);
                 number->type = u64;
             }
@@ -922,8 +981,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 Internal_Type output_internal = cast->type.data.internal;
                 Internal_Type input_internal = input.data.internal;
 
-                if ((input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
-                        (output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
+                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
+                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
                     is_valid = true;
                 }
             }
