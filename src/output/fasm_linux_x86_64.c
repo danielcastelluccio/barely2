@@ -554,7 +554,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_Subtract:
                     case Operator_Multiply:
                     case Operator_Divide: {
-                        Type u64 = create_basic_single_type("u64");
+                        Type u64 = create_internal_type(Type_U64);
                         Type operator_type = invoke->data.operator.added_type;
 
                         if (is_type(&u64, &operator_type)) {
@@ -585,7 +585,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_GreaterEqual:
                     case Operator_Less:
                     case Operator_LessEqual: {
-                        Type u64 = create_basic_single_type("u64");
+                        Type u64 = create_internal_type(Type_U64);
                         Type operator_type = invoke->data.operator.added_type;
 
                         if (is_type(&u64, &operator_type)) {

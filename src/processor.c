@@ -23,7 +23,7 @@ typedef struct {
     Array_Type current_returns;
     Expression_Node* current_body;
     bool in_reference;
-    Type* wanted_type;
+    Type* wanted_number_type;
 } Process_State;
 
 Definition_Node* resolve_definition(File_Node* file_node, Complex_Name* data) {
@@ -220,12 +220,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     size_t declare_index = 0;
                     for (int i = 0; i < declare->expression->data.multi.expressions.count; i++) {
                         size_t stack_start = state->stack.count;
-                        state->wanted_type = &declare->declarations.elements[declare_index].type;
+                        state->wanted_number_type = &declare->declarations.elements[declare_index].type;
                         process_expression(declare->expression->data.multi.expressions.elements[i], state);
                         declare_index += state->stack.count - stack_start;
                     }
                 } else {
-                    state->wanted_type = &declare->declarations.elements[declare->declarations.count - 1].type;
+                    state->wanted_number_type = &declare->declarations.elements[declare->declarations.count - 1].type;
                     process_expression(declare->expression, state);
                 }
 
@@ -337,12 +337,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                 size_t assign_index = 0;
                 for (int i = 0; i < assign->expression->data.multi.expressions.count; i++) {
                     size_t stack_start = state->stack.count;
-                    state->wanted_type = wanted_types.elements[assign_index];
+                    state->wanted_number_type = wanted_types.elements[assign_index];
                     process_expression(assign->expression->data.multi.expressions.elements[i], state);
                     assign_index += state->stack.count - stack_start;
                 }
             } else {
-                state->wanted_type = wanted_types.elements[wanted_types.count - 1];
+                state->wanted_number_type = wanted_types.elements[wanted_types.count - 1];
                 process_expression(assign->expression, state);
             }
 
@@ -359,7 +359,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 
                     Type* u64 = malloc(sizeof(Type));
                     *u64 = create_internal_type(Type_U64);
-                    state->wanted_type = u64;
+                    state->wanted_number_type = u64;
 
                     process_expression(assign_part->data.array.expression_inner, state);
 
@@ -510,7 +510,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         for (size_t i = 0; i < invoke->arguments.count; i++) {
                             Type* u64 = malloc(sizeof(Type));
                             *u64 = create_internal_type(Type_USize);
-                            state->wanted_type = u64;
+                            state->wanted_number_type = u64;
                             process_expression(invoke->arguments.elements[i], state);
                         }
 
@@ -660,7 +660,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     size_t arg_index = 0;
                     for (size_t i = 0; i < invoke->arguments.count; i++) {
                         size_t stack_start = state->stack.count;
-                        state->wanted_type = procedure_type->arguments.elements[arg_index];
+                        state->wanted_number_type = procedure_type->arguments.elements[arg_index];
                         process_expression(invoke->arguments.elements[i], state);
                         arg_index += state->stack.count - stack_start;
                     }
@@ -691,8 +691,25 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             } else if (invoke->kind == Invoke_Operator) {
                 Operator operator = invoke->data.operator.operator;
 
-                for (size_t i = 0; i < invoke->arguments.count; i++) {
-                    process_expression(invoke->arguments.elements[i], state);
+                if (operator == Operator_Add ||
+                        operator == Operator_Subtract ||
+                        operator == Operator_Multiply ||
+                        operator == Operator_Divide ||
+                        operator == Operator_Equal ||
+                        operator == Operator_NotEqual ||
+                        operator == Operator_Greater ||
+                        operator == Operator_GreaterEqual ||
+                        operator == Operator_Less ||
+                        operator == Operator_LessEqual) {
+                    bool reversed = invoke->arguments.elements[0]->kind == Expression_Number;
+
+                    process_expression(invoke->arguments.elements[reversed ? 1 : 0], state);
+
+                    Type* wanted_allocated = malloc(sizeof(Type));
+                    *wanted_allocated = state->stack.elements[state->stack.count - 1];
+                    state->wanted_number_type = wanted_allocated;
+
+                    process_expression(invoke->arguments.elements[reversed ? 0 : 1], state);
                 }
 
                 if (operator == Operator_Add ||
@@ -762,7 +779,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                     Type* u64 = malloc(sizeof(Type));
                     *u64 = create_internal_type(Type_USize);
-                    state->wanted_type = u64;
+                    state->wanted_number_type = u64;
                     process_expression(retrieve->data.array.expression_inner, state);
                     Type inner_popped = stack_type_pop(&state->stack);
                     // TODO: probably not what I want
@@ -933,7 +950,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
         }
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
-            Type* wanted = state->wanted_type;
+            Type* wanted = state->wanted_number_type;
 
             bool found = false;
             if (wanted != NULL && wanted->kind == Type_Internal) {
