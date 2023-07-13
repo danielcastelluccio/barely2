@@ -466,6 +466,14 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             result.data.reference = node;
             break;
         }
+        case Token_LeftParenthesis: {
+            consume(tokens, &index);
+
+            result = parse_expression(tokens, &index);
+
+            consume_check(tokens, &index, Token_RightParenthesis);
+            break;
+        }
         default: {
             printf("Error: Unexpected token ");
             print_token(&tokens->elements[index], false);
