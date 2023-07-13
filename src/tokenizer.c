@@ -281,6 +281,12 @@ Tokens tokenize(char* file, char* contents) {
                     col++;
                     i++;
                     break;
+                case '%':
+                    check_append_string_token(&tokens, &buffer, file, &row, &col);
+                    tokens_append(&tokens, (Token) { Token_Percent, 0, LOCATION(file, row, col) });
+                    col++;
+                    i++;
+                    break;
                 case '&':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     tokens_append(&tokens, (Token) { Token_Ampersand, 0, LOCATION(file, row, col) });

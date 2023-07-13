@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "parser.h"
 #include "tokenizer.h"
@@ -319,7 +320,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         case Token_Number: {
             Number_Node node;
 
-            int value = atoi(consume_number(tokens, &index));
+            size_t value = strtoul(consume_number(tokens, &index), NULL, 0);
             node.value = value;
 
             result.kind = Expression_Number;
@@ -569,6 +570,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 peek(tokens, index) == Token_Minus ||
                 peek(tokens, index) == Token_Asterisk ||
                 peek(tokens, index) == Token_Slash ||
+                peek(tokens, index) == Token_Percent ||
                 peek(tokens, index) == Token_DoubleEquals ||
                 peek(tokens, index) == Token_ExclamationEquals ||
                 peek(tokens, index) == Token_GreaterThan ||
@@ -593,6 +595,9 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                     break;
                 case Token_Slash:
                     operator = Operator_Divide;
+                    break;
+                case Token_Percent:
+                    operator = Operator_Modulus;
                     break;
                 case Token_DoubleEquals:
                     operator = Operator_Equal;

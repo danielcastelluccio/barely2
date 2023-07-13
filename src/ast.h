@@ -84,7 +84,7 @@ typedef struct {
 } Block_Node;
 
 typedef struct {
-    int value;
+    size_t value;
     Type* type;
 } Number_Node;
 
@@ -109,6 +109,7 @@ struct If_Node {
 typedef struct {
     Expression_Node* condition;
     Expression_Node* inside;
+    Location location;
 } While_Node;
 
 typedef enum {
@@ -116,6 +117,7 @@ typedef enum {
     Operator_Subtract,
     Operator_Multiply,
     Operator_Divide,
+    Operator_Modulus,
     Operator_Equal,
     Operator_NotEqual,
     Operator_Greater,

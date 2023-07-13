@@ -119,6 +119,12 @@ size_t collect_expression_locals_size(Expression_Node* expression, Output_State*
             }
             return size;
         }
+        case Expression_If: {
+            return collect_expression_locals_size(expression->data.if_.inside, state);
+        }
+        case Expression_While: {
+            return collect_expression_locals_size(expression->data.while_.inside, state);
+        }
     }
     return 0;
 }
@@ -553,11 +559,14 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_Add:
                     case Operator_Subtract:
                     case Operator_Multiply:
-                    case Operator_Divide: {
+                    case Operator_Divide:
+                    case Operator_Modulus: {
+                        Type u8 = create_internal_type(Type_U8);
                         Type u64 = create_internal_type(Type_U64);
+                        Type usize = create_internal_type(Type_USize);
                         Type operator_type = invoke->data.operator.added_type;
 
-                        if (is_type(&u64, &operator_type)) {
+                        if (is_type(&u64, &operator_type) || is_type(&usize, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
                             stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                             switch (invoke->data.operator.operator) {
@@ -571,10 +580,42 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     stringbuffer_appendstring(&state->instructions, "  mul rbx\n");
                                     break;
                                 case Operator_Divide:
+                                    stringbuffer_appendstring(&state->instructions, "  xor rdx, rdx\n");
                                     stringbuffer_appendstring(&state->instructions, "  div rbx\n");
+                                    break;
+                                case Operator_Modulus:
+                                    stringbuffer_appendstring(&state->instructions, "  xor rdx, rdx\n");
+                                    stringbuffer_appendstring(&state->instructions, "  div rbx\n");
+                                    stringbuffer_appendstring(&state->instructions, "  mov rax, rdx\n");
                                     break;
                             }
                             stringbuffer_appendstring(&state->instructions, "  push rax\n");
+                        } else if (is_type(&u8, &operator_type)) {
+                            stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
+                            stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");
+                            switch (invoke->data.operator.operator) {
+                                case Operator_Add:
+                                    stringbuffer_appendstring(&state->instructions, "  add al, bl\n");
+                                    break;
+                                case Operator_Subtract:
+                                    stringbuffer_appendstring(&state->instructions, "  sub al, bl\n");
+                                    break;
+                                case Operator_Multiply:
+                                    stringbuffer_appendstring(&state->instructions, "  mul bl\n");
+                                    break;
+                                case Operator_Divide:
+                                    stringbuffer_appendstring(&state->instructions, "  xor dl, dl\n");
+                                    stringbuffer_appendstring(&state->instructions, "  div bl\n");
+                                    break;
+                                case Operator_Modulus:
+                                    stringbuffer_appendstring(&state->instructions, "  xor dl, dl\n");
+                                    stringbuffer_appendstring(&state->instructions, "  div bl\n");
+                                    stringbuffer_appendstring(&state->instructions, "  mov al, dl\n");
+                                    break;
+                            }
+                            stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
                         }
                         
                         break;
@@ -938,22 +979,59 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             stringbuffer_appendstring(&state->instructions, buffer);
             break;
         }
+        case Expression_While: {
+            size_t end = state->flow_index;
+            state->flow_index++;
+
+            size_t start = state->flow_index;
+            state->flow_index++;
+
+            While_Node* node = &expression->data.while_;
+            char buffer[128] = {};
+            sprintf(buffer, "  __%i:\n", start);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            output_expression_fasm_linux_x86_64(node->condition, state);
+
+            stringbuffer_appendstring(&state->instructions, "  mov rbx, 1\n");
+            stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
+            stringbuffer_appendstring(&state->instructions, "  mov al, [rsp]\n");
+            stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
+            stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  jne __%i\n", end);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            output_expression_fasm_linux_x86_64(node->inside, state);
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  jmp __%i\n", start);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  __%i:\n", end);
+            stringbuffer_appendstring(&state->instructions, buffer);
+            break;
+        }
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
             Internal_Type type = number->type->data.internal;
             if (type == Type_U64 || type == Type_USize) {
+                stringbuffer_appendstring(&state->instructions, "  sub rsp, 8\n");
                 char buffer[128] = {};
-                sprintf(buffer, "  push %i\n", number->value);
+                sprintf(buffer, "  mov rax, %zu\n", number->value);
                 stringbuffer_appendstring(&state->instructions, buffer);
+                stringbuffer_appendstring(&state->instructions, "  mov [rsp], rax\n");
             } else if (type == Type_U32) {
                 stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
                 char buffer[128] = {};
-                sprintf(buffer, "  mov dword [rsp], %i\n", number->value);
+                sprintf(buffer, "  mov dword [rsp], %zu\n", number->value);
                 stringbuffer_appendstring(&state->instructions, buffer);
             } else if (type == Type_U8) {
-                stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
+                stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                 char buffer[128] = {};
-                sprintf(buffer, "  mov byte [rsp], %i\n", number->value);
+                sprintf(buffer, "  mov byte [rsp], %zu\n", number->value);
                 stringbuffer_appendstring(&state->instructions, buffer);
             }
             break;

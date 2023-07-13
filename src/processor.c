@@ -695,6 +695,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         operator == Operator_Subtract ||
                         operator == Operator_Multiply ||
                         operator == Operator_Divide ||
+                        operator == Operator_Modulus ||
                         operator == Operator_Equal ||
                         operator == Operator_NotEqual ||
                         operator == Operator_Greater ||
@@ -715,7 +716,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 if (operator == Operator_Add ||
                         operator == Operator_Subtract ||
                         operator == Operator_Multiply ||
-                        operator == Operator_Divide) {
+                        operator == Operator_Divide ||
+                        operator == Operator_Modulus) {
                     Type first = stack_type_pop(&state->stack);
                     Type second = stack_type_pop(&state->stack);
 
@@ -946,6 +948,29 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                 node = node->next;
             }
+            break;
+        }
+        case Expression_While: {
+            While_Node* node = &expression->data.while_;
+            process_expression(node->condition, state);
+
+            if (state->stack.count == 0) {
+                print_error_stub(&node->location);
+                printf("Ran out of values for if\n");
+                exit(1);
+            }
+
+            Type given = stack_type_pop(&state->stack);
+            Type bool_type = create_basic_single_type("bool");
+            if (!is_type(&bool_type, &given)) {
+                print_error_stub(&node->location);
+                printf("Type '");
+                print_type_inline(&given);
+                printf("' is not a boolean\n");
+                exit(1);
+            }
+
+            process_expression(node->inside, state);
             break;
         }
         case Expression_Number: {
