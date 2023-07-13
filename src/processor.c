@@ -15,10 +15,13 @@ Type stack_type_pop(Stack_Type* stack) {
     return result;
 }
 
+Dynamic_Array_Impl(size_t, Array_Size, array_size_)
+
 typedef struct {
     Generic_State generic;
     Stack_Type stack;
     Array_Declaration current_declares;
+    Array_Size scoped_declares;
     Array_Declaration current_arguments;
     Array_Type current_returns;
     Expression_Node* current_body;
@@ -479,9 +482,12 @@ void process_expression(Expression_Node* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
             Block_Node* block = &expression->data.block;
+            array_size_append(&state->scoped_declares, state->current_declares.count);
             for (size_t i = 0; i < block->statements.count; i++) {
                 process_statement(block->statements.elements[i], state);
             }
+            state->current_declares.count = state->scoped_declares.elements[state->scoped_declares.count - 1];
+            state->scoped_declares.count--;
             break;
         }
         case Expression_Multi: {
@@ -802,7 +808,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 if (retrieve->kind == Complex_Single) {
                     if (retrieve->data.single.expression == NULL) {
                         Type variable_type;
-                        for (size_t i = 0; i < state->current_declares.count; i++) {
+                        for (int i = state->current_declares.count - 1; i >= 0; i--) {
                             Declaration* declaration = &state->current_declares.elements[i];
                             if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
                                 variable_type = declaration->type;

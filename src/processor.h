@@ -8,6 +8,7 @@ typedef struct {
 } Generic_State;
 
 Dynamic_Array_Def(Type, Stack_Type, stack_type_)
+Dynamic_Array_Def(size_t, Array_Size, array_size_)
 
 Definition_Node* resolve_definition(File_Node* file_node, Complex_Name* data);
 bool is_type(Type* wanted, Type* given);

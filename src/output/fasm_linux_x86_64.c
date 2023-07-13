@@ -10,6 +10,7 @@ typedef struct {
     size_t string_index;
     size_t flow_index;
     Array_Declaration current_declares;
+    Array_Size scoped_declares;
     Array_Declaration current_arguments;
     Array_Type current_returns;
     Expression_Node* current_body;
@@ -72,6 +73,7 @@ size_t get_size(Type* type, Generic_State* state) {
             Internal_Type* internal = &type->data.internal;
 
             switch (*internal) {
+                case Type_USize:
                 case Type_U64:
                     return 8;
                 case Type_U32:
@@ -470,10 +472,13 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
+            array_size_append(&state->scoped_declares, state->current_declares.count);
             Block_Node* block = &expression->data.block;
             for (size_t i = 0; i < block->statements.count; i++) {
                 output_statement_fasm_linux_x86_64(block->statements.elements[i], state);
             }
+            state->current_declares.count = state->scoped_declares.elements[state->scoped_declares.count - 1];
+            state->scoped_declares.count--;
             break;
         }
         case Expression_Multi: {
@@ -812,15 +817,18 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 if (retrieve->kind == Complex_Single) {
                     size_t location = 8;
                     size_t size = 0;
-                    for (size_t i = 0; i < state->current_declares.count; i++) {
+                    for (int i = state->current_declares.count - 1; i >= 0; i--) {
                         Declaration* declaration = &state->current_declares.elements[i];
                         size_t declaration_size = get_size(&declaration->type, &state->generic);
+
+                        if (found) {
+                            location += declaration_size;
+                        }
+
                         if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
                             size = declaration_size;
                             found = true;
-                            break;
                         }
-                        location += declaration_size;
                     }
 
                     if (found) {
