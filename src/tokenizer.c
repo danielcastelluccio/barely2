@@ -25,6 +25,8 @@ bool is_keyword(char* buffer) {
         return true;
     } else if (strcmp(buffer, "return") == 0) {
         return true;
+    } else if (strcmp(buffer, "cast") == 0) {
+        return true;
     }
 
     return false;

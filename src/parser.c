@@ -424,6 +424,24 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
 
                 result.kind = Expression_While;
                 result.data.while_ = node;
+            } else if (strcmp(name, "cast") == 0) {
+                Cast_Node node;
+
+                consume_check(tokens, &index, Token_LeftParenthesis);
+
+                Type type = parse_type(tokens, &index);
+                node.type = type;
+
+                consume_check(tokens, &index, Token_RightParenthesis);
+                
+                Expression_Node inner = parse_expression(tokens, &index);
+                Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
+                *inner_allocated = inner;
+                node.expression = inner_allocated;
+
+                result.kind = Expression_Cast;
+                result.data.cast = node;
+                break;
             } else {
                 printf("Error: Unexpected token ");
                 print_token(&tokens->elements[index - 1], false);

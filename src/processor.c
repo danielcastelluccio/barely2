@@ -16,7 +16,7 @@ Type stack_type_pop(Stack_Type* stack) {
 }
 
 typedef struct {
-    File_Node* file_node;
+    Generic_State generic;
     Stack_Type stack;
     Array_Declaration current_declares;
     Array_Declaration current_arguments;
@@ -315,7 +315,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
+                            Definition_Node* definition = resolve_definition(state->generic.file_node, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -768,7 +768,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
+                            Definition_Node* definition = resolve_definition(state->generic.file_node, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -803,7 +803,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found) {
-                Definition_Node* definition = resolve_definition(state->file_node, retrieve);
+                Definition_Node* definition = resolve_definition(state->generic.file_node, retrieve);
                 if (definition != NULL) {
                     found = true;
                     switch (definition->kind) {
@@ -909,6 +909,38 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             state->in_reference = true;
 
             process_expression(reference->inner, state);
+            break;
+        }
+        case Expression_Cast: {
+            Cast_Node* cast = &expression->data.cast;
+
+            process_expression(cast->expression, state);
+            Type input = stack_type_pop(&state->stack);
+
+            bool is_valid = false;
+            if (cast->type.kind == Type_Internal && input.kind == Type_Internal) {
+                Internal_Type output_internal = cast->type.data.internal;
+                Internal_Type input_internal = input.data.internal;
+
+                if ((input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
+                        (output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
+                    is_valid = true;
+                }
+            }
+
+            if (!is_valid) {
+                print_error_stub(&cast->location);
+                printf("Type '");
+                print_type_inline(&input);
+                printf("' cast to type '");
+                print_type_inline(&cast->type);
+                printf("'\n");
+                exit(1);
+            }
+
+            cast->added_type = input;
+
+            stack_type_append(&state->stack, cast->type);
             break;
         }
         default:

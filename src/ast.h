@@ -174,6 +174,13 @@ typedef struct {
     Expression_Node* inner;
 } Reference_Node;
 
+typedef struct {
+    Type type;
+    Expression_Node* expression;
+    Type added_type;
+    Location location;
+} Cast_Node;
+
 struct Expression_Node {
     enum {
         Expression_Block,
@@ -186,6 +193,7 @@ struct Expression_Node {
         Expression_Multi,
         Expression_Reference,
         Expression_Boolean,
+        Expression_Cast,
     } kind;
     union {
         Block_Node block;
@@ -198,6 +206,7 @@ struct Expression_Node {
         Multi_Expression_Node multi;
         Reference_Node reference;
         Boolean_Node boolean;
+        Cast_Node cast;
     } data;
 };
 
