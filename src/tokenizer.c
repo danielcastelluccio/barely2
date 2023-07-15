@@ -153,12 +153,18 @@ Tokens tokenize(char* file, char* contents) {
     size_t cached_i = 0;
 
     bool in_string = false;
+    bool in_comment = false;
     size_t length = strlen(contents);
     size_t i = 0;
     while (i < length) {
         char character = contents[i];
 
-        if (in_string) {
+        if (in_comment) {
+            if (character == '\n') {
+                in_comment = false;
+            }
+            i++;
+        } else if (in_string) {
             switch (character) {
                 case '"':
                     tokens_append(&tokens, (Token) { Token_String, copy_string(buffer.elements), LOCATION(file, row, col) });
@@ -279,9 +285,13 @@ Tokens tokenize(char* file, char* contents) {
                     break;
                 case '/':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Slash, 0, LOCATION(file, row, col) });
-                    col++;
-                    i++;
+                    if (contents[i + 1] == '/') {
+                        in_comment = true;
+                        i += 2;
+                    } else {
+                        tokens_append(&tokens, (Token) { Token_Slash, 0, LOCATION(file, row, col) });
+                        i++;
+                    }
                     break;
                 case '%':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
