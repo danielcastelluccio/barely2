@@ -288,17 +288,23 @@ typedef struct {
     Array_Definition_Node definitions;
 } Module_Node;
 
+typedef struct {
+    Type type;
+} Global_Node;
+
 struct Definition_Node {
     char* name;
     enum {
         Definition_Procedure,
         Definition_Type,
         Definition_Module,
+        Definition_Global,
     } kind;
     union {
         Procedure_Node procedure;
         Type_Node type;
         Module_Node module;
+        Global_Node global;
     } data;
 };
 

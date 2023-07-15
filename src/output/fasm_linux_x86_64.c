@@ -7,6 +7,7 @@ typedef struct {
     Generic_State generic;
     String_Buffer instructions;
     String_Buffer data;
+    String_Buffer bss;
     size_t string_index;
     size_t flow_index;
     Array_Declaration current_declares;
@@ -385,6 +386,56 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         char buffer[128] = {};
                         sprintf(buffer, "  add rsp, %i\n", size);
                         stringbuffer_appendstring(&state->instructions, buffer);
+                    }
+                }
+
+                if (!found && assign_part->kind == Complex_Single) {
+                    Definition_Node* definition = resolve_definition(state->generic.file_node, assign_part);
+
+                    if (definition != NULL) {
+                        switch (definition->kind) {
+                            case Definition_Global: {
+                                Global_Node* global = &definition->data.global;
+                                size_t size = get_size(&global->type, &state->generic);
+
+                                size_t i = 0;
+                                while (i < size) {
+                                    if (size - i >= 8) {
+                                        char buffer[128] = {};
+                                        sprintf(buffer, "  mov rax, [rsp+%i]\n", i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        memset(buffer, 0, 128);
+
+                                        sprintf(buffer, "  mov [%s+%i], rax\n", definition->name, i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        i += 8;
+                                    } else if (size - i >= 1) {
+                                        char buffer[128] = {};
+                                        sprintf(buffer, "  mov al, [rsp+%i]\n", i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        memset(buffer, 0, 128);
+
+                                        sprintf(buffer, "  mov [%s+%i], al\n", definition->name, i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        i += 1;
+                                    }
+                                }
+
+                                char buffer[128] = {};
+                                sprintf(buffer, "  add rsp, %i\n", size);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+                                    
+                                found = true;
+                                break;
+                            }
+                            default:
+                                printf("Unhandled assign to definition!\n");
+                                exit(1);
+                        }
                     }
                 }
             }
@@ -935,6 +986,50 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             sprintf(buffer, "  push %s\n", definition->name);
                             stringbuffer_appendstring(&state->instructions, buffer);
                             break;
+                        case Definition_Global:
+                            Global_Node* global = &definition->data.global;
+                            if (state->in_reference) {
+                                char buffer[128] = {};
+                                sprintf(buffer, "  lea rax, [%s]\n", definition->name);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+                                stringbuffer_appendstring(&state->instructions, "  push rax\n");
+
+                                state->in_reference = false;
+                            } else {
+                                size_t size = get_size(&global->type, &state->generic);
+
+                                char buffer[128] = {};
+                                sprintf(buffer, "  sub rsp, %i\n", size);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+                                    
+                                size_t i = 0;
+                                while (i < size) {
+                                    if (size - i >= 8) {
+                                        char buffer[128] = {};
+                                        sprintf(buffer, "  mov rax, [%s+%i]\n", definition->name, i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        memset(buffer, 0, 128);
+
+                                        sprintf(buffer, "  mov [rsp+%i], rax\n", i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        i += 8;
+                                    } else if (size - i >= 1) {
+                                        char buffer[128] = {};
+                                        sprintf(buffer, "  mov al, [%s+%i]\n", definition->name, i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        memset(buffer, 0, 128);
+
+                                        sprintf(buffer, "  mov [rsp+%i], al\n", i);
+                                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                                        i += 1;
+                                    }
+                                }
+                            }
+                            break;
                         default:
                             printf("Unhandled definition retrieve!\n");
                             exit(1);
@@ -1152,6 +1247,14 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
         }
         case Definition_Type:
             break;
+        case Definition_Global:
+            Global_Node* global = &definition->data.global;
+            size_t size = get_size(&global->type, &state->generic);
+
+            char buffer[128] = {};
+            sprintf(buffer, "  %s: rb %i\n", definition->name, size);
+            stringbuffer_appendstring(&state->bss, buffer);
+            break;
         default:
             printf("Unhandled definition_type!\n");
             exit(1);
@@ -1190,6 +1293,9 @@ void output_fasm_linux_x86_64(File_Node file_node, char* output_file) {
 
     fprintf(file, "segment readable\n");
     fwrite(state.data.elements, state.data.count, 1, file);
+
+    fprintf(file, "segment readable writable\n");
+    fwrite(state.bss.elements, state.bss.count, 1, file);
 
     fclose(file);
 }

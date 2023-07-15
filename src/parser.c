@@ -809,6 +809,19 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
 
         result.kind = Definition_Module;
         result.data.module = node;
+    } else if (strcmp(keyword, "global") == 0) {
+        Global_Node node;
+
+        char* name = consume_identifier(tokens, &index);
+        result.name = name;
+        consume_check(tokens, &index, Token_Colon);
+
+        node.type = parse_type(tokens, &index);
+
+        consume_check(tokens, &index, Token_Semicolon);
+
+        result.kind = Definition_Global;
+        result.data.global = node;
     } else {
         printf("Error: Unexpected token ");
         print_token(&tokens->elements[index - 1], false);

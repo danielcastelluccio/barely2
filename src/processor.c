@@ -286,12 +286,28 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     if (assign_part->data.single.expression == NULL) {
                         char* name = assign_part->data.single.name;
 
+                        bool found = false;
                         Type* type = malloc(sizeof(Type));
                         for (size_t j = 0; j < state->current_declares.count; j++) {
                             if (strcmp(state->current_declares.elements[j].name, name) == 0) {
                                 *type = state->current_declares.elements[j].type;
+                                found = true;
                                 break;
                             }
+                        }
+
+                        if (!found) {
+                            Definition_Node* definition = resolve_definition(state->generic.file_node, assign_part);
+                            if (definition != NULL) {
+                                *type = definition->data.global.type;
+                                found = true;
+                            }
+                        }
+
+                        if (!found) {
+                            print_error_stub(&assign_part->location);
+                            printf("Assign not found\n");
+                            exit(1);
                         }
 
                         array_type_append(&wanted_types, type);
@@ -417,18 +433,13 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                             exit(1);
                         }
                     } else {
-                        process_expression(assign_part->data.single.expression, state);
-                        Type popped = stack_type_pop(&state->stack);
-
-                        assign_part->data.single.added_type = popped;
-
                         Type* type = wanted_types.elements[assign->parts.count - i - 1];
 
                         Type right_side_popped = stack_type_pop(&state->stack);
                         if (!is_type(type, &right_side_popped)) {
                             print_error_stub(&assign_part->location);
                             printf("Type '");
-                            print_type_inline(&popped);
+                            print_type_inline(&right_side_popped);
                             printf("' is not assignable to item of type '");
                             print_type_inline(type);
                             printf("'\n");
@@ -912,6 +923,16 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             type.data.procedure = procedure_type;
                             stack_type_push(&state->stack, type);
                             break;
+                        case Definition_Global:
+                            Global_Node* global = &definition->data.global;
+                            
+                            if (state->in_reference) {
+                                stack_type_push(&state->stack, create_pointer_type(global->type));
+                                state->in_reference = false;
+                            } else {
+                                stack_type_push(&state->stack, global->type);
+                            }
+                            break;
                         default:
                             printf("Unhandled definition retrieve!\n");
                             exit(1);
@@ -1069,6 +1090,8 @@ void process_definition(Definition_Node* definition, Process_State* state) {
             break;
         }
         case Definition_Type:
+            break;
+        case Definition_Global:
             break;
         default:
             printf("Unhandled definition_type!\n");
