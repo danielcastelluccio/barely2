@@ -310,23 +310,23 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         while (i < size) {
                             if (size - i >= 8) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov rbx, [rsp+%i]\n", location + i);
+                                sprintf(buffer, "  mov rbx, [rsp+%i]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rax+%i], rbx\n", i);
+                                sprintf(buffer, "  mov [rax+%i], rbx\n", location + i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 8;
                             } else if (size - i >= 1) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov bl, [rsp+%i]\n", location + i);
+                                sprintf(buffer, "  mov bl, [rsp+%i]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rax+%i], bl\n", i);
+                                sprintf(buffer, "  mov [rax+%i], bl\n", location + i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 1;
@@ -950,7 +950,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         while (i < size) {
                             if (size - i >= 8) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov rax, [rbp+%i]\n", location + size - i);
+                                sprintf(buffer, "  mov rax, [rbp+%i]\n", location + i + 8);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
@@ -961,7 +961,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 i += 8;
                             } else if (size - i >= 1) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov al, [rbp+%i]\n", location + size - i);
+                                sprintf(buffer, "  mov al, [rbp+%i]\n", location + i + 8);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
