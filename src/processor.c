@@ -92,6 +92,17 @@ Type create_pointer_type(Type child) {
 }
 
 bool is_type(Type* wanted, Type* given) {
+    if (wanted->kind == Type_RegisterSize || given->kind == Type_RegisterSize) {
+        Type* to_check;
+        if (wanted->kind == Type_RegisterSize) to_check = given;
+        if (given->kind == Type_RegisterSize) to_check = wanted;
+
+        if (to_check->kind == Type_Pointer) return true;
+        if (to_check->kind == Type_Internal && to_check->data.internal == Type_USize) return true;
+
+        return false;
+    }
+
     if (wanted->kind != given->kind) {
         return false;
     }
@@ -198,6 +209,11 @@ void print_type_inline(Type* type) {
                     printf("u8");
                     break;
             }
+            break;
+        }
+        case Type_RegisterSize: {
+            Internal_Type* internal = &type->data.internal;
+            printf("size");
             break;
         }
     }
@@ -483,10 +499,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 }
 
 bool is_register_sized(Type* type) {
-    if (type->kind == Type_Pointer) return true;
-    if (type->kind == Type_Internal && type->data.internal == Type_USize) return true;
+    Type register_type = (Type) { Type_RegisterSize };
+    return is_type(&register_type, type);
+    //if (type->kind == Type_Pointer) return true;
+    //if (type->kind == Type_Internal && type->data.internal == Type_USize) return true;
 
-    return false;
+    //return false;
 }
 
 void process_expression(Expression_Node* expression, Process_State* state) {
@@ -549,6 +567,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     exit(1);
                                 }
                             }
+
+                            stack_type_push(&state->stack, (Type) { Type_RegisterSize });
                         } else if (strcmp(name, "syscall5") == 0) {
                             size_t count = 6;
                             if (state->stack.count < count) {
@@ -567,6 +587,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     exit(1);
                                 }
                             }
+
+                            stack_type_push(&state->stack, (Type) { Type_RegisterSize });
                         } else if (strcmp(name, "syscall4") == 0) {
                             size_t count = 5;
                             if (state->stack.count < count) {
@@ -585,6 +607,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     exit(1);
                                 }
                             }
+
+                            stack_type_push(&state->stack, (Type) { Type_RegisterSize });
                         } else if (strcmp(name, "syscall3") == 0) {
                             size_t count = 4;
                             if (state->stack.count < count) {
@@ -603,6 +627,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     exit(1);
                                 }
                             }
+
+                            stack_type_push(&state->stack, (Type) { Type_RegisterSize });
                         } else if (strcmp(name, "syscall2") == 0) {
                             size_t count = 3;
                             if (state->stack.count < count) {
@@ -621,6 +647,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     exit(1);
                                 }
                             }
+
+                            stack_type_push(&state->stack, (Type) { Type_RegisterSize });
                         } else if (strcmp(name, "syscall1") == 0) {
                             size_t count = 2;
                             if (state->stack.count < count) {
@@ -639,6 +667,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     exit(1);
                                 }
                             }
+
+                            stack_type_push(&state->stack, (Type) { Type_RegisterSize });
                         } else if (strcmp(name, "syscall0") == 0) {
                             size_t count = 1;
                             if (state->stack.count < count) {
@@ -657,6 +687,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     exit(1);
                                 }
                             }
+
+                            stack_type_push(&state->stack, (Type) { Type_RegisterSize });
                         }
 
                         handled = true;

@@ -561,6 +561,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         handled = true;
                     } else if (strcmp(name, "syscall5") == 0) {
                         stringbuffer_appendstring(&state->instructions, "  pop r8\n");
@@ -570,6 +571,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         handled = true;
                     } else if (strcmp(name, "syscall4") == 0) {
                         stringbuffer_appendstring(&state->instructions, "  pop r10\n");
@@ -578,6 +580,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         handled = true;
                     } else if (strcmp(name, "syscall3") == 0) {
                         stringbuffer_appendstring(&state->instructions, "  pop rdx\n");
@@ -585,21 +588,25 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         handled = true;
                     } else if (strcmp(name, "syscall2") == 0) {
                         stringbuffer_appendstring(&state->instructions, "  pop rsi\n");
                         stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         handled = true;
                     } else if (strcmp(name, "syscall1") == 0) {
                         stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         handled = true;
                     } else if (strcmp(name, "syscall0") == 0) {
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         handled = true;
                     }
                 }

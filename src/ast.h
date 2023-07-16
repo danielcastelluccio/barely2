@@ -52,7 +52,8 @@ struct Type {
         Type_Pointer,
         Type_Procedure,
         Type_Array,
-        Type_Internal
+        Type_Internal,
+        Type_RegisterSize,
     } kind;
     union {
         Basic_Type basic;
