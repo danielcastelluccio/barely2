@@ -501,10 +501,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 bool is_register_sized(Type* type) {
     Type register_type = (Type) { Type_RegisterSize };
     return is_type(&register_type, type);
-    //if (type->kind == Type_Pointer) return true;
-    //if (type->kind == Type_Internal && type->data.internal == Type_USize) return true;
+}
 
-    //return false;
+bool is_like_number_literal(Expression_Node* expression) {
+    if (expression->kind == Expression_Number) return true;
+    if (expression->kind == Expression_SizeOf) return true;
+    return false;
 }
 
 void process_expression(Expression_Node* expression, Process_State* state) {
@@ -751,7 +753,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         operator == Operator_GreaterEqual ||
                         operator == Operator_Less ||
                         operator == Operator_LessEqual) {
-                    bool reversed = invoke->arguments.elements[0]->kind == Expression_Number;
+                    bool reversed = is_like_number_literal(invoke->arguments.elements[0]);
 
                     process_expression(invoke->arguments.elements[reversed ? 1 : 0], state);
 
@@ -1101,6 +1103,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             cast->added_type = input;
 
             stack_type_append(&state->stack, cast->type);
+            break;
+        }
+        case Expression_SizeOf: {
+            SizeOf_Node* size_of = &expression->data.size_of;
+            Type* wanted_type = state->wanted_number_type;
+            size_of->added_type = *wanted_type;
+
+            stack_type_append(&state->stack, *wanted_type);
             break;
         }
         default:

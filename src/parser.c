@@ -445,6 +445,19 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 result.kind = Expression_Cast;
                 result.data.cast = node;
                 break;
+            } else if (strcmp(name, "sizeof") == 0) {
+                SizeOf_Node node;
+
+                consume_check(tokens, &index, Token_LeftParenthesis);
+
+                Type type = parse_type(tokens, &index);
+                node.type = type;
+
+                consume_check(tokens, &index, Token_RightParenthesis);
+
+                result.kind = Expression_SizeOf;
+                result.data.size_of = node;
+                break;
             } else {
                 printf("Error: Unexpected token ");
                 print_token(&tokens->elements[index - 1], false);

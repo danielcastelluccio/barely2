@@ -185,6 +185,12 @@ typedef struct {
     Location location;
 } Cast_Node;
 
+typedef struct {
+    Type type;
+    Type added_type;
+    Location location;
+} SizeOf_Node;
+
 struct Expression_Node {
     enum {
         Expression_Block,
@@ -198,6 +204,7 @@ struct Expression_Node {
         Expression_Reference,
         Expression_Boolean,
         Expression_Cast,
+        Expression_SizeOf,
     } kind;
     union {
         Block_Node block;
@@ -211,6 +218,7 @@ struct Expression_Node {
         Reference_Node reference;
         Boolean_Node boolean;
         Cast_Node cast;
+        SizeOf_Node size_of;
     } data;
 };
 

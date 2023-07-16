@@ -520,6 +520,26 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
     }
 }
 
+void output_unsigned_integer(Internal_Type type, size_t value, Output_State* state) {
+    if (type == Type_U64 || type == Type_USize) {
+        stringbuffer_appendstring(&state->instructions, "  sub rsp, 8\n");
+        char buffer[128] = {};
+        sprintf(buffer, "  mov rax, %zu\n", value);
+        stringbuffer_appendstring(&state->instructions, buffer);
+        stringbuffer_appendstring(&state->instructions, "  mov [rsp], rax\n");
+    } else if (type == Type_U32) {
+        stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
+        char buffer[128] = {};
+        sprintf(buffer, "  mov dword [rsp], %zu\n", value);
+        stringbuffer_appendstring(&state->instructions, buffer);
+    } else if (type == Type_U8) {
+        stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+        char buffer[128] = {};
+        sprintf(buffer, "  mov byte [rsp], %zu\n", value);
+        stringbuffer_appendstring(&state->instructions, buffer);
+    }
+}
+
 void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
@@ -1127,23 +1147,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
             Internal_Type type = number->type->data.internal;
-            if (type == Type_U64 || type == Type_USize) {
-                stringbuffer_appendstring(&state->instructions, "  sub rsp, 8\n");
-                char buffer[128] = {};
-                sprintf(buffer, "  mov rax, %zu\n", number->value);
-                stringbuffer_appendstring(&state->instructions, buffer);
-                stringbuffer_appendstring(&state->instructions, "  mov [rsp], rax\n");
-            } else if (type == Type_U32) {
-                stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
-                char buffer[128] = {};
-                sprintf(buffer, "  mov dword [rsp], %zu\n", number->value);
-                stringbuffer_appendstring(&state->instructions, buffer);
-            } else if (type == Type_U8) {
-                stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
-                char buffer[128] = {};
-                sprintf(buffer, "  mov byte [rsp], %zu\n", number->value);
-                stringbuffer_appendstring(&state->instructions, buffer);
-            }
+            output_unsigned_integer(type, number->value, state);
             break;
         }
         case Expression_Boolean: {
@@ -1217,6 +1221,12 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 }
             }
 
+            break;
+        }
+        case Expression_SizeOf: {
+            SizeOf_Node* size_of = &expression->data.size_of;
+
+            output_unsigned_integer(size_of->added_type.data.internal, get_size(&size_of->type, &state->generic), state);
             break;
         }
         default:
