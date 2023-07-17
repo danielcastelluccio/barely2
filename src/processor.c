@@ -469,23 +469,37 @@ void process_statement(Statement_Node* statement, Process_State* state) {
         }
         case Statement_Return: {
             Statement_Return_Node* return_ = &statement->data.return_;
-            process_expression(return_->expression, state);
+            if (return_->expression->kind == Expression_Multi) {
+                size_t declare_index = 0;
+                for (int i = 0; i < return_->expression->data.multi.expressions.count; i++) {
+                    size_t stack_start = state->stack.count;
+                    state->wanted_number_type = state->current_returns.elements[declare_index];
+                    process_expression(return_->expression->data.multi.expressions.elements[i], state);
+                    declare_index += state->stack.count - stack_start;
+                }
+            } else {
+                state->wanted_number_type = state->current_returns.elements[state->current_returns.count - 1];
+                process_expression(return_->expression, state);
+            }
 
-            for (size_t i = 0; i < state->current_returns.count; i++) {
+            for (int i = state->current_returns.count - 1; i >= 0; i--) {
+                Type* type = state->current_returns.elements[i];
+
                 if (state->stack.count == 0) {
+                    // TODO: location
                     print_error_stub(&return_->location);
                     printf("Ran out of values for return\n");
                     exit(1);
                 }
 
-                Type* return_type = state->current_returns.elements[i];
-                Type given = stack_type_pop(&state->stack);
-                if (!is_type(return_type, &given)) {
+                Type popped = stack_type_pop(&state->stack);
+                if (!is_type(type, &popped)) {
+                    // TODO: location
                     print_error_stub(&return_->location);
                     printf("Type '");
-                    print_type_inline(&given);
+                    print_type_inline(&popped);
                     printf("' is not assignable to return of type '");
-                    print_type_inline(return_type);
+                    print_type_inline(type);
                     printf("'\n");
                     exit(1);
                 }
