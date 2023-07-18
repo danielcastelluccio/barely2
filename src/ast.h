@@ -301,6 +301,11 @@ typedef struct {
     Type type;
 } Global_Node;
 
+typedef struct {
+    char* package;
+    char* path;
+} Use_Node;
+
 struct Definition_Node {
     char* name;
     enum {
@@ -308,20 +313,21 @@ struct Definition_Node {
         Definition_Type,
         Definition_Module,
         Definition_Global,
+        Definition_Use,
     } kind;
     union {
         Procedure_Node procedure;
         Type_Node type;
         Module_Node module;
         Global_Node global;
+        Use_Node use;
     } data;
 };
 
 typedef struct {
+    char* path;
     Array_Definition_Node definitions;
 } File_Node;
-
-File_Node parse(Tokens* tokens);
 
 Dynamic_Array_Def(File_Node, Program, program_)
 

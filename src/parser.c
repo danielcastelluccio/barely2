@@ -3,6 +3,7 @@
 
 #include "parser.h"
 #include "tokenizer.h"
+#include "string_util.h"
 
 Token_Kind peek(Tokens* tokens, size_t index) {
     Token* current = &tokens->elements[index];
@@ -835,6 +836,24 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
 
         result.kind = Definition_Global;
         result.data.global = node;
+    } else if (strcmp(keyword, "use") == 0) {
+        Use_Node node = {};
+
+        char* path = consume_string(tokens, &index);
+        if (string_contains(path, ':')) {
+            int index = string_index(path, ':');
+            node.package = string_substring(path, 0, index);
+            node.path = string_substring(path, index + 1, strlen(path));
+        } else {
+            node.path = path;
+        }
+
+        result.name = "";
+
+        consume_check(tokens, &index, Token_Semicolon);
+
+        result.kind = Definition_Use;
+        result.data.use = node;
     } else {
         printf("Error: Unexpected token ");
         print_token(&tokens->elements[index - 1], false);
@@ -846,8 +865,9 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
-File_Node parse(Tokens* tokens) {
+File_Node parse(char* path, Tokens* tokens) {
     File_Node result;
+    result.path = path;
 
     Array_Definition_Node array = array_definition_node_new(32);
     size_t index = 0;

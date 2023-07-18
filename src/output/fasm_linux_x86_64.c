@@ -44,7 +44,7 @@ size_t get_size(Type* type, Generic_State* state) {
                 complex_name.data.multi = basic->data.multi;
                 complex_name.kind = Complex_Multi;
             }
-            Definition_Node* definition = resolve_definition(state->program, &complex_name);
+            Definition_Node* definition = resolve_definition(state, &complex_name);
             if (definition != NULL) {
                 Type_Node* type = &definition->data.type;
                 switch (type->kind) {
@@ -289,7 +289,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->generic.program, &complex_name);
+                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -390,7 +390,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Complex_Single) {
-                    Definition_Node* definition = resolve_definition(state->generic.program, assign_part);
+                    Definition_Node* definition = resolve_definition(&state->generic, assign_part);
 
                     if (definition != NULL) {
                         switch (definition->kind) {
@@ -838,7 +838,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->generic.program, &complex_name);
+                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -1004,7 +1004,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                Definition_Node* definition = resolve_definition(state->generic.program, retrieve);
+                Definition_Node* definition = resolve_definition(&state->generic, retrieve);
                 if (definition != NULL) {
                     found = true;
                     switch (definition->kind) {
@@ -1272,6 +1272,8 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
             sprintf(buffer, "  %s: rb %i\n", definition->name, size);
             stringbuffer_appendstring(&state->bss, buffer);
             break;
+        case Definition_Use:
+            break;
         default:
             printf("Unhandled definition_type!\n");
             exit(1);
@@ -1281,6 +1283,7 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
 void output_fasm_linux_x86_64(Program program, char* output_file) {
     Output_State state = (Output_State) {
         &program,
+        NULL,
         stringbuffer_new(16384),
         stringbuffer_new(16384),
         0,
@@ -1289,6 +1292,7 @@ void output_fasm_linux_x86_64(Program program, char* output_file) {
 
     for (size_t j = 0; j < program.count; j++) {
         File_Node* file_node = &program.elements[j];
+        state.generic.current_file = file_node;
 
         for (size_t i = 0; i < file_node->definitions.count; i++) {
             Definition_Node* definition = &file_node->definitions.elements[i];

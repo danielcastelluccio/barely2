@@ -17,6 +17,8 @@ bool is_keyword(char* buffer) {
         return true;
     } else if (strcmp(buffer, "global") == 0) {
         return true;
+    } else if (strcmp(buffer, "use") == 0) {
+        return true;
     } else if (strcmp(buffer, "var") == 0) {
         return true;
     } else if (strcmp(buffer, "if") == 0) {

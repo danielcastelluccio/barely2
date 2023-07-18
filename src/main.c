@@ -16,7 +16,10 @@ int main(int argc, char** argv) {
         char* contents = read_file_to_string(file_name);
         Tokens tokens = tokenize(file_name, contents);
 
-        program_append(&program, parse(&tokens));
+        char* real_path = malloc(128);
+        realpath(file_name, real_path);
+
+        program_append(&program, parse(real_path, &tokens));
     }
 
     process(&program);
