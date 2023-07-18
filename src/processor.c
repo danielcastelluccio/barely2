@@ -29,12 +29,15 @@ typedef struct {
     Type* wanted_number_type;
 } Process_State;
 
-Definition_Node* resolve_definition(File_Node* file_node, Complex_Name* data) {
-    for (size_t i = 0; i < file_node->definitions.count; i++) {
-        Definition_Node* definition = &file_node->definitions.elements[i];
-        // TODO: support multi retrieves & assigns
-        if (data->kind == Complex_Single && strcmp(definition->name, data->data.single.name) == 0) {
-            return definition;
+Definition_Node* resolve_definition(Program* program, Complex_Name* data) {
+    for (size_t j = 0; j < program->count; j++) {
+        File_Node* file_node = &program->elements[j];
+        for (size_t i = 0; i < file_node->definitions.count; i++) {
+            Definition_Node* definition = &file_node->definitions.elements[i];
+            // TODO: support multi retrieves & assigns
+            if (data->kind == Complex_Single && strcmp(definition->name, data->data.single.name) == 0) {
+                return definition;
+            }
         }
     }
 
@@ -313,7 +316,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         }
 
                         if (!found) {
-                            Definition_Node* definition = resolve_definition(state->generic.file_node, assign_part);
+                            Definition_Node* definition = resolve_definition(state->generic.program, assign_part);
                             if (definition != NULL) {
                                 *type = definition->data.global.type;
                                 found = true;
@@ -353,7 +356,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->generic.file_node, &complex_name);
+                            Definition_Node* definition = resolve_definition(state->generic.program, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -911,7 +914,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->generic.file_node, &complex_name);
+                            Definition_Node* definition = resolve_definition(state->generic.program, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -946,7 +949,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found) {
-                Definition_Node* definition = resolve_definition(state->generic.file_node, retrieve);
+                Definition_Node* definition = resolve_definition(state->generic.program, retrieve);
                 if (definition != NULL) {
                     found = true;
                     switch (definition->kind) {
@@ -1155,14 +1158,18 @@ void process_definition(Definition_Node* definition, Process_State* state) {
     }
 }
 
-void process(File_Node* file_node) {
+void process(Program* program) {
     Process_State state = (Process_State) {
-        file_node,
+        program,
         stack_type_new(8),
     };
 
-    for (size_t i = 0; i < file_node->definitions.count; i++) {
-        Definition_Node* definition = &file_node->definitions.elements[i];
-        process_definition(definition, &state);
+    for (size_t j = 0; j < program->count; j++) {
+        File_Node* file_node = &program->elements[j];
+
+        for (size_t i = 0; i < file_node->definitions.count; i++) {
+            Definition_Node* definition = &file_node->definitions.elements[i];
+            process_definition(definition, &state);
+        }
     }
 }

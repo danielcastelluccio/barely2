@@ -44,7 +44,7 @@ size_t get_size(Type* type, Generic_State* state) {
                 complex_name.data.multi = basic->data.multi;
                 complex_name.kind = Complex_Multi;
             }
-            Definition_Node* definition = resolve_definition(state->file_node, &complex_name);
+            Definition_Node* definition = resolve_definition(state->program, &complex_name);
             if (definition != NULL) {
                 Type_Node* type = &definition->data.type;
                 switch (type->kind) {
@@ -289,7 +289,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->generic.file_node, &complex_name);
+                            Definition_Node* definition = resolve_definition(state->generic.program, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -390,7 +390,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Complex_Single) {
-                    Definition_Node* definition = resolve_definition(state->generic.file_node, assign_part);
+                    Definition_Node* definition = resolve_definition(state->generic.program, assign_part);
 
                     if (definition != NULL) {
                         switch (definition->kind) {
@@ -838,7 +838,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(state->generic.file_node, &complex_name);
+                            Definition_Node* definition = resolve_definition(state->generic.program, &complex_name);
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -1004,7 +1004,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                Definition_Node* definition = resolve_definition(state->generic.file_node, retrieve);
+                Definition_Node* definition = resolve_definition(state->generic.program, retrieve);
                 if (definition != NULL) {
                     found = true;
                     switch (definition->kind) {
@@ -1278,41 +1278,43 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
     }
 }
 
-void output_fasm_linux_x86_64(File_Node file_node, char* output_file) {
-    //print_file_node(&file_node);
-
+void output_fasm_linux_x86_64(Program program, char* output_file) {
     Output_State state = (Output_State) {
-        &file_node,
+        &program,
         stringbuffer_new(16384),
         stringbuffer_new(16384),
         0,
         0
     };
 
-    for (size_t i = 0; i < file_node.definitions.count; i++) {
-        Definition_Node* definition = &file_node.definitions.elements[i];
-        output_definition_fasm_linux_x86_64(definition, &state);
+    for (size_t j = 0; j < program.count; j++) {
+        File_Node* file_node = &program.elements[j];
+
+        for (size_t i = 0; i < file_node->definitions.count; i++) {
+            Definition_Node* definition = &file_node->definitions.elements[i];
+            output_definition_fasm_linux_x86_64(definition, &state);
+        }
+
+        FILE* file = fopen(output_file, "w");
+        //file = stdout;
+
+        fprintf(file, "format ELF64 executable\n");
+        fprintf(file, "segment readable executable\n");
+        fprintf(file, "  lea rbx, [rsp+8] \n");
+        fprintf(file, "  push rbx\n");
+        fprintf(file, "  call main\n");
+        fprintf(file, "  mov rax, 60\n");
+        fprintf(file, "  mov rdi, 0\n");
+        fprintf(file, "  syscall\n");
+
+        fwrite(state.instructions.elements, state.instructions.count, 1, file);
+
+        fprintf(file, "segment readable\n");
+        fwrite(state.data.elements, state.data.count, 1, file);
+
+        fprintf(file, "segment readable writable\n");
+        fwrite(state.bss.elements, state.bss.count, 1, file);
+
+        fclose(file);
     }
-
-    FILE* file = fopen(output_file, "w");
-    //file = stdout;
-
-    fprintf(file, "format ELF64 executable\n");
-    fprintf(file, "segment readable executable\n");
-    fprintf(file, "  lea rbx, [rsp+8] \n");
-    fprintf(file, "  push rbx\n");
-    fprintf(file, "  call main\n");
-    fprintf(file, "  mov rax, 60\n");
-    fprintf(file, "  mov rdi, 0\n");
-    fprintf(file, "  syscall\n");
-
-    fwrite(state.instructions.elements, state.instructions.count, 1, file);
-
-    fprintf(file, "segment readable\n");
-    fwrite(state.data.elements, state.data.count, 1, file);
-
-    fprintf(file, "segment readable writable\n");
-    fwrite(state.bss.elements, state.bss.count, 1, file);
-
-    fclose(file);
 }

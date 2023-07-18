@@ -323,4 +323,6 @@ typedef struct {
 
 File_Node parse(Tokens* tokens);
 
+Dynamic_Array_Def(File_Node, Program, program_)
+
 #endif
