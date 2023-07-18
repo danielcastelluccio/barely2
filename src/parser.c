@@ -865,9 +865,12 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
+static size_t file_id;
+
 File_Node parse(char* path, Tokens* tokens) {
     File_Node result;
     result.path = path;
+    result.id = file_id++;
 
     Array_Definition_Node array = array_definition_node_new(32);
     size_t index = 0;

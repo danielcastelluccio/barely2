@@ -44,7 +44,7 @@ size_t get_size(Type* type, Generic_State* state) {
                 complex_name.data.multi = basic->data.multi;
                 complex_name.kind = Complex_Multi;
             }
-            Definition_Node* definition = resolve_definition(state, &complex_name);
+            Definition_Node* definition = resolve_definition(state, &complex_name).definition;
             if (definition != NULL) {
                 Type_Node* type = &definition->data.type;
                 switch (type->kind) {
@@ -289,7 +289,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name);
+                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name).definition;
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -390,7 +390,8 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Complex_Single) {
-                    Definition_Node* definition = resolve_definition(&state->generic, assign_part);
+                    Resolved_Definition resolved_definition = resolve_definition(&state->generic, assign_part);
+                    Definition_Node* definition = resolved_definition.definition;
 
                     if (definition != NULL) {
                         switch (definition->kind) {
@@ -407,7 +408,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s+%i], rax\n", definition->name, i);
+                                        sprintf(buffer, "  mov [%s.%i+%i], rax\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 8;
@@ -418,7 +419,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s+%i], al\n", definition->name, i);
+                                        sprintf(buffer, "  mov [%s.%i+%i], al\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 1;
@@ -838,7 +839,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name);
+                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name).definition;
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -1004,13 +1005,14 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                Definition_Node* definition = resolve_definition(&state->generic, retrieve);
+                Resolved_Definition resolved_definition = resolve_definition(&state->generic, retrieve);
+                Definition_Node* definition = resolved_definition.definition;
                 if (definition != NULL) {
                     found = true;
                     switch (definition->kind) {
                         case Definition_Procedure:
                             char buffer[128] = {};
-                            sprintf(buffer, "  push %s\n", definition->name);
+                            sprintf(buffer, "  push %s.%i\n", definition->name, resolved_definition.file->id);
                             stringbuffer_appendstring(&state->instructions, buffer);
                             break;
                         case Definition_Global:
@@ -1033,7 +1035,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 while (i < size) {
                                     if (size - i >= 8) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov rax, [%s+%i]\n", definition->name, i);
+                                        sprintf(buffer, "  mov rax, [%s.%i+%i]\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
@@ -1044,7 +1046,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                         i += 8;
                                     } else if (size - i >= 1) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov al, [%s+%i]\n", definition->name, i);
+                                        sprintf(buffer, "  mov al, [%s.%i+%i]\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
@@ -1239,8 +1241,15 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
     switch (definition->kind) {
         case Definition_Procedure: {
             Procedure_Node* procedure = &definition->data.procedure;
-            stringbuffer_appendstring(&state->instructions, definition->name);
-            stringbuffer_appendstring(&state->instructions, ":\n");
+            // TODO: use some sort of annotation to specify entry procedure
+            if (strcmp(definition->name, "main") == 0) {
+                stringbuffer_appendstring(&state->instructions, "main:\n");
+            } else {
+                char buffer[128] = {};
+                sprintf(buffer, "%s.%i:\n", definition->name, state->generic.current_file->id);
+                stringbuffer_appendstring(&state->instructions, buffer);
+            }
+
             stringbuffer_appendstring(&state->instructions, "  push rbp\n");
             stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
 
@@ -1269,7 +1278,7 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
             size_t size = get_size(&global->type, &state->generic);
 
             char buffer[128] = {};
-            sprintf(buffer, "  %s: rb %i\n", definition->name, size);
+            sprintf(buffer, "  %s.%i: rb %i\n", definition->name, state->generic.current_file->id, size);
             stringbuffer_appendstring(&state->bss, buffer);
             break;
         case Definition_Use:

@@ -11,7 +11,12 @@ typedef struct {
 Dynamic_Array_Def(Type, Stack_Type, stack_type_)
 Dynamic_Array_Def(size_t, Array_Size, array_size_)
 
-Definition_Node* resolve_definition(Generic_State* state, Complex_Name* data);
+typedef struct {
+    File_Node* file;
+    Definition_Node* definition;
+} Resolved_Definition;
+
+Resolved_Definition resolve_definition(Generic_State* state, Complex_Name* data);
 bool is_type(Type* wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);

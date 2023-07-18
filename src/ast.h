@@ -326,6 +326,7 @@ struct Definition_Node {
 
 typedef struct {
     char* path;
+    size_t id;
     Array_Definition_Node definitions;
 } File_Node;
 

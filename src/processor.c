@@ -63,21 +63,21 @@ bool uses(File_Node* checked, File_Node* tested) {
     return false;
 }
 
-Definition_Node* resolve_definition(Generic_State* state, Complex_Name* data) {
+Resolved_Definition resolve_definition(Generic_State* state, Complex_Name* data) {
     for (size_t j = 0; j < state->program->count; j++) {
         File_Node* file_node = &state->program->elements[j];
-        if (uses(state->current_file, file_node)) {
+        if (uses(state->current_file, file_node) || state->current_file == file_node) {
             for (size_t i = 0; i < file_node->definitions.count; i++) {
                 Definition_Node* definition = &file_node->definitions.elements[i];
                 // TODO: support multi retrieves & assigns
                 if (data->kind == Complex_Single && strcmp(definition->name, data->data.single.name) == 0) {
-                    return definition;
+                    return (Resolved_Definition) { file_node, definition };
                 }
             }
         }
     }
 
-    return NULL;
+    return (Resolved_Definition) { NULL, NULL };
 }
 
 Type create_basic_single_type(char* name) {
@@ -352,7 +352,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         }
 
                         if (!found) {
-                            Definition_Node* definition = resolve_definition(&state->generic, assign_part);
+                            Definition_Node* definition = resolve_definition(&state->generic, assign_part).definition;
                             if (definition != NULL) {
                                 *type = definition->data.global.type;
                                 found = true;
@@ -392,7 +392,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name);
+                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name).definition;
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -950,7 +950,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                 complex_name.kind = Complex_Multi;
                             }
 
-                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name);
+                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name).definition;
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -985,7 +985,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found) {
-                Definition_Node* definition = resolve_definition(&state->generic, retrieve);
+                Definition_Node* definition = resolve_definition(&state->generic, retrieve).definition;
                 if (definition != NULL) {
                     found = true;
                     switch (definition->kind) {
