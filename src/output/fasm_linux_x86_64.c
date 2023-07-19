@@ -132,6 +132,12 @@ size_t collect_expression_locals_size(Expression_Node* expression, Output_State*
     return 0;
 }
 
+bool consume_in_reference_output(Output_State* state) {
+    bool cached = state->in_reference;
+    state->in_reference = false;
+    return cached;
+}
+
 void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_State* state);
 
 void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State* state) {
@@ -911,13 +917,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     }
 
                     if (found) {
-                        if (state->in_reference) {
+                        if (consume_in_reference_output(state)) {
                             char buffer[128] = {};
                             sprintf(buffer, "  lea rax, [rbp-%i]\n", location + size);
                             stringbuffer_appendstring(&state->instructions, buffer);
                             stringbuffer_appendstring(&state->instructions, "  push rax\n");
-
-                            state->in_reference = false;
                         } else {
                             char buffer[128] = {};
                             sprintf(buffer, "  sub rsp, %i\n", size);
@@ -1017,13 +1021,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             break;
                         case Definition_Global:
                             Global_Node* global = &definition->data.global;
-                            if (state->in_reference) {
+                            if (consume_in_reference_output(state)) {
                                 char buffer[128] = {};
                                 sprintf(buffer, "  lea rax, [%s]\n", definition->name);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 stringbuffer_appendstring(&state->instructions, "  push rax\n");
-
-                                state->in_reference = false;
                             } else {
                                 size_t size = get_size(&global->type, &state->generic);
 

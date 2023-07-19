@@ -179,14 +179,12 @@ void print_type_inline(Type* type) {
             if (basic->kind == Type_Single) {
                 printf("%s", basic->data.single);
             } else {
-                printf("names: [");
                 for (int i = 0; i < basic->data.multi.count; i++) {
                     printf("%s", basic->data.multi.elements[i]);
                     if (i < basic->data.multi.count - 1) {
-                        printf(" ");
+                        printf("::");
                     }
                 }
-                printf("]\n");
             }
             break;
         }
@@ -262,6 +260,24 @@ void print_error_stub(Location* location) {
     printf("%s:%i:%i: ", location->file, location->row, location->col);
 }
 
+bool consume_in_reference(Process_State* state) {
+    bool cached = state->in_reference;
+    state->in_reference = false;
+    return cached;
+}
+
+Complex_Name basic_type_to_complex_name(Basic_Type type) {
+    Complex_Name complex_name;
+    if (type.kind == Type_Single) {
+        complex_name.data.single.name = type.data.single;
+        complex_name.kind = Complex_Single;
+    } else {
+        complex_name.data.multi = type.data.multi;
+        complex_name.kind = Complex_Multi;
+    }
+    return complex_name;
+}
+
 void process_expression(Expression_Node* expression, Process_State* state);
 
 void process_statement(Statement_Node* statement, Process_State* state) {
@@ -320,21 +336,29 @@ void process_statement(Statement_Node* statement, Process_State* state) {
             Statement_Assign_Node* assign = &statement->data.assign;
 
             Array_Type wanted_types = array_type_new(1);
-            for (int i = 0; i < assign->parts.count; i++) {
+            for (size_t i = 0; i < assign->parts.count; i++) {
                 Statement_Assign_Part* assign_part = &assign->parts.elements[i];
 
                 if (assign_part->kind == Complex_Array) {
                     process_expression(assign_part->data.array.expression_outer, state);
-                    Type popped_outer = stack_type_pop(&state->stack);
+                    Type array_type = stack_type_pop(&state->stack);
 
-                    Type* child;
-                    if (popped_outer.kind == Type_Pointer) {
-                        child = popped_outer.data.pointer.child;
+                    Type* array_type_raw;
+                    if (array_type.kind == Type_Pointer) {
+                        array_type_raw = array_type.data.pointer.child;
                     } else {
-                        child = &popped_outer;
+                        array_type_raw = &array_type;
                     }
 
-                    array_type_append(&wanted_types, child->data.array.element_type);
+                    if (array_type_raw->kind != Type_Array) {
+                        print_error_stub(&assign_part->location);
+                        printf("Type '");
+                        print_type_inline(array_type_raw);
+                        printf("' is not an array\n");
+                        exit(1);
+                    }
+
+                    array_type_append(&wanted_types, array_type_raw->data.array.element_type);
                 }
 
                 if (assign_part->kind == Complex_Single) {
@@ -354,8 +378,10 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         if (!found) {
                             Definition_Node* definition = resolve_definition(&state->generic, assign_part).definition;
                             if (definition != NULL) {
-                                *type = definition->data.global.type;
-                                found = true;
+                                if (definition->kind == Definition_Global) {
+                                    *type = definition->data.global.type;
+                                    found = true;
+                                }
                             }
                         }
 
@@ -368,29 +394,22 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         array_type_append(&wanted_types, type);
                     } else {
                         process_expression(assign_part->data.single.expression, state);
-                        Type popped = stack_type_pop(&state->stack);
+                        Type struct_type = stack_type_pop(&state->stack);
 
-                        assign_part->data.single.added_type = popped;
+                        assign_part->data.single.added_type = struct_type;
 
-                        Type* child;
-                        if (popped.kind == Type_Pointer) {
-                            child = popped.data.pointer.child;
+                        Type* struct_type_raw;
+                        if (struct_type.kind == Type_Pointer) {
+                            struct_type_raw = struct_type.data.pointer.child;
                         } else {
-                            child = &popped;
+                            struct_type_raw = &struct_type;
                         }
 
                         Type* type = malloc(sizeof(Type));
                         if (strcmp(assign_part->data.single.name, "*") == 0) {
-                            *type = *child;
+                            *type = *struct_type_raw;
                         } else {
-                            Complex_Name complex_name = {};
-                            if (child->data.basic.kind == Type_Single) {
-                                complex_name.data.single.name = child->data.basic.data.single;
-                                complex_name.kind = Complex_Single;
-                            } else {
-                                complex_name.data.multi = child->data.basic.data.multi;
-                                complex_name.kind = Complex_Multi;
-                            }
+                            Complex_Name complex_name = basic_type_to_complex_name(struct_type_raw->data.basic);
 
                             Definition_Node* definition = resolve_definition(&state->generic, &complex_name).definition;
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
@@ -916,10 +935,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         }
 
                         if (found) {
-                            if (state->in_reference) {
+                            if (consume_in_reference(state)) {
                                 stack_type_push(&state->stack, create_pointer_type(variable_type));
-
-                                state->in_reference = false;
                             } else {
                                 stack_type_push(&state->stack, variable_type);
                             }
@@ -1013,9 +1030,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         case Definition_Global:
                             Global_Node* global = &definition->data.global;
                             
-                            if (state->in_reference) {
+                            if (consume_in_reference(state)) {
                                 stack_type_push(&state->stack, create_pointer_type(global->type));
-                                state->in_reference = false;
                             } else {
                                 stack_type_push(&state->stack, global->type);
                             }
