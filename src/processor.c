@@ -890,6 +890,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
             if (!found) {
                 if (retrieve->kind == Complex_Array) {
+                    bool in_reference = consume_in_reference(state);
                     process_expression(retrieve->data.array.expression_outer, state);
                     Type popped = stack_type_pop(&state->stack);
 
@@ -902,13 +903,13 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                     retrieve->data.array.added_type = popped;
 
-                    Type* u64 = malloc(sizeof(Type));
-                    *u64 = create_internal_type(Type_USize);
-                    state->wanted_number_type = u64;
+                    Type* usize = malloc(sizeof(Type));
+                    *usize = create_internal_type(Type_USize);
+                    state->wanted_number_type = usize;
                     process_expression(retrieve->data.array.expression_inner, state);
                     Type inner_popped = stack_type_pop(&state->stack);
                     // TODO: probably not what I want
-                    if (!is_type(u64, &inner_popped)) {
+                    if (!is_type(usize, &inner_popped)) {
                         print_error_stub(&retrieve->location);
                         printf("Type '");
                         print_type_inline(&inner_popped);
@@ -916,7 +917,11 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         exit(1);
                     }
 
-                    stack_type_push(&state->stack, *child->data.array.element_type);
+                    Type type = *child->data.array.element_type;
+                    if (in_reference) {
+                        type = create_pointer_type(type);
+                    }
+                    stack_type_push(&state->stack, type);
                     found = true;
                 }
             }

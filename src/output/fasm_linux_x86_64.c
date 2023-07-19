@@ -763,6 +763,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 if (retrieve->kind == Complex_Array) {
                     Type from_expression = retrieve->data.array.added_type;
 
+                    bool in_reference = consume_in_reference_output(state);
+
                     Type* child;
                     if (from_expression.kind == Type_Pointer) {
                         child = from_expression.data.pointer.child;
@@ -786,34 +788,39 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
                     stringbuffer_appendstring(&state->instructions, "  mul rdx\n");
 
-                    memset(buffer, 0, 128);
-                    sprintf(buffer, "  sub rsp, %i\n", size);
-                    stringbuffer_appendstring(&state->instructions, buffer);
-                        
-                    size_t i = 0;
-                    while (i < size) {
-                        if (size - i >= 8) {
-                            char buffer[128] = {};
-                            sprintf(buffer, "  mov rbx, [rax+rcx+%i]\n", i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
+                    if (in_reference) {
+                        stringbuffer_appendstring(&state->instructions, "  add rax, rcx\n");
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
+                    } else {
+                        memset(buffer, 0, 128);
+                        sprintf(buffer, "  sub rsp, %i\n", size);
+                        stringbuffer_appendstring(&state->instructions, buffer);
 
-                            memset(buffer, 0, 128);
+                        size_t i = 0;
+                        while (i < size) {
+                            if (size - i >= 8) {
+                                char buffer[128] = {};
+                                sprintf(buffer, "  mov rbx, [rax+rcx+%i]\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
 
-                            sprintf(buffer, "  mov [rsp+%i], rbx\n", i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
+                                memset(buffer, 0, 128);
 
-                            i += 8;
-                        } else if (size - i >= 1) {
-                            char buffer[128] = {};
-                            sprintf(buffer, "  mov bl, [rax+rcx+%i]\n", i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
+                                sprintf(buffer, "  mov [rsp+%i], rbx\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
 
-                            memset(buffer, 0, 128);
+                                i += 8;
+                            } else if (size - i >= 1) {
+                                char buffer[128] = {};
+                                sprintf(buffer, "  mov bl, [rax+rcx+%i]\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
 
-                            sprintf(buffer, "  mov [rsp+%i], bl\n", i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
+                                memset(buffer, 0, 128);
 
-                            i += 1;
+                                sprintf(buffer, "  mov [rsp+%i], bl\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                i += 1;
+                            }
                         }
                     }
                 }
