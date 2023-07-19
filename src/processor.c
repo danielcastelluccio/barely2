@@ -942,6 +942,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
                         }
                     } else {
+                        bool in_reference = consume_in_reference(state);
                         process_expression(retrieve->data.single.expression, state);
                         Type popped = stack_type_pop(&state->stack);
 
@@ -976,6 +977,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                     found = true;
                                 }
                             }
+                        }
+
+                        if (in_reference) {
+                            type = create_pointer_type(type);
                         }
 
                         stack_type_push(&state->stack, type);
