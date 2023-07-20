@@ -16,10 +16,12 @@ typedef struct {
     Definition_Node* definition;
 } Resolved_Definition;
 
-Resolved_Definition resolve_definition(Generic_State* state, Complex_Name* data);
+Resolved_Definition resolve_definition(Generic_State* state, Definition_Identifier data);
 bool is_type(Type* wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);
 void process(Program* program);
+Definition_Identifier retrieve_assign_to_definition_identifier(Retrieve_Assign_Node* retrieve_assign);
+Definition_Identifier basic_type_to_definition_identifier(Basic_Type type);
 
 #endif

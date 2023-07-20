@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 
 #include "fasm_linux_x86_64.h"
@@ -36,15 +37,8 @@ size_t get_size(Type* type, Generic_State* state) {
                 }
             }
 
-            Complex_Name complex_name = {};
-            if (basic->kind == Type_Single) {
-                complex_name.data.single.name = basic->data.single;
-                complex_name.kind = Complex_Single;
-            } else {
-                complex_name.data.multi = basic->data.multi;
-                complex_name.kind = Complex_Multi;
-            }
-            Definition_Node* definition = resolve_definition(state, &complex_name).definition;
+            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(*basic);
+            Definition_Node* definition = resolve_definition(state, definition_identifier).definition;
             if (definition != NULL) {
                 Type_Node* type = &definition->data.type;
                 switch (type->kind) {
@@ -89,6 +83,8 @@ size_t get_size(Type* type, Generic_State* state) {
         case Type_Pointer: {
             return 8;
         }
+        default:
+            assert(false);
     }
 
     printf("Unhandled type!\n");
@@ -109,8 +105,9 @@ size_t collect_statement_locals_size(Statement_Node* statement, Output_State* st
             }
             return size;
         } 
+        default:
+            return 0;
     }
-    return 0;
 }
 
 size_t collect_expression_locals_size(Expression_Node* expression, Output_State* state) {
@@ -128,8 +125,9 @@ size_t collect_expression_locals_size(Expression_Node* expression, Output_State*
         case Expression_While: {
             return collect_expression_locals_size(expression->data.while_.inside, state);
         }
+        default:
+            return 0;
     }
-    return 0;
 }
 
 bool consume_in_reference_output(Output_State* state) {
@@ -164,23 +162,23 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     while (i < size) {
                         if (size - i >= 8) {
                             char buffer[128] = {};
-                            sprintf(buffer, "  mov rax, [rsp+%i]\n", i);
+                            sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             memset(buffer, 0, 128);
 
-                            sprintf(buffer, "  mov [rbp-%i], rax\n", location + size - i);
+                            sprintf(buffer, "  mov [rbp-%zu], rax\n", location + size - i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             i += 8;
                         } else if (size - i >= 1) {
                             char buffer[128] = {};
-                            sprintf(buffer, "  mov al, [rsp+%i]\n", i);
+                            sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             memset(buffer, 0, 128);
 
-                            sprintf(buffer, "  mov [rbp-%i], al\n", location + size - i);
+                            sprintf(buffer, "  mov [rbp-%zu], al\n", location + size - i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             i += 1;
@@ -188,7 +186,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     }
 
                     char buffer[128] = {};
-                    sprintf(buffer, "  add rsp, %i\n", size);
+                    sprintf(buffer, "  add rsp, %zu\n", size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     array_declaration_append(&state->current_declares, declaration);
@@ -209,7 +207,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 Statement_Assign_Part* assign_part = &assign->parts.elements[i];
                 bool found = false;
 
-                if (!found && assign_part->kind == Complex_Array) {
+                if (!found && assign_part->kind == Retrieve_Assign_Array) {
                     Type from_expression = assign_part->data.array.added_type;
 
                     Type* child;
@@ -230,7 +228,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
 
                     char buffer[128] = {};
-                    sprintf(buffer, "  mov rdx, %i\n", size);
+                    sprintf(buffer, "  mov rdx, %zu\n", size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     stringbuffer_appendstring(&state->instructions, "  mul rdx\n");
@@ -239,23 +237,23 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     while (i < size) {
                         if (size - i >= 8) {
                             char buffer[128] = {};
-                            sprintf(buffer, "  mov rbx, [rsp+%i]\n", i);
+                            sprintf(buffer, "  mov rbx, [rsp+%zu]\n", i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             memset(buffer, 0, 128);
 
-                            sprintf(buffer, "  mov [rax+rcx+%i], rbx\n", i);
+                            sprintf(buffer, "  mov [rax+rcx+%zu], rbx\n", i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             i += 8;
                         } else if (size - i >= 1) {
                             char buffer[128] = {};
-                            sprintf(buffer, "  mov bl, [rsp+%i]\n", i);
+                            sprintf(buffer, "  mov bl, [rsp+%zu]\n", i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             memset(buffer, 0, 128);
 
-                            sprintf(buffer, "  mov [rax+rcx+%i], bl\n", i);
+                            sprintf(buffer, "  mov [rax+rcx+%zu], bl\n", i);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             i += 1;
@@ -263,13 +261,13 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     }
 
                     memset(buffer, 0, 128);
-                    sprintf(buffer, "  add rsp, %i\n", size);
+                    sprintf(buffer, "  add rsp, %zu\n", size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     found = true;
                 }
 
-                if (!found && assign_part->kind == Complex_Single) {
+                if (!found && assign_part->kind == Retrieve_Assign_Single) {
                     if (assign_part->data.single.expression != NULL) {
                         Type from_expression = assign_part->data.single.added_type;
 
@@ -286,16 +284,9 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         if (strcmp(assign_part->data.single.name, "*") == 0) {
                             size = get_size(child, &state->generic);
                         } else {
-                            Complex_Name complex_name = {};
-                            if (child->data.basic.kind == Type_Single) {
-                                complex_name.data.single.name = child->data.basic.data.single;
-                                complex_name.kind = Complex_Single;
-                            } else {
-                                complex_name.data.multi = child->data.basic.data.multi;
-                                complex_name.kind = Complex_Multi;
-                            }
+                            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(child->data.basic);
 
-                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name).definition;
+                            Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -316,23 +307,23 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         while (i < size) {
                             if (size - i >= 8) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov rbx, [rsp+%i]\n", i);
+                                sprintf(buffer, "  mov rbx, [rsp+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rax+%i], rbx\n", location + i);
+                                sprintf(buffer, "  mov [rax+%zu], rbx\n", location + i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 8;
                             } else if (size - i >= 1) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov bl, [rsp+%i]\n", i);
+                                sprintf(buffer, "  mov bl, [rsp+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rax+%i], bl\n", location + i);
+                                sprintf(buffer, "  mov [rax+%zu], bl\n", location + i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 1;
@@ -340,14 +331,14 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         }
 
                         char buffer[128] = {};
-                        sprintf(buffer, "  add rsp, %i\n", size);
+                        sprintf(buffer, "  add rsp, %zu\n", size);
                         stringbuffer_appendstring(&state->instructions, buffer);
 
                         found = true;
                     }
                 }
 
-                if (!found && assign_part->kind == Complex_Single) {
+                if (!found && assign_part->kind == Retrieve_Assign_Single) {
                     if (assign_part->data.single.expression == NULL) {
                         char* name = assign_part->data.single.name;
 
@@ -366,23 +357,23 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         while (i < size) {
                             if (size - i >= 8) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov rax, [rsp+%i]\n", i);
+                                sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rbp-%i], rax\n", location + size - i);
+                                sprintf(buffer, "  mov [rbp-%zu], rax\n", location + size - i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 8;
                             } else if (size - i >= 1) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov al, [rsp+%i]\n", i);
+                                sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rbp-%i], al\n", location + size - i);
+                                sprintf(buffer, "  mov [rbp-%zu], al\n", location + size - i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 1;
@@ -390,13 +381,13 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         }
 
                         char buffer[128] = {};
-                        sprintf(buffer, "  add rsp, %i\n", size);
+                        sprintf(buffer, "  add rsp, %zu\n", size);
                         stringbuffer_appendstring(&state->instructions, buffer);
                     }
                 }
 
-                if (!found && assign_part->kind == Complex_Single) {
-                    Resolved_Definition resolved_definition = resolve_definition(&state->generic, assign_part);
+                if (!found && assign_part->kind == Retrieve_Assign_Single) {
+                    Resolved_Definition resolved_definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(assign_part));
                     Definition_Node* definition = resolved_definition.definition;
 
                     if (definition != NULL) {
@@ -409,23 +400,23 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                 while (i < size) {
                                     if (size - i >= 8) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov rax, [rsp+%i]\n", i);
+                                        sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s.%i+%i], rax\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov [%s.%zu+%zu], rax\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 8;
                                     } else if (size - i >= 1) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov al, [rsp+%i]\n", i);
+                                        sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s.%i+%i], al\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov [%s.%zu+%zu], al\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 1;
@@ -433,7 +424,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                 }
 
                                 char buffer[128] = {};
-                                sprintf(buffer, "  add rsp, %i\n", size);
+                                sprintf(buffer, "  add rsp, %zu\n", size);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                     
                                 found = true;
@@ -467,12 +458,12 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
             // rdx = old rip
             char buffer[128] = {};
-            sprintf(buffer, "  mov rcx, [rsp+%i]\n", returns_size + locals_size);
+            sprintf(buffer, "  mov rcx, [rsp+%zu]\n", returns_size + locals_size);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             // rdx = old rbp
             memset(buffer, 0, 128);
-            sprintf(buffer, "  mov rdx, [rsp+%i]\n", returns_size + locals_size + 8);
+            sprintf(buffer, "  mov rdx, [rsp+%zu]\n", returns_size + locals_size + 8);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             size_t i = returns_size;
@@ -481,23 +472,23 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     i -= 8;
 
                     char buffer[128] = {};
-                    sprintf(buffer, "  mov rax, [rsp+%i]\n", returns_size - i - 8);
+                    sprintf(buffer, "  mov rax, [rsp+%zu]\n", returns_size - i - 8);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     memset(buffer, 0, 128);
 
-                    sprintf(buffer, "  mov [rsp+%i], rax\n", returns_size - i + 8 + arguments_size + locals_size);
+                    sprintf(buffer, "  mov [rsp+%zu], rax\n", returns_size - i + 8 + arguments_size + locals_size);
                     stringbuffer_appendstring(&state->instructions, buffer);
                 } else {
                     i -= 1;
 
                     char buffer[128] = {};
-                    sprintf(buffer, "  mov al, [rsp+%i]\n", returns_size - i - 1);
+                    sprintf(buffer, "  mov al, [rsp+%zu]\n", returns_size - i - 1);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     memset(buffer, 0, 128);
 
-                    sprintf(buffer, "  mov [rsp+%i], al\n", returns_size - i + 15 + arguments_size + locals_size);
+                    sprintf(buffer, "  mov [rsp+%zu], al\n", returns_size - i + 15 + arguments_size + locals_size);
                     stringbuffer_appendstring(&state->instructions, buffer);
                 }
             }
@@ -507,11 +498,11 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
             if ((int) returns_size - (int) arguments_size + 16 < 0) {
                 char buffer[128];
-                sprintf(buffer, "  sub rsp, %i\n", -(returns_size - arguments_size + 16));
+                sprintf(buffer, "  sub rsp, %zu\n", -(returns_size - arguments_size + 16));
                 stringbuffer_appendstring(&state->instructions, buffer);
             } else if ((int) returns_size - (int) arguments_size + 16 > 0) {
                 char buffer[128];
-                sprintf(buffer, "  add rsp, %i\n", arguments_size - returns_size + 16);
+                sprintf(buffer, "  add rsp, %zu\n", arguments_size - returns_size + 16);
                 stringbuffer_appendstring(&state->instructions, buffer);
             }
 
@@ -678,6 +669,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     stringbuffer_appendstring(&state->instructions, "  div rbx\n");
                                     stringbuffer_appendstring(&state->instructions, "  mov rax, rdx\n");
                                     break;
+                                default:
+                                    assert(false);
                             }
                             stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         } else if (is_type(&u8, &operator_type)) {
@@ -703,6 +696,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     stringbuffer_appendstring(&state->instructions, "  div bl\n");
                                     stringbuffer_appendstring(&state->instructions, "  mov al, dl\n");
                                     break;
+                                default:
+                                    assert(false);
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
@@ -744,6 +739,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 case Operator_GreaterEqual:
                                     stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
                                     break;
+                                default:
+                                    assert(false);
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
@@ -760,7 +757,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             bool found = false;
 
             if (!found) {
-                if (retrieve->kind == Complex_Array) {
+                if (retrieve->kind == Retrieve_Assign_Array) {
                     Type from_expression = retrieve->data.array.added_type;
 
                     bool in_reference = consume_in_reference_output(state);
@@ -783,7 +780,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
 
                     char buffer[128] = {};
-                    sprintf(buffer, "  mov rdx, %i\n", size);
+                    sprintf(buffer, "  mov rdx, %zu\n", size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     stringbuffer_appendstring(&state->instructions, "  mul rdx\n");
@@ -793,30 +790,30 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  push rax\n");
                     } else {
                         memset(buffer, 0, 128);
-                        sprintf(buffer, "  sub rsp, %i\n", size);
+                        sprintf(buffer, "  sub rsp, %zu\n", size);
                         stringbuffer_appendstring(&state->instructions, buffer);
 
                         size_t i = 0;
                         while (i < size) {
                             if (size - i >= 8) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov rbx, [rax+rcx+%i]\n", i);
+                                sprintf(buffer, "  mov rbx, [rax+rcx+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rsp+%i], rbx\n", i);
+                                sprintf(buffer, "  mov [rsp+%zu], rbx\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 8;
                             } else if (size - i >= 1) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov bl, [rax+rcx+%i]\n", i);
+                                sprintf(buffer, "  mov bl, [rax+rcx+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rsp+%i], bl\n", i);
+                                sprintf(buffer, "  mov [rsp+%zu], bl\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 1;
@@ -827,7 +824,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                if (retrieve->kind == Complex_Single) {
+                if (retrieve->kind == Retrieve_Assign_Single) {
                     if (retrieve->data.single.expression != NULL) {
                         bool in_reference = consume_in_reference_output(state);
                         Type from_expression = retrieve->data.single.added_type;
@@ -844,16 +841,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         if (strcmp(retrieve->data.single.name, "*") == 0) {
                             size = get_size(child, &state->generic);
                         } else {
-                            Complex_Name complex_name = {};
-                            if (child->data.basic.kind == Type_Single) {
-                                complex_name.data.single.name = child->data.basic.data.single;
-                                complex_name.kind = Complex_Single;
-                            } else {
-                                complex_name.data.multi = child->data.basic.data.multi;
-                                complex_name.kind = Complex_Multi;
-                            }
+                            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(child->data.basic);
 
-                            Definition_Node* definition = resolve_definition(&state->generic, &complex_name).definition;
+                            Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
                             Struct_Node* struct_ = &definition->data.type.data.struct_;
                             for (size_t i = 0; i < struct_->items.count; i++) {
                                 Declaration* declaration = &struct_->items.elements[i];
@@ -872,37 +862,37 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
                         if (in_reference) {
                             char buffer[128] = {};
-                            sprintf(buffer, "  add rax, %i\n", location);
+                            sprintf(buffer, "  add rax, %zu\n", location);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             stringbuffer_appendstring(&state->instructions, "  push rax\n");
 
                         } else {
                             char buffer[128] = {};
-                            sprintf(buffer, "  sub rsp, %i\n", size);
+                            sprintf(buffer, "  sub rsp, %zu\n", size);
                             stringbuffer_appendstring(&state->instructions, buffer);
 
                             size_t i = 0;
                             while (i < size) {
                                 if (size - i >= 8) {
                                     char buffer[128] = {};
-                                    sprintf(buffer, "  mov rbx, [rax+%i]\n", location + i);
+                                    sprintf(buffer, "  mov rbx, [rax+%zu]\n", location + i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     memset(buffer, 0, 128);
 
-                                    sprintf(buffer, "  mov [rsp+%i], rbx\n", i);
+                                    sprintf(buffer, "  mov [rsp+%zu], rbx\n", i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     i += 8;
                                 } else if (size - i >= 1) {
                                     char buffer[128] = {};
-                                    sprintf(buffer, "  mov bl, [rax+%i]\n", location + i);
+                                    sprintf(buffer, "  mov bl, [rax+%zu]\n", location + i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     memset(buffer, 0, 128);
 
-                                    sprintf(buffer, "  mov [rsp+%i], bl\n", i);
+                                    sprintf(buffer, "  mov [rsp+%zu], bl\n", i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     i += 1;
@@ -916,7 +906,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                if (retrieve->kind == Complex_Single) {
+                if (retrieve->kind == Retrieve_Assign_Single) {
                     size_t location = 8;
                     size_t size = 0;
                     for (int i = state->current_declares.count - 1; i >= 0; i--) {
@@ -936,35 +926,35 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     if (found) {
                         if (consume_in_reference_output(state)) {
                             char buffer[128] = {};
-                            sprintf(buffer, "  lea rax, [rbp-%i]\n", location + size);
+                            sprintf(buffer, "  lea rax, [rbp-%zu]\n", location + size);
                             stringbuffer_appendstring(&state->instructions, buffer);
                             stringbuffer_appendstring(&state->instructions, "  push rax\n");
                         } else {
                             char buffer[128] = {};
-                            sprintf(buffer, "  sub rsp, %i\n", size);
+                            sprintf(buffer, "  sub rsp, %zu\n", size);
                             stringbuffer_appendstring(&state->instructions, buffer);
                                 
                             size_t i = 0;
                             while (i < size) {
                                 if (size - i >= 8) {
                                     char buffer[128] = {};
-                                    sprintf(buffer, "  mov rax, [rbp-%i]\n", location + size - i);
+                                    sprintf(buffer, "  mov rax, [rbp-%zu]\n", location + size - i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     memset(buffer, 0, 128);
 
-                                    sprintf(buffer, "  mov [rsp+%i], rax\n", i);
+                                    sprintf(buffer, "  mov [rsp+%zu], rax\n", i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     i += 8;
                                 } else if (size - i >= 1) {
                                     char buffer[128] = {};
-                                    sprintf(buffer, "  mov al, [rbp-%i]\n", location + size - i);
+                                    sprintf(buffer, "  mov al, [rbp-%zu]\n", location + size - i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     memset(buffer, 0, 128);
 
-                                    sprintf(buffer, "  mov [rsp+%i], al\n", i);
+                                    sprintf(buffer, "  mov [rsp+%zu], al\n", i);
                                     stringbuffer_appendstring(&state->instructions, buffer);
 
                                     i += 1;
@@ -976,7 +966,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                if (retrieve->kind == Complex_Single) {
+                if (retrieve->kind == Retrieve_Assign_Single) {
                     size_t location = 8;
                     size_t size = 0;
                     for (int i = state->current_arguments.count - 1; i >= 0; i--) {
@@ -992,30 +982,30 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
                     if (found) {
                         char buffer[128] = {};
-                        sprintf(buffer, "  sub rsp, %i\n", size);
+                        sprintf(buffer, "  sub rsp, %zu\n", size);
                         stringbuffer_appendstring(&state->instructions, buffer);
                             
                         size_t i = 0;
                         while (i < size) {
                             if (size - i >= 8) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov rax, [rbp+%i]\n", location + i + 8);
+                                sprintf(buffer, "  mov rax, [rbp+%zu]\n", location + i + 8);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rsp+%i], rax\n", i);
+                                sprintf(buffer, "  mov [rsp+%zu], rax\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 8;
                             } else if (size - i >= 1) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  mov al, [rbp+%i]\n", location + i + 8);
+                                sprintf(buffer, "  mov al, [rbp+%zu]\n", location + i + 8);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 memset(buffer, 0, 128);
 
-                                sprintf(buffer, "  mov [rsp+%i], al\n", i);
+                                sprintf(buffer, "  mov [rsp+%zu], al\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 1;
@@ -1026,14 +1016,14 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                Resolved_Definition resolved_definition = resolve_definition(&state->generic, retrieve);
+                Resolved_Definition resolved_definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(retrieve));
                 Definition_Node* definition = resolved_definition.definition;
                 if (definition != NULL) {
                     found = true;
                     switch (definition->kind) {
                         case Definition_Procedure:
                             char buffer[128] = {};
-                            sprintf(buffer, "  push %s.%i\n", definition->name, resolved_definition.file->id);
+                            sprintf(buffer, "  push %s.%zu\n", definition->name, resolved_definition.file->id);
                             stringbuffer_appendstring(&state->instructions, buffer);
                             break;
                         case Definition_Global:
@@ -1047,30 +1037,30 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 size_t size = get_size(&global->type, &state->generic);
 
                                 char buffer[128] = {};
-                                sprintf(buffer, "  sub rsp, %i\n", size);
+                                sprintf(buffer, "  sub rsp, %zu\n", size);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                     
                                 size_t i = 0;
                                 while (i < size) {
                                     if (size - i >= 8) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov rax, [%s.%i+%i]\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov rax, [%s.%zu+%zu]\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [rsp+%i], rax\n", i);
+                                        sprintf(buffer, "  mov [rsp+%zu], rax\n", i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 8;
                                     } else if (size - i >= 1) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov al, [%s.%i+%i]\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov al, [%s.%zu+%zu]\n", definition->name, resolved_definition.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [rsp+%i], al\n", i);
+                                        sprintf(buffer, "  mov [rsp+%zu], al\n", i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 1;
@@ -1097,7 +1087,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             If_Node* node = &expression->data.if_;
             while (node != NULL) {
                 char buffer[128] = {};
-                sprintf(buffer, "  __%i:\n", individual_start);
+                sprintf(buffer, "  __%zu:\n", individual_start);
                 stringbuffer_appendstring(&state->instructions, buffer);
 
                 individual_start = state->flow_index;
@@ -1112,21 +1102,21 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
                     stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
                     char buffer[128] = {};
-                    sprintf(buffer, "  jne __%i\n", node->next != NULL ? individual_start : main_end);
+                    sprintf(buffer, "  jne __%zu\n", node->next != NULL ? individual_start : main_end);
                     stringbuffer_appendstring(&state->instructions, buffer);
                 }
 
                 output_expression_fasm_linux_x86_64(node->inside, state);
 
                 memset(buffer, 0, 128);
-                sprintf(buffer, "  jmp __%i\n", main_end);
+                sprintf(buffer, "  jmp __%zu\n", main_end);
                 stringbuffer_appendstring(&state->instructions, buffer);
 
                 node = node->next;
             }
 
             char buffer[128] = {};
-            sprintf(buffer, "  __%i:\n", main_end);
+            sprintf(buffer, "  __%zu:\n", main_end);
             stringbuffer_appendstring(&state->instructions, buffer);
             break;
         }
@@ -1139,7 +1129,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             While_Node* node = &expression->data.while_;
             char buffer[128] = {};
-            sprintf(buffer, "  __%i:\n", start);
+            sprintf(buffer, "  __%zu:\n", start);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             output_expression_fasm_linux_x86_64(node->condition, state);
@@ -1151,17 +1141,17 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
 
             memset(buffer, 0, 128);
-            sprintf(buffer, "  jne __%i\n", end);
+            sprintf(buffer, "  jne __%zu\n", end);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             output_expression_fasm_linux_x86_64(node->inside, state);
 
             memset(buffer, 0, 128);
-            sprintf(buffer, "  jmp __%i\n", start);
+            sprintf(buffer, "  jmp __%zu\n", start);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             memset(buffer, 0, 128);
-            sprintf(buffer, "  __%i:\n", end);
+            sprintf(buffer, "  __%zu:\n", end);
             stringbuffer_appendstring(&state->instructions, buffer);
             break;
         }
@@ -1183,11 +1173,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         case Expression_String: {
             String_Node* string = &expression->data.string;
             char buffer[128] = {};
-            sprintf(buffer, "  push _%i\n", state->string_index);
+            sprintf(buffer, "  push _%zu\n", state->string_index);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             memset(buffer, 0, 128);
-            sprintf(buffer, "  _%i: db \"%s\"\n", state->string_index, string->value);
+            sprintf(buffer, "  _%zu: db \"%s\"\n", state->string_index, string->value);
             stringbuffer_appendstring(&state->data, buffer);
 
             state->string_index++;
@@ -1265,7 +1255,7 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
                 stringbuffer_appendstring(&state->instructions, "main:\n");
             } else {
                 char buffer[128] = {};
-                sprintf(buffer, "%s.%i:\n", definition->name, state->generic.current_file->id);
+                sprintf(buffer, "%s.%zu:\n", definition->name, state->generic.current_file->id);
                 stringbuffer_appendstring(&state->instructions, buffer);
             }
 
@@ -1275,7 +1265,7 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
             size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
 
             char buffer[128] = {};
-            sprintf(buffer, "  sub rsp, %i\n", locals_size);
+            sprintf(buffer, "  sub rsp, %zu\n", locals_size);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             state->current_declares = array_declaration_new(4);
@@ -1297,7 +1287,7 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
             size_t size = get_size(&global->type, &state->generic);
 
             char buffer[128] = {};
-            sprintf(buffer, "  %s.%i: rb %i\n", definition->name, state->generic.current_file->id, size);
+            sprintf(buffer, "  %s.%zu: rb %zu\n", definition->name, state->generic.current_file->id, size);
             stringbuffer_appendstring(&state->bss, buffer);
             break;
         case Definition_Use:
@@ -1310,12 +1300,21 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
 
 void output_fasm_linux_x86_64(Program program, char* output_file) {
     Output_State state = (Output_State) {
-        &program,
-        NULL,
-        stringbuffer_new(16384),
-        stringbuffer_new(16384),
-        0,
-        0
+        .generic = (Generic_State) {
+            .program = &program,
+            .current_file = NULL,
+        },
+        .instructions = stringbuffer_new(16384),
+        .data = stringbuffer_new(16384),
+        .bss = stringbuffer_new(16384),
+        .string_index = 0,
+        .flow_index = 0,
+        .current_declares = {},
+        .scoped_declares = {},
+        .current_arguments = {},
+        .current_returns = {},
+        .current_body = NULL,
+        .in_reference = false,
     };
 
     for (size_t j = 0; j < program.count; j++) {

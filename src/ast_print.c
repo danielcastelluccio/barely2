@@ -126,7 +126,7 @@ void print_statement_node(Statement_Node* statement, size_t* indent) {
                 *indent += 1;
 
                 switch (part->kind) {
-                    case Complex_Single: {
+                    case Retrieve_Assign_Single: {
                         print_indents(*indent);
                         printf("name: %s\n", part->data.single.name);
 
@@ -139,7 +139,7 @@ void print_statement_node(Statement_Node* statement, size_t* indent) {
                         }
                         break;
                     }
-                    case Complex_Multi: {
+                    case Retrieve_Assign_Multi: {
                         print_indents(*indent);
                         printf("names: [");
                         for (int i = 0; i < part->data.multi.count; i++) {
@@ -380,7 +380,7 @@ void print_expression_node(Expression_Node* expression, size_t* indent) {
             *indent += 1;
 
             switch (retrieve->kind) {
-                case Complex_Single: {
+                case Retrieve_Assign_Single: {
                     print_indents(*indent);
                     printf("name: %s\n", retrieve->data.single.name);
 
@@ -393,7 +393,7 @@ void print_expression_node(Expression_Node* expression, size_t* indent) {
                     }
                     break;
                 }
-                case Complex_Multi: {
+                case Retrieve_Assign_Multi: {
                     print_indents(*indent);
                     printf("names: [");
                     for (int i = 0; i < retrieve->data.multi.count; i++) {

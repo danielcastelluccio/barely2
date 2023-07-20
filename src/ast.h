@@ -143,6 +143,17 @@ typedef struct {
     Location location;
 } Invoke_Node;
 
+typedef struct {
+    enum {
+        Identifier_Single,
+        Identifier_Multi,
+    } kind;
+    union {
+        char* single;
+        Array_String multi;
+    } data;
+} Definition_Identifier;
+
 typedef union {
     struct {
         char* name;
@@ -156,19 +167,19 @@ typedef union {
         Expression_Node* expression_inner;
         Type added_type;
     } array;
-} Complex_Name_Data;
+} Retrieve_Assign_Data;
 
 typedef struct {
     enum {
-        Complex_Single,
-        Complex_Multi,
-        Complex_Array,
+        Retrieve_Assign_Single,
+        Retrieve_Assign_Multi,
+        Retrieve_Assign_Array,
     } kind;
-    Complex_Name_Data data;
+    Retrieve_Assign_Data data;
     Location location;
-} Complex_Name;
+} Retrieve_Assign_Node;
 
-typedef Complex_Name Retrieve_Node;
+typedef Retrieve_Assign_Node Retrieve_Node;
 
 typedef struct {
     Array_Expression_Node expressions;
@@ -231,7 +242,7 @@ typedef struct {
     Expression_Node* expression;
 } Statement_Declare_Node;
 
-typedef Complex_Name Statement_Assign_Part;
+typedef Retrieve_Assign_Node Statement_Assign_Part;
 
 Dynamic_Array_Def(Statement_Assign_Part, Array_Statement_Assign_Part, array_statement_assign_part_)
 

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -20,7 +21,13 @@ void consume_check(Tokens* tokens, size_t* index, Token_Kind wanted_kind) {
     Token* current = &tokens->elements[*index];
     if (current->kind != wanted_kind) {
         Token temp = (Token) {
-            wanted_kind
+            wanted_kind,
+            NULL,
+            (Location) {
+                NULL,
+                0,
+                0,
+            },
         };
 
         printf("Error: Expected ");
@@ -350,11 +357,11 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             Retrieve_Node node = {};
             node.location = tokens->elements[index].location;
             char* name = consume_identifier(tokens, &index);
-            node.kind = Complex_Single;
+            node.kind = Retrieve_Assign_Single;
             node.data.single.name = name;
 
             if (peek(tokens, index) == Token_DoubleColon) {
-                node.kind = Complex_Multi;
+                node.kind = Retrieve_Assign_Multi;
                 Array_String names = array_string_new(2);
                 array_string_append(&names, name);
                 while (peek(tokens, index) == Token_DoubleColon) {
@@ -503,7 +510,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         if (peek(tokens, index) == Token_Period) {
             running = true;
             Retrieve_Node node;
-            node.kind = Complex_Single;
+            node.kind = Retrieve_Assign_Single;
 
             consume(tokens, &index);
 
@@ -526,7 +533,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         if (peek(tokens, index) == Token_LeftBracket) {
             running = true;
             Retrieve_Node node;
-            node.kind = Complex_Array;
+            node.kind = Retrieve_Assign_Array;
             node.location = tokens->elements[index].location;
 
             Expression_Node* previous_result = malloc(sizeof(Expression_Node));
@@ -631,6 +638,9 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 case Token_LessThanEqual:
                     operator = Operator_LessEqual;
                     break;
+                default:
+                    assert(false);
+                    break;
             }
             node.data.operator.operator = operator;
 
@@ -712,10 +722,11 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
                         continue;
                     }
 
+                    Location location = tokens->elements[index].location;
                     char* name = consume_identifier(tokens, &index);
                     consume_check(tokens, &index, Token_Colon);
                     Type type = parse_type(tokens, &index);
-                    array_declaration_append(&arguments, (Declaration) { name, type });
+                    array_declaration_append(&arguments, (Declaration) { name, type, location });
                 }
                 literal_node.arguments = arguments;
                 consume_check(tokens, &index, Token_RightParenthesis);
@@ -779,11 +790,12 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
                         continue;
                     }
 
+                    Location location = tokens->elements[index].location;
                     char* name = consume_identifier(tokens, &index);
                     consume_check(tokens, &index, Token_Colon);
                     Type type = parse_type(tokens, &index);
 
-                    array_declaration_append(&items, (Declaration) { name, type });
+                    array_declaration_append(&items, (Declaration) { name, type, location });
                 }
                 struct_node.items = items;
                 consume(tokens, &index);
@@ -807,7 +819,7 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
         Module_Node node;
         node.definitions = array_definition_node_new(8);
         
-        char* name = consume_identifier(tokens, &index);
+        consume_identifier(tokens, &index);
         consume_check(tokens, &index, Token_Colon);
         consume_check(tokens, &index, Token_LeftCurlyBrace);
 
