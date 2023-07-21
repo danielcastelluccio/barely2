@@ -644,7 +644,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     if (procedure->data.retrieve.kind == Retrieve_Assign_Identifier && procedure->data.retrieve.data.identifier.kind == Identifier_Single) {
                         char* name = procedure->data.retrieve.data.identifier.data.single;
 
-                        if (strcmp(name, "syscall6") == 0 || strcmp(name, "syscall5") == 0 || strcmp(name, "syscall4") == 0 || strcmp(name, "syscall3") == 0 || strcmp(name, "syscall2") == 0 || strcmp(name, "syscall1") == 0 || strcmp(name, "syscall0") == 0) {
+                        if (strcmp(name, "@syscall6") == 0 || strcmp(name, "@syscall5") == 0 || strcmp(name, "@syscall4") == 0 || strcmp(name, "@syscall3") == 0 || strcmp(name, "@syscall2") == 0 || strcmp(name, "@syscall1") == 0 || strcmp(name, "@syscall0") == 0) {
                             is_internal = true;
                         }
                     }
@@ -657,7 +657,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             process_expression(invoke->arguments.elements[i], state);
                         }
 
-                        if (strcmp(name, "syscall6") == 0) {
+                        if (strcmp(name, "@syscall6") == 0) {
                             size_t count = 7;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);
@@ -677,7 +677,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "syscall5") == 0) {
+                        } else if (strcmp(name, "@syscall5") == 0) {
                             size_t count = 6;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);
@@ -697,7 +697,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "syscall4") == 0) {
+                        } else if (strcmp(name, "@syscall4") == 0) {
                             size_t count = 5;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);
@@ -717,7 +717,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "syscall3") == 0) {
+                        } else if (strcmp(name, "@syscall3") == 0) {
                             size_t count = 4;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);
@@ -737,7 +737,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "syscall2") == 0) {
+                        } else if (strcmp(name, "@syscall2") == 0) {
                             size_t count = 3;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);
@@ -757,7 +757,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "syscall1") == 0) {
+                        } else if (strcmp(name, "@syscall1") == 0) {
                             size_t count = 2;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);
@@ -777,7 +777,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
 
                             stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "syscall0") == 0) {
+                        } else if (strcmp(name, "@syscall0") == 0) {
                             size_t count = 1;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);

@@ -354,30 +354,63 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             break;
         }
         case Token_Identifier: {
-            Retrieve_Node node = {};
-            node.location = tokens->elements[index].location;
+            Location location = tokens->elements[index].location;
             char* name = consume_identifier(tokens, &index);
-            node.kind = Retrieve_Assign_Identifier;
-            Definition_Identifier identifier = {};
-            identifier.kind = Identifier_Single;
-            identifier.data.single = name;
+            if (strcmp(name, "@sizeof") == 0) {
+                SizeOf_Node node;
 
-            if (peek(tokens, index) == Token_DoubleColon) {
-                identifier.kind = Identifier_Multi;
-                Array_String names = array_string_new(2);
-                array_string_append(&names, name);
-                while (peek(tokens, index) == Token_DoubleColon) {
-                    consume(tokens, &index);
+                consume_check(tokens, &index, Token_LeftParenthesis);
 
-                    array_string_append(&names, consume_identifier(tokens, &index));
+                Type type = parse_type(tokens, &index);
+                node.type = type;
+
+                consume_check(tokens, &index, Token_RightParenthesis);
+
+                result.kind = Expression_SizeOf;
+                result.data.size_of = node;
+            } else if (strcmp(name, "@cast") == 0) {
+                Cast_Node node;
+
+                consume_check(tokens, &index, Token_LeftParenthesis);
+
+                Type type = parse_type(tokens, &index);
+                node.type = type;
+
+                consume_check(tokens, &index, Token_RightParenthesis);
+
+                Expression_Node inner = parse_expression(tokens, &index);
+                Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
+                *inner_allocated = inner;
+                node.expression = inner_allocated;
+
+                result.kind = Expression_Cast;
+                result.data.cast = node;
+                break;
+            } else {
+                Retrieve_Node node = {};
+                node.location = location;
+                node.kind = Retrieve_Assign_Identifier;
+                Definition_Identifier identifier = {};
+                identifier.kind = Identifier_Single;
+                identifier.data.single = name;
+
+                if (peek(tokens, index) == Token_DoubleColon) {
+                    identifier.kind = Identifier_Multi;
+                    Array_String names = array_string_new(2);
+                    array_string_append(&names, name);
+                    while (peek(tokens, index) == Token_DoubleColon) {
+                        consume(tokens, &index);
+
+                        array_string_append(&names, consume_identifier(tokens, &index));
+                    }
+                    identifier.data.multi = names;
                 }
-                identifier.data.multi = names;
-            }
 
-            node.kind = Retrieve_Assign_Identifier;
-            node.data.identifier = identifier;
-            result.kind = Expression_Retrieve;
-            result.data.retrieve = node;
+                node.kind = Retrieve_Assign_Identifier;
+                node.data.identifier = identifier;
+                result.kind = Expression_Retrieve;
+                result.data.retrieve = node;
+            }
             break;
         }
         case Token_Keyword: {
@@ -439,37 +472,6 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
 
                 result.kind = Expression_While;
                 result.data.while_ = node;
-            } else if (strcmp(name, "cast") == 0) {
-                Cast_Node node;
-
-                consume_check(tokens, &index, Token_LeftParenthesis);
-
-                Type type = parse_type(tokens, &index);
-                node.type = type;
-
-                consume_check(tokens, &index, Token_RightParenthesis);
-                
-                Expression_Node inner = parse_expression(tokens, &index);
-                Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
-                *inner_allocated = inner;
-                node.expression = inner_allocated;
-
-                result.kind = Expression_Cast;
-                result.data.cast = node;
-                break;
-            } else if (strcmp(name, "sizeof") == 0) {
-                SizeOf_Node node;
-
-                consume_check(tokens, &index, Token_LeftParenthesis);
-
-                Type type = parse_type(tokens, &index);
-                node.type = type;
-
-                consume_check(tokens, &index, Token_RightParenthesis);
-
-                result.kind = Expression_SizeOf;
-                result.data.size_of = node;
-                break;
             } else {
                 printf("Error: Unexpected token ");
                 print_token(&tokens->elements[index - 1], false);
