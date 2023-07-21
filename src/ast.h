@@ -154,28 +154,25 @@ typedef struct {
     } data;
 } Definition_Identifier;
 
-typedef union {
-    struct {
-        char* name;
-        Expression_Node* expression;
-        // TODO: should we be adding extra info during processing like this?
-        Type added_type;
-    } single;
-    Array_String multi;
-    struct {
-        Expression_Node* expression_outer;
-        Expression_Node* expression_inner;
-        Type added_type;
-    } array;
-} Retrieve_Assign_Data;
-
 typedef struct {
     enum {
-        Retrieve_Assign_Single,
-        Retrieve_Assign_Multi,
+        Retrieve_Assign_Identifier,
+        Retrieve_Assign_Struct,
         Retrieve_Assign_Array,
     } kind;
-    Retrieve_Assign_Data data;
+    union {
+        Definition_Identifier identifier;
+        struct {
+            Expression_Node* expression;
+            char* name;
+            Type added_type;
+        } struct_;
+        struct {
+            Expression_Node* expression_outer;
+            Expression_Node* expression_inner;
+            Type added_type;
+        } array;
+    } data;
     Location location;
 } Retrieve_Assign_Node;
 

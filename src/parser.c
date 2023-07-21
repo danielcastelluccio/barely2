@@ -357,11 +357,13 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             Retrieve_Node node = {};
             node.location = tokens->elements[index].location;
             char* name = consume_identifier(tokens, &index);
-            node.kind = Retrieve_Assign_Single;
-            node.data.single.name = name;
+            node.kind = Retrieve_Assign_Identifier;
+            Definition_Identifier identifier = {};
+            identifier.kind = Identifier_Single;
+            identifier.data.single = name;
 
             if (peek(tokens, index) == Token_DoubleColon) {
-                node.kind = Retrieve_Assign_Multi;
+                identifier.kind = Identifier_Multi;
                 Array_String names = array_string_new(2);
                 array_string_append(&names, name);
                 while (peek(tokens, index) == Token_DoubleColon) {
@@ -369,9 +371,11 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
 
                     array_string_append(&names, consume_identifier(tokens, &index));
                 }
-                node.data.multi = names;
+                identifier.data.multi = names;
             }
 
+            node.kind = Retrieve_Assign_Identifier;
+            node.data.identifier = identifier;
             result.kind = Expression_Retrieve;
             result.data.retrieve = node;
             break;
@@ -510,19 +514,19 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         if (peek(tokens, index) == Token_Period) {
             running = true;
             Retrieve_Node node;
-            node.kind = Retrieve_Assign_Single;
+            node.kind = Retrieve_Assign_Struct;
 
             consume(tokens, &index);
 
             Expression_Node* previous_result = malloc(sizeof(Expression_Node));
             *previous_result = result;
-            node.data.single.expression = previous_result;
+            node.data.struct_.expression = previous_result;
 
             if (peek(tokens, index) == Token_Asterisk) {
                 consume(tokens, &index);
-                node.data.single.name = "*";
+                node.data.struct_.name = "*";
             } else {
-                node.data.single.name = consume_identifier(tokens, &index);
+                node.data.struct_.name = consume_identifier(tokens, &index);
             }
 
             result.kind = Expression_Retrieve;

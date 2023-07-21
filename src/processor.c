@@ -27,19 +27,23 @@ typedef struct {
     Array_Type current_returns;
     Expression_Node* current_body;
     bool in_reference;
-    Type* wanted_number_type;
+    Type* wanted_type;
 } Process_State;
 
 Definition_Identifier retrieve_assign_to_definition_identifier(Retrieve_Assign_Node* retrieve_assign) {
-    Definition_Identifier definition_identifier;
-    if (retrieve_assign->kind == Retrieve_Assign_Single) {
-        definition_identifier.data.single = retrieve_assign->data.single.name;
-        definition_identifier.kind = Identifier_Single;
-    } else {
-        definition_identifier.data.multi = retrieve_assign->data.multi;
-        definition_identifier.kind = Identifier_Multi;
+    return retrieve_assign->data.identifier;
+}
+
+bool is_number_type(Type* type) {
+    if (type->kind == Type_Internal) {
+        Internal_Type internal = type->data.internal;
+
+        if (internal == Type_USize || internal == Type_U64 || internal == Type_U32 || internal == Type_U16 || internal == Type_U8) {
+            return true;
+        }
     }
-    return definition_identifier;
+
+    return false;
 }
 
 bool uses(File_Node* checked, File_Node* tested) {
@@ -319,12 +323,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     size_t declare_index = 0;
                     for (size_t i = 0; i < declare->expression->data.multi.expressions.count; i++) {
                         size_t stack_start = state->stack.count;
-                        state->wanted_number_type = &declare->declarations.elements[declare_index].type;
+                        state->wanted_type = &declare->declarations.elements[declare_index].type;
                         process_expression(declare->expression->data.multi.expressions.elements[i], state);
                         declare_index += state->stack.count - stack_start;
                     }
                 } else {
-                    state->wanted_number_type = &declare->declarations.elements[declare->declarations.count - 1].type;
+                    state->wanted_type = &declare->declarations.elements[declare->declarations.count - 1].type;
                     process_expression(declare->expression, state);
                 }
 
@@ -386,68 +390,69 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     array_type_append(&wanted_types, array_type_raw->data.array.element_type);
                 }
 
-                if (assign_part->kind == Retrieve_Assign_Single) {
-                    if (assign_part->data.single.expression == NULL) {
-                        char* name = assign_part->data.single.name;
+                if (assign_part->kind == Retrieve_Assign_Identifier) {
+                    assert(assign_part->data.identifier.kind == Identifier_Single);
+                    char* name = assign_part->data.identifier.data.single;
 
-                        bool found = false;
-                        Type* type = malloc(sizeof(Type));
-                        for (size_t j = 0; j < state->current_declares.count; j++) {
-                            if (strcmp(state->current_declares.elements[j].name, name) == 0) {
-                                *type = state->current_declares.elements[j].type;
-                                found = true;
-                                break;
-                            }
+                    bool found = false;
+                    Type* type = malloc(sizeof(Type));
+                    for (size_t j = 0; j < state->current_declares.count; j++) {
+                        if (strcmp(state->current_declares.elements[j].name, name) == 0) {
+                            *type = state->current_declares.elements[j].type;
+                            found = true;
+                            break;
                         }
-
-                        if (!found) {
-                            Definition_Node* definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(assign_part)).definition;
-                            if (definition != NULL) {
-                                if (definition->kind == Definition_Global) {
-                                    *type = definition->data.global.type;
-                                    found = true;
-                                }
-                            }
-                        }
-
-                        if (!found) {
-                            print_error_stub(&assign_part->location);
-                            printf("Assign not found\n");
-                            exit(1);
-                        }
-
-                        array_type_append(&wanted_types, type);
-                    } else {
-                        process_expression(assign_part->data.single.expression, state);
-                        Type struct_type = stack_type_pop(&state->stack);
-
-                        assign_part->data.single.added_type = struct_type;
-
-                        Type* struct_type_raw;
-                        if (struct_type.kind == Type_Pointer) {
-                            struct_type_raw = struct_type.data.pointer.child;
-                        } else {
-                            struct_type_raw = &struct_type;
-                        }
-
-                        Type* type = malloc(sizeof(Type));
-                        if (strcmp(assign_part->data.single.name, "*") == 0) {
-                            *type = *struct_type_raw;
-                        } else {
-                            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(struct_type_raw->data.basic);
-
-                            Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                            Struct_Node* struct_ = &definition->data.type.data.struct_;
-                            for (size_t i = 0; i < struct_->items.count; i++) {
-                                Declaration* declaration = &struct_->items.elements[i];
-                                if (strcmp(declaration->name, assign_part->data.single.name) == 0) {
-                                    *type = declaration->type;
-                                }
-                            }
-                        }
-
-                        array_type_append(&wanted_types, type);
                     }
+
+                    if (!found) {
+                        Definition_Node* definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(assign_part)).definition;
+                        if (definition != NULL) {
+                            if (definition->kind == Definition_Global) {
+                                *type = definition->data.global.type;
+                                found = true;
+                            }
+                        }
+                    }
+
+                    if (!found) {
+                        print_error_stub(&assign_part->location);
+                        printf("Assign not found\n");
+                        exit(1);
+                    }
+
+                    array_type_append(&wanted_types, type);
+                }
+
+                if (assign_part->kind == Retrieve_Assign_Struct) {
+                    process_expression(assign_part->data.struct_.expression, state);
+                    Type struct_type = stack_type_pop(&state->stack);
+
+                    assign_part->data.struct_.added_type = struct_type;
+
+                    Type* struct_type_raw;
+                    if (struct_type.kind == Type_Pointer) {
+                        struct_type_raw = struct_type.data.pointer.child;
+                    } else {
+                        struct_type_raw = &struct_type;
+                    }
+
+                    Type* type = malloc(sizeof(Type));
+                    if (strcmp(assign_part->data.struct_.name, "*") == 0) {
+                        *type = *struct_type_raw;
+                    } else {
+                        Definition_Identifier definition_identifier = basic_type_to_definition_identifier(struct_type_raw->data.basic);
+
+                        Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
+                        Struct_Node* struct_ = &definition->data.type.data.struct_;
+                        for (size_t i = 0; i < struct_->items.count; i++) {
+                            Declaration* declaration = &struct_->items.elements[i];
+                            if (strcmp(declaration->name, assign_part->data.struct_.name) == 0) {
+                                *type = declaration->type;
+                            }
+                        }
+                    }
+
+                    array_type_append(&wanted_types, type);
                 }
             }
 
@@ -455,12 +460,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                 size_t assign_index = 0;
                 for (size_t i = 0; i < assign->expression->data.multi.expressions.count; i++) {
                     size_t stack_start = state->stack.count;
-                    state->wanted_number_type = wanted_types.elements[assign_index];
+                    state->wanted_type = wanted_types.elements[assign_index];
                     process_expression(assign->expression->data.multi.expressions.elements[i], state);
                     assign_index += state->stack.count - stack_start;
                 }
             } else {
-                state->wanted_number_type = wanted_types.elements[wanted_types.count - 1];
+                state->wanted_type = wanted_types.elements[wanted_types.count - 1];
                 process_expression(assign->expression, state);
             }
 
@@ -475,7 +480,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 
                     assign_part->data.array.added_type = array_type;
 
-                    state->wanted_number_type = usize_type();
+                    state->wanted_type = usize_type();
 
                     process_expression(assign_part->data.array.expression_inner, state);
 
@@ -506,45 +511,46 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     }
                 }
 
-                if (assign_part->kind == Retrieve_Assign_Single) {
-                    if (assign_part->data.single.expression == NULL) {
-                        Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
+                if (assign_part->kind == Retrieve_Assign_Identifier) {
+                    assert(assign_part->data.identifier.kind == Identifier_Single);
+                    Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
 
-                        if (state->stack.count == 0) {
-                            print_error_stub(&assign_part->location);
-                            printf("Ran out of values for declaration assignment\n");
-                            exit(1);
-                        }
+                    if (state->stack.count == 0) {
+                        print_error_stub(&assign_part->location);
+                        printf("Ran out of values for declaration assignment\n");
+                        exit(1);
+                    }
 
-                        Type popped = stack_type_pop(&state->stack);
-                        if (!is_type(variable_type, &popped)) {
-                            print_error_stub(&assign_part->location);
-                            printf("Type '");
-                            print_type_inline(&popped);
-                            printf("' is not assignable to variable of type '");
-                            print_type_inline(variable_type);
-                            printf("'\n");
-                            exit(1);
-                        }
-                    } else {
-                        Type* item_type = wanted_types.elements[assign->parts.count - i - 1];
+                    Type popped = stack_type_pop(&state->stack);
+                    if (!is_type(variable_type, &popped)) {
+                        print_error_stub(&assign_part->location);
+                        printf("Type '");
+                        print_type_inline(&popped);
+                        printf("' is not assignable to variable of type '");
+                        print_type_inline(variable_type);
+                        printf("'\n");
+                        exit(1);
+                    }
+                }
 
-                        if (state->stack.count == 0) {
-                            print_error_stub(&assign_part->location);
-                            printf("Ran out of values for item assignment\n");
-                            exit(1);
-                        }
+                if (assign_part->kind == Retrieve_Assign_Struct) {
+                    Type* item_type = wanted_types.elements[assign->parts.count - i - 1];
 
-                        Type right_side_given_type = stack_type_pop(&state->stack);
-                        if (!is_type(item_type, &right_side_given_type)) {
-                            print_error_stub(&assign_part->location);
-                            printf("Type '");
-                            print_type_inline(&right_side_given_type);
-                            printf("' is not assignable to item of type '");
-                            print_type_inline(item_type);
-                            printf("'\n");
-                            exit(1);
-                        }
+                    if (state->stack.count == 0) {
+                        print_error_stub(&assign_part->location);
+                        printf("Ran out of values for item assignment\n");
+                        exit(1);
+                    }
+
+                    Type right_side_given_type = stack_type_pop(&state->stack);
+                    if (!is_type(item_type, &right_side_given_type)) {
+                        print_error_stub(&assign_part->location);
+                        printf("Type '");
+                        print_type_inline(&right_side_given_type);
+                        printf("' is not assignable to item of type '");
+                        print_type_inline(item_type);
+                        printf("'\n");
+                        exit(1);
                     }
                 }
             }
@@ -557,12 +563,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                 size_t declare_index = 0;
                 for (size_t i = 0; i < return_->expression->data.multi.expressions.count; i++) {
                     size_t stack_start = state->stack.count;
-                    state->wanted_number_type = state->current_returns.elements[declare_index];
+                    state->wanted_type = state->current_returns.elements[declare_index];
                     process_expression(return_->expression->data.multi.expressions.elements[i], state);
                     declare_index += state->stack.count - stack_start;
                 }
             } else {
-                state->wanted_number_type = state->current_returns.elements[state->current_returns.count - 1];
+                state->wanted_type = state->current_returns.elements[state->current_returns.count - 1];
                 process_expression(return_->expression, state);
             }
 
@@ -634,18 +640,20 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 bool handled = false;
 
                 if (procedure->kind == Expression_Retrieve) {
-                    char* name = procedure->data.retrieve.data.single.name;
-
                     bool is_internal = false;
-                    if (strcmp(name, "syscall6") == 0 || strcmp(name, "syscall5") == 0 || strcmp(name, "syscall4") == 0 || strcmp(name, "syscall3") == 0 || strcmp(name, "syscall2") == 0 || strcmp(name, "syscall1") == 0 || strcmp(name, "syscall0") == 0) {
-                        is_internal = true;
+                    if (procedure->data.retrieve.kind == Retrieve_Assign_Identifier && procedure->data.retrieve.data.identifier.kind == Identifier_Single) {
+                        char* name = procedure->data.retrieve.data.identifier.data.single;
+
+                        if (strcmp(name, "syscall6") == 0 || strcmp(name, "syscall5") == 0 || strcmp(name, "syscall4") == 0 || strcmp(name, "syscall3") == 0 || strcmp(name, "syscall2") == 0 || strcmp(name, "syscall1") == 0 || strcmp(name, "syscall0") == 0) {
+                            is_internal = true;
+                        }
                     }
 
                     if (is_internal) {
+                        char* name = procedure->data.retrieve.data.identifier.data.single;
+
                         for (size_t i = 0; i < invoke->arguments.count; i++) {
-                            Type* u64 = malloc(sizeof(Type));
-                            *u64 = create_internal_type(Type_USize);
-                            state->wanted_number_type = u64;
+                            state->wanted_type = usize_type();
                             process_expression(invoke->arguments.elements[i], state);
                         }
 
@@ -809,7 +817,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     size_t arg_index = 0;
                     for (size_t i = 0; i < invoke->arguments.count; i++) {
                         size_t stack_start = state->stack.count;
-                        state->wanted_number_type = procedure_type->arguments.elements[arg_index];
+                        Type* argument_type = procedure_type->arguments.elements[arg_index];
+                        state->wanted_type =argument_type;
                         process_expression(invoke->arguments.elements[i], state);
                         arg_index += state->stack.count - stack_start;
                     }
@@ -857,7 +866,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                     Type* wanted_allocated = malloc(sizeof(Type));
                     *wanted_allocated = state->stack.elements[state->stack.count - 1];
-                    state->wanted_number_type = wanted_allocated;
+                    state->wanted_type = wanted_allocated;
 
                     process_expression(invoke->arguments.elements[reversed ? 0 : 1], state);
                 }
@@ -914,120 +923,116 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             Retrieve_Node* retrieve = &expression->data.retrieve;
             bool found = false;
 
-            if (!found) {
-                if (retrieve->kind == Retrieve_Assign_Array) {
-                    bool in_reference = consume_in_reference(state);
-                    process_expression(retrieve->data.array.expression_outer, state);
-                    Type array_type = stack_type_pop(&state->stack);
+            if (!found && retrieve->kind == Retrieve_Assign_Array) {
+                bool in_reference = consume_in_reference(state);
+                process_expression(retrieve->data.array.expression_outer, state);
+                Type array_type = stack_type_pop(&state->stack);
 
-                    Type* array_type_raw;
-                    if (array_type.kind == Type_Pointer) {
-                        array_type_raw = array_type.data.pointer.child;
-                    } else {
-                        array_type_raw = &array_type;
-                    }
-
-                    retrieve->data.array.added_type = array_type;
-
-                    state->wanted_number_type = usize_type();
-                    process_expression(retrieve->data.array.expression_inner, state);
-                    Type array_index_type = stack_type_pop(&state->stack);
-                    if (!is_type(usize_type(), &array_index_type)) {
-                        print_error_stub(&retrieve->location);
-                        printf("Type '");
-                        print_type_inline(&array_index_type);
-                        printf("' cannot be used to access array\n");
-                        exit(1);
-                    }
-
-                    Type resulting_type = *array_type_raw->data.array.element_type;
-                    if (in_reference) {
-                        resulting_type = create_pointer_type(resulting_type);
-                    }
-                    stack_type_push(&state->stack, resulting_type);
-                    found = true;
+                Type* array_type_raw;
+                if (array_type.kind == Type_Pointer) {
+                    array_type_raw = array_type.data.pointer.child;
+                } else {
+                    array_type_raw = &array_type;
                 }
+
+                retrieve->data.array.added_type = array_type;
+
+                state->wanted_type = usize_type();
+                process_expression(retrieve->data.array.expression_inner, state);
+                Type array_index_type = stack_type_pop(&state->stack);
+                if (!is_type(usize_type(), &array_index_type)) {
+                    print_error_stub(&retrieve->location);
+                    printf("Type '");
+                    print_type_inline(&array_index_type);
+                    printf("' cannot be used to access array\n");
+                    exit(1);
+                }
+
+                Type resulting_type = *array_type_raw->data.array.element_type;
+                if (in_reference) {
+                    resulting_type = create_pointer_type(resulting_type);
+                }
+                stack_type_push(&state->stack, resulting_type);
+                found = true;
             }
 
-            if (!found) {
-                if (retrieve->kind == Retrieve_Assign_Single) {
-                    if (retrieve->data.single.expression == NULL) {
-                        Type variable_type;
-                        for (int i = state->current_declares.count - 1; i >= 0; i--) {
-                            Declaration* declaration = &state->current_declares.elements[i];
-                            if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
-                                variable_type = declaration->type;
-                                found = true;
-                                break;
-                            }
-                        }
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
+                assert(retrieve->data.identifier.kind == Identifier_Single);
+                Type variable_type;
+                for (int i = state->current_declares.count - 1; i >= 0; i--) {
+                    Declaration* declaration = &state->current_declares.elements[i];
+                    if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
+                        variable_type = declaration->type;
+                        found = true;
+                        break;
+                    }
+                }
 
-                        if (found) {
-                            if (consume_in_reference(state)) {
-                                stack_type_push(&state->stack, create_pointer_type(variable_type));
-                            } else {
-                                stack_type_push(&state->stack, variable_type);
-                            }
-                        }
+                if (found) {
+                    if (consume_in_reference(state)) {
+                        stack_type_push(&state->stack, create_pointer_type(variable_type));
                     } else {
-                        bool in_reference = consume_in_reference(state);
-                        process_expression(retrieve->data.single.expression, state);
-                        Type popped = stack_type_pop(&state->stack);
-
-                        retrieve->data.single.added_type = popped;
-
-                        Type* child;
-                        if (popped.kind == Type_Pointer) {
-                            child = popped.data.pointer.child;
-                        } else {
-                            child = &popped;
-                        }
-
-                        Type type;
-                        if (strcmp(retrieve->data.single.name, "*") == 0) {
-                            type = *child;
-                        } else {
-                            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(child->data.basic);
-
-                            Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                            Struct_Node* struct_ = &definition->data.type.data.struct_;
-                            for (size_t i = 0; i < struct_->items.count; i++) {
-                                Declaration* declaration = &struct_->items.elements[i];
-                                if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
-                                    type = declaration->type;
-                                    found = true;
-                                }
-                            }
-                        }
-
-                        if (in_reference) {
-                            type = create_pointer_type(type);
-                        }
-
-                        stack_type_push(&state->stack, type);
+                        stack_type_push(&state->stack, variable_type);
                     }
                 }
             }
 
-            if (!found) {
-                if (retrieve->kind == Retrieve_Assign_Single) {
-                    Type type;
-                    for (int i = state->current_arguments.count - 1; i >= 0; i--) {
-                        Declaration* declaration = &state->current_arguments.elements[i];
-                        if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
-                            type = declaration->type;
+            if (!found && retrieve->kind == Retrieve_Assign_Struct) {
+                bool in_reference = consume_in_reference(state);
+                process_expression(retrieve->data.struct_.expression, state);
+                Type struct_type = stack_type_pop(&state->stack);
+
+                retrieve->data.struct_.added_type = struct_type;
+
+                Type* struct_type_raw;
+                if (struct_type.kind == Type_Pointer) {
+                    struct_type_raw = struct_type.data.pointer.child;
+                } else {
+                    struct_type_raw = &struct_type;
+                }
+
+                Type item_type;
+                if (strcmp(retrieve->data.struct_.name, "*") == 0) {
+                    item_type = *struct_type_raw;
+                } else {
+                    Definition_Identifier definition_identifier = basic_type_to_definition_identifier(struct_type_raw->data.basic);
+
+                    Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
+                    Struct_Node* struct_ = &definition->data.type.data.struct_;
+                    for (size_t i = 0; i < struct_->items.count; i++) {
+                        Declaration* declaration = &struct_->items.elements[i];
+                        if (strcmp(declaration->name, retrieve->data.struct_.name) == 0) {
+                            item_type = declaration->type;
                             found = true;
-                            break;
                         }
                     }
+                }
 
-                    if (found) {
-                        stack_type_push(&state->stack, type);
+                if (in_reference) {
+                    item_type = create_pointer_type(item_type);
+                }
+
+                stack_type_push(&state->stack, item_type);
+            }
+
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
+                assert(retrieve->data.identifier.kind == Identifier_Single);
+                Type type;
+                for (size_t i =  0; i < state->current_arguments.count; i--) {
+                    Declaration* declaration = &state->current_arguments.elements[state->current_arguments.count - i - 1];
+                    if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
+                        type = declaration->type;
+                        found = true;
+                        break;
                     }
+                }
+
+                if (found) {
+                    stack_type_push(&state->stack, type);
                 }
             }
 
-            if (!found) {
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
                 Definition_Node* definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(retrieve)).definition;
                 if (definition != NULL) {
                     found = true;
@@ -1130,18 +1135,9 @@ void process_expression(Expression_Node* expression, Process_State* state) {
         }
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
-            Type* wanted = state->wanted_number_type;
+            Type* wanted = state->wanted_type;
 
-            bool found = false;
-            if (wanted != NULL && wanted->kind == Type_Internal) {
-                Internal_Type internal = wanted->data.internal;
-
-                if (internal == Type_USize || internal == Type_U64 || internal == Type_U32 || internal == Type_U16 || internal == Type_U8) {
-                    found = true;
-                }
-            }
-
-            if (found) {
+            if (wanted != NULL && is_number_type(wanted)) {
                 stack_type_push(&state->stack, *wanted);
                 number->type = wanted;
             } else {
@@ -1201,9 +1197,12 @@ void process_expression(Expression_Node* expression, Process_State* state) {
         }
         case Expression_SizeOf: {
             SizeOf_Node* size_of = &expression->data.size_of;
-            Type* wanted_type = state->wanted_number_type;
-            size_of->added_type = *wanted_type;
+            Type* wanted_type = state->wanted_type;
+            if (wanted_type == NULL || !is_number_type(wanted_type)) {
+                wanted_type = usize_type();
+            }
 
+            size_of->added_type = *wanted_type;
             stack_type_append(&state->stack, *wanted_type);
             break;
         }
@@ -1250,7 +1249,7 @@ void process(Program* program) {
         .current_returns = {},
         .current_body = NULL,
         .in_reference = false,
-        .wanted_number_type = NULL,
+        .wanted_type = NULL,
     };
 
     for (size_t j = 0; j < program->count; j++) {

@@ -208,21 +208,21 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 bool found = false;
 
                 if (!found && assign_part->kind == Retrieve_Assign_Array) {
-                    Type from_expression = assign_part->data.array.added_type;
+                    Type array_type = assign_part->data.array.added_type;
 
-                    Type* child;
-                    if (from_expression.kind == Type_Pointer) {
-                        child = from_expression.data.pointer.child;
+                    Type* array_type_raw;
+                    if (array_type.kind == Type_Pointer) {
+                        array_type_raw = array_type.data.pointer.child;
                     } else {
                         state->in_reference = true;
-                        child = &from_expression;
+                        array_type_raw = &array_type;
                     }
 
                     output_expression_fasm_linux_x86_64(assign_part->data.array.expression_outer, state);
 
                     output_expression_fasm_linux_x86_64(assign_part->data.array.expression_inner, state);
 
-                    size_t size = get_size(child->data.array.element_type, &state->generic);
+                    size_t size = get_size(array_type_raw->data.array.element_type, &state->generic);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
@@ -267,126 +267,122 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     found = true;
                 }
 
-                if (!found && assign_part->kind == Retrieve_Assign_Single) {
-                    if (assign_part->data.single.expression != NULL) {
-                        Type from_expression = assign_part->data.single.added_type;
+                if (!found && assign_part->kind == Retrieve_Assign_Struct) {
+                    Type struct_type = assign_part->data.struct_.added_type;
 
-                        Type* child;
-                        if (from_expression.kind == Type_Pointer) {
-                            child = from_expression.data.pointer.child;
-                        } else {
-                            state->in_reference = true;
-                            child = &from_expression;
-                        }
-
-                        size_t location = 0;
-                        size_t size = 0;
-                        if (strcmp(assign_part->data.single.name, "*") == 0) {
-                            size = get_size(child, &state->generic);
-                        } else {
-                            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(child->data.basic);
-
-                            Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                            Struct_Node* struct_ = &definition->data.type.data.struct_;
-                            for (size_t i = 0; i < struct_->items.count; i++) {
-                                Declaration* declaration = &struct_->items.elements[i];
-                                size_t temp_size = get_size(&declaration->type, &state->generic);
-                                if (strcmp(declaration->name, assign_part->data.single.name) == 0) {
-                                    size = temp_size;
-                                    break;
-                                }
-                                location += temp_size;
-                            }
-                        }
-
-                        output_expression_fasm_linux_x86_64(assign_part->data.single.expression, state);
-
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                            
-                        size_t i = 0;
-                        while (i < size) {
-                            if (size - i >= 8) {
-                                char buffer[128] = {};
-                                sprintf(buffer, "  mov rbx, [rsp+%zu]\n", i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                memset(buffer, 0, 128);
-
-                                sprintf(buffer, "  mov [rax+%zu], rbx\n", location + i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                i += 8;
-                            } else if (size - i >= 1) {
-                                char buffer[128] = {};
-                                sprintf(buffer, "  mov bl, [rsp+%zu]\n", i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                memset(buffer, 0, 128);
-
-                                sprintf(buffer, "  mov [rax+%zu], bl\n", location + i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                i += 1;
-                            }
-                        }
-
-                        char buffer[128] = {};
-                        sprintf(buffer, "  add rsp, %zu\n", size);
-                        stringbuffer_appendstring(&state->instructions, buffer);
-
-                        found = true;
+                    Type* struct_type_raw;
+                    if (struct_type.kind == Type_Pointer) {
+                        struct_type_raw = struct_type.data.pointer.child;
+                    } else {
+                        state->in_reference = true;
+                        struct_type_raw = &struct_type;
                     }
-                }
 
-                if (!found && assign_part->kind == Retrieve_Assign_Single) {
-                    if (assign_part->data.single.expression == NULL) {
-                        char* name = assign_part->data.single.name;
+                    size_t location = 0;
+                    size_t size = 0;
+                    if (strcmp(assign_part->data.struct_.name, "*") == 0) {
+                        size = get_size(struct_type_raw, &state->generic);
+                    } else {
+                        Definition_Identifier definition_identifier = basic_type_to_definition_identifier(struct_type_raw->data.basic);
 
-                        size_t location = 8;
-                        size_t size = 0;
-                        for (size_t j = 0; j < state->current_declares.count; j++) {
-                            size_t declare_size = get_size(&state->current_declares.elements[j].type, &state->generic);
-                            if (strcmp(state->current_declares.elements[j].name, name) == 0) {
-                                size = declare_size;
+                        Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
+                        Struct_Node* struct_ = &definition->data.type.data.struct_;
+                        for (size_t i = 0; i < struct_->items.count; i++) {
+                            Declaration* declaration = &struct_->items.elements[i];
+                            size_t item_size = get_size(&declaration->type, &state->generic);
+                            if (strcmp(declaration->name, assign_part->data.struct_.name) == 0) {
+                                size = item_size;
                                 break;
                             }
-                            location += declare_size;
+                            location += item_size;
                         }
-
-                        size_t i = 0;
-                        while (i < size) {
-                            if (size - i >= 8) {
-                                char buffer[128] = {};
-                                sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                memset(buffer, 0, 128);
-
-                                sprintf(buffer, "  mov [rbp-%zu], rax\n", location + size - i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                i += 8;
-                            } else if (size - i >= 1) {
-                                char buffer[128] = {};
-                                sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                memset(buffer, 0, 128);
-
-                                sprintf(buffer, "  mov [rbp-%zu], al\n", location + size - i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-
-                                i += 1;
-                            }
-                        }
-
-                        char buffer[128] = {};
-                        sprintf(buffer, "  add rsp, %zu\n", size);
-                        stringbuffer_appendstring(&state->instructions, buffer);
                     }
+
+                    output_expression_fasm_linux_x86_64(assign_part->data.struct_.expression, state);
+
+                    stringbuffer_appendstring(&state->instructions, "  pop rax\n");
+                        
+                    size_t i = 0;
+                    while (i < size) {
+                        if (size - i >= 8) {
+                            char buffer[128] = {};
+                            sprintf(buffer, "  mov rbx, [rsp+%zu]\n", i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            memset(buffer, 0, 128);
+
+                            sprintf(buffer, "  mov [rax+%zu], rbx\n", location + i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            i += 8;
+                        } else if (size - i >= 1) {
+                            char buffer[128] = {};
+                            sprintf(buffer, "  mov bl, [rsp+%zu]\n", i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            memset(buffer, 0, 128);
+
+                            sprintf(buffer, "  mov [rax+%zu], bl\n", location + i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            i += 1;
+                        }
+                    }
+
+                    char buffer[128] = {};
+                    sprintf(buffer, "  add rsp, %zu\n", size);
+                    stringbuffer_appendstring(&state->instructions, buffer);
+
+                    found = true;
                 }
 
-                if (!found && assign_part->kind == Retrieve_Assign_Single) {
+                if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
+                    char* name = assign_part->data.identifier.data.single;
+
+                    size_t location = 8;
+                    size_t size = 0;
+                    for (size_t j = 0; j < state->current_declares.count; j++) {
+                        size_t declare_size = get_size(&state->current_declares.elements[j].type, &state->generic);
+                        if (strcmp(state->current_declares.elements[j].name, name) == 0) {
+                            size = declare_size;
+                            break;
+                        }
+                        location += declare_size;
+                    }
+
+                    size_t i = 0;
+                    while (i < size) {
+                        if (size - i >= 8) {
+                            char buffer[128] = {};
+                            sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            memset(buffer, 0, 128);
+
+                            sprintf(buffer, "  mov [rbp-%zu], rax\n", location + size - i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            i += 8;
+                        } else if (size - i >= 1) {
+                            char buffer[128] = {};
+                            sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            memset(buffer, 0, 128);
+
+                            sprintf(buffer, "  mov [rbp-%zu], al\n", location + size - i);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                            i += 1;
+                        }
+                    }
+
+                    char buffer[128] = {};
+                    sprintf(buffer, "  add rsp, %zu\n", size);
+                    stringbuffer_appendstring(&state->instructions, buffer);
+                }
+
+                if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
                     Resolved_Definition resolved_definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(assign_part));
                     Definition_Node* definition = resolved_definition.definition;
 
@@ -568,7 +564,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 bool handled = false;
 
                 if (procedure->kind == Expression_Retrieve) {
-                    char* name = procedure->data.retrieve.data.single.name;
+                    char* name = procedure->data.retrieve.data.identifier.data.single;
 
                     if (strcmp(name, "syscall6") == 0) {
                         stringbuffer_appendstring(&state->instructions, "  pop r9\n");
@@ -758,23 +754,23 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Array) {
-                    Type from_expression = retrieve->data.array.added_type;
+                    Type array_type = retrieve->data.array.added_type;
 
                     bool in_reference = consume_in_reference_output(state);
 
-                    Type* child;
-                    if (from_expression.kind == Type_Pointer) {
-                        child = from_expression.data.pointer.child;
+                    Type* array_type_raw;
+                    if (array_type.kind == Type_Pointer) {
+                        array_type_raw = array_type.data.pointer.child;
                     } else {
                         state->in_reference = true;
-                        child = &from_expression;
+                        array_type_raw = &array_type;
                     }
 
                     output_expression_fasm_linux_x86_64(retrieve->data.array.expression_outer, state);
 
                     output_expression_fasm_linux_x86_64(retrieve->data.array.expression_inner, state);
 
-                    size_t size = get_size(child->data.array.element_type, &state->generic);
+                    size_t size = get_size(array_type_raw->data.array.element_type, &state->generic);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
@@ -824,89 +820,88 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                if (retrieve->kind == Retrieve_Assign_Single) {
-                    if (retrieve->data.single.expression != NULL) {
-                        bool in_reference = consume_in_reference_output(state);
-                        Type from_expression = retrieve->data.single.added_type;
+                if (retrieve->kind == Retrieve_Assign_Struct) {
+                    bool in_reference = consume_in_reference_output(state);
+                    Type array_type = retrieve->data.struct_.added_type;
 
-                        Type* child;
-                        if (from_expression.kind == Type_Pointer) {
-                            child = from_expression.data.pointer.child;
-                        } else {
-                            state->in_reference = true;
-                            child = &from_expression;
-                        }
-                        size_t location = 0;
-                        size_t size = 0;
-                        if (strcmp(retrieve->data.single.name, "*") == 0) {
-                            size = get_size(child, &state->generic);
-                        } else {
-                            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(child->data.basic);
-
-                            Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                            Struct_Node* struct_ = &definition->data.type.data.struct_;
-                            for (size_t i = 0; i < struct_->items.count; i++) {
-                                Declaration* declaration = &struct_->items.elements[i];
-                                size_t temp_size = get_size(&declaration->type, &state->generic);
-                                if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
-                                    size = temp_size;
-                                    break;
-                                }
-                                location += temp_size;
-                            }
-                        }
-
-                        output_expression_fasm_linux_x86_64(retrieve->data.single.expression, state);
-
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-
-                        if (in_reference) {
-                            char buffer[128] = {};
-                            sprintf(buffer, "  add rax, %zu\n", location);
-                            stringbuffer_appendstring(&state->instructions, buffer);
-
-                            stringbuffer_appendstring(&state->instructions, "  push rax\n");
-
-                        } else {
-                            char buffer[128] = {};
-                            sprintf(buffer, "  sub rsp, %zu\n", size);
-                            stringbuffer_appendstring(&state->instructions, buffer);
-
-                            size_t i = 0;
-                            while (i < size) {
-                                if (size - i >= 8) {
-                                    char buffer[128] = {};
-                                    sprintf(buffer, "  mov rbx, [rax+%zu]\n", location + i);
-                                    stringbuffer_appendstring(&state->instructions, buffer);
-
-                                    memset(buffer, 0, 128);
-
-                                    sprintf(buffer, "  mov [rsp+%zu], rbx\n", i);
-                                    stringbuffer_appendstring(&state->instructions, buffer);
-
-                                    i += 8;
-                                } else if (size - i >= 1) {
-                                    char buffer[128] = {};
-                                    sprintf(buffer, "  mov bl, [rax+%zu]\n", location + i);
-                                    stringbuffer_appendstring(&state->instructions, buffer);
-
-                                    memset(buffer, 0, 128);
-
-                                    sprintf(buffer, "  mov [rsp+%zu], bl\n", i);
-                                    stringbuffer_appendstring(&state->instructions, buffer);
-
-                                    i += 1;
-                                }
-                            }
-                        }
-
-                        found = true;
+                    Type* array_type_raw;
+                    if (array_type.kind == Type_Pointer) {
+                        array_type_raw = array_type.data.pointer.child;
+                    } else {
+                        state->in_reference = true;
+                        array_type_raw = &array_type;
                     }
+
+                    size_t location = 0;
+                    size_t size = 0;
+                    if (strcmp(retrieve->data.struct_.name, "*") == 0) {
+                        size = get_size(array_type_raw, &state->generic);
+                    } else {
+                        Definition_Identifier definition_identifier = basic_type_to_definition_identifier(array_type_raw->data.basic);
+
+                        Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
+                        Struct_Node* struct_ = &definition->data.type.data.struct_;
+                        for (size_t i = 0; i < struct_->items.count; i++) {
+                            Declaration* declaration = &struct_->items.elements[i];
+                            size_t temp_size = get_size(&declaration->type, &state->generic);
+                            if (strcmp(declaration->name, retrieve->data.struct_.name) == 0) {
+                                size = temp_size;
+                                break;
+                            }
+                            location += temp_size;
+                        }
+                    }
+
+                    output_expression_fasm_linux_x86_64(retrieve->data.struct_.expression, state);
+
+                    stringbuffer_appendstring(&state->instructions, "  pop rax\n");
+
+                    if (in_reference) {
+                        char buffer[128] = {};
+                        sprintf(buffer, "  add rax, %zu\n", location);
+                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
+
+                    } else {
+                        char buffer[128] = {};
+                        sprintf(buffer, "  sub rsp, %zu\n", size);
+                        stringbuffer_appendstring(&state->instructions, buffer);
+
+                        size_t i = 0;
+                        while (i < size) {
+                            if (size - i >= 8) {
+                                char buffer[128] = {};
+                                sprintf(buffer, "  mov rbx, [rax+%zu]\n", location + i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                memset(buffer, 0, 128);
+
+                                sprintf(buffer, "  mov [rsp+%zu], rbx\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                i += 8;
+                            } else if (size - i >= 1) {
+                                char buffer[128] = {};
+                                sprintf(buffer, "  mov bl, [rax+%zu]\n", location + i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                memset(buffer, 0, 128);
+
+                                sprintf(buffer, "  mov [rsp+%zu], bl\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                i += 1;
+                            }
+                        }
+                    }
+
+                    found = true;
                 }
             }
 
             if (!found) {
-                if (retrieve->kind == Retrieve_Assign_Single) {
+                if (retrieve->kind == Retrieve_Assign_Identifier) {
                     size_t location = 8;
                     size_t size = 0;
                     for (int i = state->current_declares.count - 1; i >= 0; i--) {
@@ -917,7 +912,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             location += declaration_size;
                         }
 
-                        if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
+                        if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
                             size = declaration_size;
                             found = true;
                         }
@@ -966,13 +961,13 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                if (retrieve->kind == Retrieve_Assign_Single) {
+                if (retrieve->kind == Retrieve_Assign_Identifier) {
                     size_t location = 8;
                     size_t size = 0;
                     for (int i = state->current_arguments.count - 1; i >= 0; i--) {
                         Declaration* declaration = &state->current_arguments.elements[i];
                         size_t declaration_size = get_size(&declaration->type, &state->generic);
-                        if (strcmp(declaration->name, retrieve->data.single.name) == 0) {
+                        if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
                             size = declaration_size;
                             found = true;
                             break;
