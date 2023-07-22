@@ -46,7 +46,7 @@ bool is_number_type(Type* type) {
     return false;
 }
 
-bool uses(File_Node* checked, File_Node* tested) {
+bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
     char* checked_path = checked->path;
     size_t checked_path_len = strlen(checked_path);
     size_t last_slash;
@@ -61,12 +61,30 @@ bool uses(File_Node* checked, File_Node* tested) {
         if (definition->kind == Definition_Use) {
             char* path = definition->data.use.path;
             char relative_path[128] = {};
-            for (size_t j = 0; j < last_slash + 1; j++) {
-                relative_path[j] = checked_path[j];
-            }
 
-            for (size_t j = 0; j < strlen(path); j++) {
-                relative_path[last_slash + 1 + j] = path[j];
+            if (definition->data.use.package != NULL) {
+                size_t package_path_len;
+                for (size_t j = 0; j < state->package_names->count; j++) {
+                    if (strcmp(state->package_names->elements[j], definition->data.use.package) == 0) {
+                        package_path_len = strlen(state->package_paths->elements[j]);
+                        strcpy(relative_path, state->package_paths->elements[j]);
+                    }
+                }
+
+                relative_path[package_path_len] = '/';
+
+                size_t path_len = strlen(definition->data.use.path);
+                for (size_t j = 0; j < path_len; j++) {
+                    relative_path[j + package_path_len + 1] = definition->data.use.path[j];
+                }
+            } else {
+                for (size_t j = 0; j < last_slash + 1; j++) {
+                    relative_path[j] = checked_path[j];
+                }
+
+                for (size_t j = 0; j < strlen(path); j++) {
+                    relative_path[last_slash + 1 + j] = path[j];
+                }
             }
 
             char absolute_path[128] = {};
@@ -83,7 +101,7 @@ bool uses(File_Node* checked, File_Node* tested) {
 Resolved_Definition resolve_definition(Generic_State* state, Definition_Identifier data) {
     for (size_t j = 0; j < state->program->count; j++) {
         File_Node* file_node = &state->program->elements[j];
-        if (uses(state->current_file, file_node) || state->current_file == file_node) {
+        if (uses(state->current_file, file_node, state) || state->current_file == file_node) {
             for (size_t i = 0; i < file_node->definitions.count; i++) {
                 Definition_Node* definition = &file_node->definitions.elements[i];
                 // TODO: support multi retrieves & assigns
@@ -1236,11 +1254,13 @@ void process_definition(Definition_Node* definition, Process_State* state) {
     }
 }
 
-void process(Program* program) {
+void process(Program* program, Array_String* package_names, Array_String* package_paths) {
     Process_State state = (Process_State) {
         .generic = (Generic_State) {
             .program = program,
             .current_file = NULL,
+            .package_names = package_names,
+            .package_paths = package_paths,
         },
         .stack = stack_type_new(8),
         .current_declares = {},

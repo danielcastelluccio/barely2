@@ -6,6 +6,8 @@
 typedef struct {
     Program* program;
     File_Node* current_file;
+    Array_String* package_names;
+    Array_String* package_paths;
 } Generic_State;
 
 Dynamic_Array_Def(Type, Stack_Type, stack_type_)
@@ -20,7 +22,7 @@ Resolved_Definition resolve_definition(Generic_State* state, Definition_Identifi
 bool is_type(Type* wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);
-void process(Program* program);
+void process(Program* program, Array_String* package_names, Array_String* package_paths);
 Definition_Identifier retrieve_assign_to_definition_identifier(Retrieve_Assign_Node* retrieve_assign);
 Definition_Identifier basic_type_to_definition_identifier(Basic_Type type);
 

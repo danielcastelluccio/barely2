@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +33,7 @@ char* string_substring(char* string, size_t start, size_t end) {
     size_t length = end - start;
     char* result = malloc(length + 1);
     memcpy(result, string + start, length);
-    memset(result + length + 1, 0, 1);
+    memset(result + length, 0, 1);
     return result;
 }
 

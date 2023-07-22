@@ -708,6 +708,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_Less:
                     case Operator_LessEqual: {
                         Type u64 = create_internal_type(Type_U64);
+                        Type u8 = create_internal_type(Type_U8);
                         Type operator_type = invoke->data.operator.added_type;
 
                         if (is_type(&u64, &operator_type)) {
@@ -716,6 +717,37 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
                             stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                             stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+                            switch (invoke->data.operator.operator) {
+                                case Operator_Equal:
+                                    stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
+                                    break;
+                                case Operator_NotEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovne rcx, rdx\n");
+                                    break;
+                                case Operator_Less:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovb rcx, rdx\n");
+                                    break;
+                                case Operator_LessEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovbe rcx, rdx\n");
+                                    break;
+                                case Operator_Greater:
+                                    stringbuffer_appendstring(&state->instructions, "  cmova rcx, rdx\n");
+                                    break;
+                                case Operator_GreaterEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
+                                    break;
+                                default:
+                                    assert(false);
+                            }
+                            stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
+                        } else if (is_type(&u8, &operator_type)) {
+                            stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
+                            stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");
+                            stringbuffer_appendstring(&state->instructions, "  cmp al, bl\n");
                             switch (invoke->data.operator.operator) {
                                 case Operator_Equal:
                                     stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
@@ -1293,11 +1325,13 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
     }
 }
 
-void output_fasm_linux_x86_64(Program program, char* output_file) {
+void output_fasm_linux_x86_64(Program program, char* output_file, Array_String* package_names, Array_String* package_paths) {
     Output_State state = (Output_State) {
         .generic = (Generic_State) {
             .program = &program,
             .current_file = NULL,
+            .package_names = package_names,
+            .package_paths = package_paths,
         },
         .instructions = stringbuffer_new(16384),
         .data = stringbuffer_new(16384),

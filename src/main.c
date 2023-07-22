@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "string_util.h"
 #include "tokenizer.h"
 #include "parser.h"
 #include "processor.h"
@@ -9,19 +10,59 @@
 #include "output/fasm_linux_x86_64.h"
 
 int main(int argc, char** argv) {
-    // Make this an array to support multiple file compiles
     Program program = program_new(4);
-    for (int i = 1; i < argc; i++) {
-        char* file_name = argv[i];
-        char* contents = read_file_to_string(file_name);
-        Tokens tokens = tokenize(file_name, contents);
 
-        char* real_path = malloc(128);
-        realpath(file_name, real_path);
+    Array_String package_names = array_string_new(1);
+    Array_String package_paths = array_string_new(1);
+    char* current_package_path = NULL;
+    int i = 1;
+    while (i < argc) {
+        char* arg = argv[i];
+        if (arg[0] == '-') {
+            if (strcmp(arg, "-package") == 0) {
+                char* name_path = argv[i + 1];
+                size_t colon_index = string_index(name_path, ':');
+                char* name = string_substring(name_path, 0, colon_index);
+                char* path = string_substring(name_path, colon_index + 1, strlen(name_path));
 
-        program_append(&program, parse(real_path, &tokens));
+                current_package_path = malloc(128);
+                realpath(path, current_package_path);
+
+                array_string_append(&package_names, name);
+                array_string_append(&package_paths, current_package_path);
+
+                i += 2;
+            }
+        } else {
+            char* path = arg;
+            char* real_path = malloc(128);
+            if (current_package_path != NULL) {
+                char* path_new = malloc(128);
+                size_t current_package_path_len = strlen(current_package_path);
+                for (size_t i = 0; i < current_package_path_len; i++) {
+                    path_new[i] = current_package_path[i];
+                }
+                path_new[current_package_path_len] = '/';
+                size_t path_len = strlen(path);
+                for (size_t i = 0; i < path_len; i++) {
+                    path_new[i + current_package_path_len + 1] = path[i];
+                }
+                path = path_new;
+            }
+            realpath(path, real_path);
+
+            char* contents = read_file_to_string(real_path);
+            if (contents == NULL) {
+                printf("Invalid file %s\n", path);
+                exit(1);
+            }
+            Tokens tokens = tokenize(path, contents);
+
+            program_append(&program, parse(real_path, &tokens));
+            i++;
+        }
     }
 
-    process(&program);
-    output_fasm_linux_x86_64(program, "output.asm");
+    process(&program, &package_names, &package_paths);
+    output_fasm_linux_x86_64(program, "output.asm", &package_names, &package_paths);
 }

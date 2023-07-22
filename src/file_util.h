@@ -4,6 +4,7 @@
 
 char* read_file_to_string(char* path) {
     FILE* file = fopen(path, "r");
+    if (file == NULL) return 0;
 
     fseek(file, 0, SEEK_END);
     long int file_size = ftell(file);
