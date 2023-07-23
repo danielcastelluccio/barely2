@@ -2,6 +2,8 @@
 #include <stdio.h>
 
 #include "ast_print.h"
+#include "file_util.h"
+#include "string_util.h"
 #include "processor.h"
 
 Dynamic_Array_Impl(Type, Stack_Type, stack_type_)
@@ -60,31 +62,20 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
         Definition_Node* definition = &checked->definitions.elements[i];
         if (definition->kind == Definition_Use) {
             char* path = definition->data.use.path;
-            char relative_path[128] = {};
+            char* relative_path;
 
             if (definition->data.use.package != NULL) {
-                size_t package_path_len;
+                char* package_path = NULL;
                 for (size_t j = 0; j < state->package_names->count; j++) {
                     if (strcmp(state->package_names->elements[j], definition->data.use.package) == 0) {
-                        package_path_len = strlen(state->package_paths->elements[j]);
-                        strcpy(relative_path, state->package_paths->elements[j]);
+                        package_path = state->package_paths->elements[j];
                     }
                 }
 
-                relative_path[package_path_len] = '/';
-
-                size_t path_len = strlen(definition->data.use.path);
-                for (size_t j = 0; j < path_len; j++) {
-                    relative_path[j + package_path_len + 1] = definition->data.use.path[j];
-                }
+                relative_path = concatenate_folder_file_path(package_path, definition->data.use.path);
             } else {
-                for (size_t j = 0; j < last_slash + 1; j++) {
-                    relative_path[j] = checked_path[j];
-                }
-
-                for (size_t j = 0; j < strlen(path); j++) {
-                    relative_path[last_slash + 1 + j] = path[j];
-                }
+                char* current_folder = string_substring(checked_path, 0, last_slash);
+                relative_path = concatenate_folder_file_path(current_folder, path);
             }
 
             char absolute_path[128] = {};

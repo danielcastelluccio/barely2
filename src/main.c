@@ -25,8 +25,7 @@ int main(int argc, char** argv) {
                 char* name = string_substring(name_path, 0, colon_index);
                 char* path = string_substring(name_path, colon_index + 1, strlen(name_path));
 
-                current_package_path = malloc(128);
-                realpath(path, current_package_path);
+                current_package_path = realpath(path, NULL);
 
                 array_string_append(&package_names, name);
                 array_string_append(&package_paths, current_package_path);
@@ -35,21 +34,10 @@ int main(int argc, char** argv) {
             }
         } else {
             char* path = arg;
-            char* real_path = malloc(128);
             if (current_package_path != NULL) {
-                char* path_new = malloc(128);
-                size_t current_package_path_len = strlen(current_package_path);
-                for (size_t i = 0; i < current_package_path_len; i++) {
-                    path_new[i] = current_package_path[i];
-                }
-                path_new[current_package_path_len] = '/';
-                size_t path_len = strlen(path);
-                for (size_t i = 0; i < path_len; i++) {
-                    path_new[i + current_package_path_len + 1] = path[i];
-                }
-                path = path_new;
+                path = concatenate_folder_file_path(current_package_path, path);
             }
-            realpath(path, real_path);
+            char* real_path = realpath(path, NULL);
 
             char* contents = read_file_to_string(real_path);
             if (contents == NULL) {
