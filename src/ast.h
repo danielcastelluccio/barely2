@@ -13,10 +13,10 @@ Dynamic_Array_Def(Type*, Array_Type, array_type_)
 
 typedef enum {
     Type_USize,
-    Type_U64,
-    Type_U32,
-    Type_U16,
     Type_U8,
+    Type_U4,
+    Type_U2,
+    Type_U1,
 } Internal_Type;
 
 typedef struct {

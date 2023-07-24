@@ -40,7 +40,7 @@ bool is_number_type(Type* type) {
     if (type->kind == Type_Internal) {
         Internal_Type internal = type->data.internal;
 
-        if (internal == Type_USize || internal == Type_U64 || internal == Type_U32 || internal == Type_U16 || internal == Type_U8) {
+        if (internal == Type_USize || internal == Type_U8 || internal == Type_U4 || internal == Type_U2 || internal == Type_U1) {
             return true;
         }
     }
@@ -267,17 +267,17 @@ void print_type_inline(Type* type) {
                 case Type_USize:
                     printf("usize");
                     break;
-                case Type_U64:
-                    printf("u64");
-                    break;
-                case Type_U32:
-                    printf("u32");
-                    break;
-                case Type_U16:
-                    printf("u16");
-                    break;
                 case Type_U8:
                     printf("u8");
+                    break;
+                case Type_U4:
+                    printf("u4");
+                    break;
+                case Type_U2:
+                    printf("u2");
+                    break;
+                case Type_U1:
+                    printf("u1");
                     break;
             }
             break;
@@ -1158,10 +1158,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 stack_type_push(&state->stack, *wanted);
                 number->type = wanted;
             } else {
-                Type* u64 = malloc(sizeof(Type));
-                *u64 = create_internal_type(Type_USize);
-                stack_type_push(&state->stack, *u64);
-                number->type = u64;
+                Type* u8 = malloc(sizeof(Type));
+                *u8 = create_internal_type(Type_USize);
+                stack_type_push(&state->stack, *u8);
+                number->type = u8;
             }
             break;
         }
@@ -1170,7 +1170,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             break;
         }
         case Expression_String: {
-            stack_type_push(&state->stack, create_pointer_type(create_array_type(create_internal_type(Type_U8))));
+            stack_type_push(&state->stack, create_pointer_type(create_array_type(create_internal_type(Type_U1))));
             break;
         }
         case Expression_Reference: {
@@ -1191,8 +1191,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 Internal_Type output_internal = cast->type.data.internal;
                 Internal_Type input_internal = input.data.internal;
 
-                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
-                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
+                if ((input_internal == Type_USize || input_internal == Type_U8 || input_internal == Type_U4 || input_internal == Type_U2 || input_internal == Type_U1) && 
+                        (output_internal == Type_USize || output_internal == Type_U8 || output_internal == Type_U4 || output_internal == Type_U2 || output_internal == Type_U1)) {
                     is_valid = true;
                 }
             }

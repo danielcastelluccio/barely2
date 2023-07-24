@@ -138,19 +138,19 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
         result.data.array = array;
     } else {
         char* name = consume_identifier(tokens, &index);
-        if (strcmp(name, "usize") == 0 || strcmp(name, "u64") == 0 || strcmp(name, "u32") == 0 || strcmp(name, "u16") == 0 || strcmp(name, "u8") == 0) {
+        if (strcmp(name, "usize") == 0 || strcmp(name, "u8") == 0 || strcmp(name, "u4") == 0 || strcmp(name, "u2") == 0 || strcmp(name, "u1") == 0) {
             Internal_Type internal;
 
             if (strcmp(name, "usize") == 0) {
                 internal = Type_USize;
-            } else if (strcmp(name, "u64") == 0) {
-                internal = Type_U64;
-            } else if (strcmp(name, "u32") == 0) {
-                internal = Type_U32;
-            } else if (strcmp(name, "u16") == 0) {
-                internal = Type_U16;
             } else if (strcmp(name, "u8") == 0) {
                 internal = Type_U8;
+            } else if (strcmp(name, "u4") == 0) {
+                internal = Type_U4;
+            } else if (strcmp(name, "u2") == 0) {
+                internal = Type_U2;
+            } else if (strcmp(name, "u1") == 0) {
+                internal = Type_U1;
             }
 
             result.kind = Type_Internal;
