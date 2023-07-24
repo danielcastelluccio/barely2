@@ -20,6 +20,7 @@ typedef struct {
 
 Resolved_Definition resolve_definition(Generic_State* state, Definition_Identifier data);
 bool is_type(Type* wanted, Type* given);
+bool is_internal_type(Internal_Type wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);
 void process(Program* program, Array_String* package_names, Array_String* package_paths);

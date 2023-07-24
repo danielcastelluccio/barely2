@@ -72,6 +72,10 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
                     }
                 }
 
+                if (package_path == NULL) {
+                    return false;
+                }
+
                 relative_path = concatenate_folder_file_path(package_path, definition->data.use.path);
             } else {
                 char* current_folder = string_substring(checked_path, 0, last_slash);
@@ -195,6 +199,10 @@ bool is_type(Type* wanted, Type* given) {
     }
 
     return false;
+}
+
+bool is_internal_type(Internal_Type wanted, Type* given) {
+    return given->kind == Type_Internal && given->data.internal == wanted;
 }
 
 void print_type_inline(Type* type) {
@@ -494,7 +502,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     process_expression(assign_part->data.array.expression_inner, state);
 
                     Type array_index_type = stack_type_pop(&state->stack);
-                    if (!is_type(usize_type(), &array_index_type)) {
+                    if (!is_internal_type(Type_USize, &array_index_type)) {
                         print_error_stub(&assign_part->location);
                         printf("Type '");
                         print_type_inline(&array_index_type);
@@ -949,7 +957,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 state->wanted_type = usize_type();
                 process_expression(retrieve->data.array.expression_inner, state);
                 Type array_index_type = stack_type_pop(&state->stack);
-                if (!is_type(usize_type(), &array_index_type)) {
+                if (!is_internal_type(Type_USize, &array_index_type)) {
                     print_error_stub(&retrieve->location);
                     printf("Type '");
                     print_type_inline(&array_index_type);
