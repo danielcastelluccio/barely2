@@ -1325,10 +1325,10 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
     }
 }
 
-void output_fasm_linux_x86_64(Program program, char* output_file, Array_String* package_names, Array_String* package_paths) {
+void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String* package_names, Array_String* package_paths) {
     Output_State state = (Output_State) {
         .generic = (Generic_State) {
-            .program = &program,
+            .program = program,
             .current_file = NULL,
             .package_names = package_names,
             .package_paths = package_paths,
@@ -1346,8 +1346,8 @@ void output_fasm_linux_x86_64(Program program, char* output_file, Array_String* 
         .in_reference = false,
     };
 
-    for (size_t j = 0; j < program.count; j++) {
-        File_Node* file_node = &program.elements[j];
+    for (size_t j = 0; j < program->count; j++) {
+        File_Node* file_node = &program->elements[j];
         state.generic.current_file = file_node;
 
         for (size_t i = 0; i < file_node->definitions.count; i++) {
