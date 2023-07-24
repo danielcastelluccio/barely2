@@ -1,5 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "fasm_linux_x86_64.h"
 #include "../string_util.h"
@@ -1463,26 +1465,38 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
             output_definition_fasm_linux_x86_64(definition, &state);
         }
 
-        FILE* file = fopen(output_file, "w");
-        //file = stdout;
-
-        fprintf(file, "format ELF64 executable\n");
-        fprintf(file, "segment readable executable\n");
-        fprintf(file, "  lea rbx, [rsp+8] \n");
-        fprintf(file, "  push rbx\n");
-        fprintf(file, "  call main\n");
-        fprintf(file, "  mov rax, 60\n");
-        fprintf(file, "  mov rdi, 0\n");
-        fprintf(file, "  syscall\n");
-
-        fwrite(state.instructions.elements, state.instructions.count, 1, file);
-
-        fprintf(file, "segment readable\n");
-        fwrite(state.data.elements, state.data.count, 1, file);
-
-        fprintf(file, "segment readable writable\n");
-        fwrite(state.bss.elements, state.bss.count, 1, file);
-
-        fclose(file);
     }
+
+    FILE* file = fopen(output_file, "w");
+
+    fprintf(file, "format ELF64 executable\n");
+    fprintf(file, "segment readable executable\n");
+    fprintf(file, "  lea rbx, [rsp+8] \n");
+    fprintf(file, "  push rbx\n");
+    fprintf(file, "  call main\n");
+    fprintf(file, "  mov rax, 60\n");
+    fprintf(file, "  mov rdi, 0\n");
+    fprintf(file, "  syscall\n");
+
+    fwrite(state.instructions.elements, state.instructions.count, 1, file);
+
+    fprintf(file, "segment readable\n");
+    fwrite(state.data.elements, state.data.count, 1, file);
+
+    fprintf(file, "segment readable writable\n");
+    fwrite(state.bss.elements, state.bss.count, 1, file);
+
+    fclose(file);
+
+    int result = fork();
+    if (result == 0) {
+        close(1);
+        char* args[] = {"fasm", "output.asm", NULL};
+        char* env[] = {NULL};
+
+        execve("/bin/fasm", args, env);
+        exit(1);
+    }
+
+    waitpid(result, NULL, 0);
 }
