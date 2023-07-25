@@ -15,16 +15,16 @@ Dynamic_Array_Def(size_t, Array_Size, array_size_)
 
 typedef struct {
     File_Node* file;
-    Definition_Node* definition;
-} Resolved_Definition;
+    Item_Node* item;
+} Resolved_Item;
 
-Resolved_Definition resolve_definition(Generic_State* state, Definition_Identifier data);
+Resolved_Item resolve_item(Generic_State* state, Item_Identifier data);
 bool is_type(Type* wanted, Type* given);
 bool is_internal_type(Internal_Type wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);
 void process(Program* program, Array_String* package_names, Array_String* package_paths);
-Definition_Identifier retrieve_assign_to_definition_identifier(Retrieve_Assign_Node* retrieve_assign);
-Definition_Identifier basic_type_to_definition_identifier(Basic_Type type);
+Item_Identifier retrieve_assign_to_item_identifier(Retrieve_Assign_Node* retrieve_assign);
+Item_Identifier basic_type_to_item_identifier(Basic_Type type);
 
 #endif

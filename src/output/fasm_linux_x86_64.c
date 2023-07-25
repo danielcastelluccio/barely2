@@ -25,10 +25,10 @@ size_t get_size(Type* type, Generic_State* state) {
     switch (type->kind) {
         case Type_Basic: {
             Basic_Type* basic = &type->data.basic;
-            Definition_Identifier definition_identifier = basic_type_to_definition_identifier(*basic);
-            Definition_Node* definition = resolve_definition(state, definition_identifier).definition;
-            if (definition != NULL) {
-                Type_Node* type = &definition->data.type;
+            Item_Identifier item_identifier = basic_type_to_item_identifier(*basic);
+            Item_Node* item = resolve_item(state, item_identifier).item;
+            if (item != NULL) {
+                Type_Node* type = &item->data.type;
                 switch (type->kind) {
                     case Type_Node_Struct: {
                         size_t size = 0;
@@ -196,7 +196,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 bool found = false;
 
                 if (!found && assign_part->kind == Retrieve_Assign_Array) {
-                    Type array_type = assign_part->data.array.added_type;
+                    Type array_type = assign_part->data.array.computed_array_type;
 
                     Type* array_type_raw;
                     if (array_type.kind == Type_Pointer) {
@@ -256,7 +256,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Retrieve_Assign_Struct) {
-                    Type struct_type = assign_part->data.struct_.added_type;
+                    Type struct_type = assign_part->data.struct_.computed_struct_type;
 
                     Type* struct_type_raw;
                     if (struct_type.kind == Type_Pointer) {
@@ -271,10 +271,10 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     if (strcmp(assign_part->data.struct_.name, "*") == 0) {
                         size = get_size(struct_type_raw, &state->generic);
                     } else {
-                        Definition_Identifier definition_identifier = basic_type_to_definition_identifier(struct_type_raw->data.basic);
+                        Item_Identifier item_identifier = basic_type_to_item_identifier(struct_type_raw->data.basic);
 
-                        Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                        Struct_Node* struct_ = &definition->data.type.data.struct_;
+                        Item_Node* item = resolve_item(&state->generic, item_identifier).item;
+                        Struct_Node* struct_ = &item->data.type.data.struct_;
                         for (size_t i = 0; i < struct_->items.count; i++) {
                             Declaration* declaration = &struct_->items.elements[i];
                             size_t item_size = get_size(&declaration->type, &state->generic);
@@ -371,13 +371,13 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
-                    Resolved_Definition resolved_definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(assign_part));
-                    Definition_Node* definition = resolved_definition.definition;
+                    Resolved_Item resolved_item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(assign_part));
+                    Item_Node* item = resolved_item.item;
 
-                    if (definition != NULL) {
-                        switch (definition->kind) {
-                            case Definition_Global: {
-                                Global_Node* global = &definition->data.global;
+                    if (item != NULL) {
+                        switch (item->kind) {
+                            case Item_Global: {
+                                Global_Node* global = &item->data.global;
                                 size_t size = get_size(&global->type, &state->generic);
 
                                 size_t i = 0;
@@ -389,7 +389,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s.%zu+%zu], rax\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov [%s.%zu+%zu], rax\n", item->name, resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 8;
@@ -400,7 +400,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s.%zu+%zu], al\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov [%s.%zu+%zu], al\n", item->name, resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 1;
@@ -415,7 +415,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                 break;
                             }
                             default:
-                                printf("Unhandled assign to definition!\n");
+                                printf("Unhandled assign to item!\n");
                                 exit(1);
                         }
                     }
@@ -631,7 +631,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_Multiply:
                     case Operator_Divide:
                     case Operator_Modulus: {
-                        Type operator_type = invoke->data.operator.added_type;
+                        Type operator_type = invoke->data.operator.computed_operand_type;
 
                         if (is_internal_type(Type_U8, &operator_type) || is_internal_type(Type_USize, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
@@ -755,7 +755,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_GreaterEqual:
                     case Operator_Less:
                     case Operator_LessEqual: {
-                        Type operator_type = invoke->data.operator.added_type;
+                        Type operator_type = invoke->data.operator.computed_operand_type;
 
                         if (is_internal_type(Type_U8, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
@@ -896,7 +896,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Array) {
-                    Type array_type = retrieve->data.array.added_type;
+                    Type array_type = retrieve->data.array.computed_array_type;
 
                     bool in_reference = consume_in_reference_output(state);
 
@@ -964,7 +964,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Struct) {
                     bool in_reference = consume_in_reference_output(state);
-                    Type array_type = retrieve->data.struct_.added_type;
+                    Type array_type = retrieve->data.struct_.computed_struct_type;
 
                     Type* array_type_raw;
                     if (array_type.kind == Type_Pointer) {
@@ -979,10 +979,10 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     if (strcmp(retrieve->data.struct_.name, "*") == 0) {
                         size = get_size(array_type_raw, &state->generic);
                     } else {
-                        Definition_Identifier definition_identifier = basic_type_to_definition_identifier(array_type_raw->data.basic);
+                        Item_Identifier item_identifier = basic_type_to_item_identifier(array_type_raw->data.basic);
 
-                        Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                        Struct_Node* struct_ = &definition->data.type.data.struct_;
+                        Item_Node* item = resolve_item(&state->generic, item_identifier).item;
+                        Struct_Node* struct_ = &item->data.type.data.struct_;
                         for (size_t i = 0; i < struct_->items.count; i++) {
                             Declaration* declaration = &struct_->items.elements[i];
                             size_t temp_size = get_size(&declaration->type, &state->generic);
@@ -1153,21 +1153,21 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                Resolved_Definition resolved_definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(retrieve));
-                Definition_Node* definition = resolved_definition.definition;
-                if (definition != NULL) {
+                Resolved_Item resolved_item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(retrieve));
+                Item_Node* item = resolved_item.item;
+                if (item != NULL) {
                     found = true;
-                    switch (definition->kind) {
-                        case Definition_Procedure:
+                    switch (item->kind) {
+                        case Item_Procedure:
                             char buffer[128] = {};
-                            sprintf(buffer, "  push %s.%zu\n", definition->name, resolved_definition.file->id);
+                            sprintf(buffer, "  push %s.%zu\n", item->name, resolved_item.file->id);
                             stringbuffer_appendstring(&state->instructions, buffer);
                             break;
-                        case Definition_Global:
-                            Global_Node* global = &definition->data.global;
+                        case Item_Global:
+                            Global_Node* global = &item->data.global;
                             if (consume_in_reference_output(state)) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  lea rax, [%s]\n", definition->name);
+                                sprintf(buffer, "  lea rax, [%s]\n", item->name);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 stringbuffer_appendstring(&state->instructions, "  push rax\n");
                             } else {
@@ -1181,7 +1181,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 while (i < size) {
                                     if (size - i >= 8) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov rax, [%s.%zu+%zu]\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov rax, [%s.%zu+%zu]\n", item->name, resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
@@ -1192,7 +1192,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                         i += 8;
                                     } else if (size - i >= 1) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov al, [%s.%zu+%zu]\n", definition->name, resolved_definition.file->id, i);
+                                        sprintf(buffer, "  mov al, [%s.%zu+%zu]\n", item->name, resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
@@ -1206,7 +1206,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             }
                             break;
                         default:
-                            printf("Unhandled definition retrieve!\n");
+                            printf("Unhandled item retrieve!\n");
                             exit(1);
                     }
                 }
@@ -1332,40 +1332,44 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             output_expression_fasm_linux_x86_64(cast->expression, state);
 
-            if (cast->type.kind == Type_Internal && cast->added_type.kind == Type_Internal) {
+            if (cast->type.kind == Type_Internal && cast->computed_input_type.kind == Type_Internal) {
                 Internal_Type output_internal = cast->type.data.internal;
-                Internal_Type input_internal = cast->added_type.data.internal;
+                Internal_Type input_internal = cast->computed_input_type.data.internal;
 
                 if ((input_internal == Type_USize || input_internal == Type_U8 || input_internal == Type_U4 || input_internal == Type_U2 || input_internal == Type_U1) && 
                         (output_internal == Type_USize || output_internal == Type_U8 || output_internal == Type_U4 || output_internal == Type_U2 || output_internal == Type_U1)) {
-                    if (input_internal == Type_USize || input_internal == Type_U8) {
+                    size_t input_size = get_size(&cast->computed_input_type, &state->generic);
+                    if (input_size == 8) {
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                    } else if (input_internal == Type_U4) {
+                    } else if (input_size == 4) {
                         stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
                         stringbuffer_appendstring(&state->instructions, "  mov eax, [rsp]\n");
                         stringbuffer_appendstring(&state->instructions, "  add rsp, 4\n");
-                    } else if (input_internal == Type_U2) {
+                    } else if (input_size == 2) {
                         stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
                         stringbuffer_appendstring(&state->instructions, "  mov ax, [rsp]\n");
                         stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");
-                    } else if (input_internal == Type_U1) {
+                    } else if (input_size == 1) {
                         stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
                         stringbuffer_appendstring(&state->instructions, "  mov al, [rsp]\n");
                         stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
                     }
 
-                    if (output_internal == Type_USize || output_internal == Type_U8) {
+                    size_t output_size = get_size(&cast->type, &state->generic);
+                    if (output_size == 8) {
                         stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                    } else if (output_internal == Type_U4) {
+                    } else if (output_size == 4) {
                         stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
                         stringbuffer_appendstring(&state->instructions, "  mov [rsp], eax\n");
-                    } else if (output_internal == Type_U2) {
+                    } else if (output_size == 2) {
                         stringbuffer_appendstring(&state->instructions, "  sub rsp, 2\n");
                         stringbuffer_appendstring(&state->instructions, "  mov [rsp], ax\n");
-                    } else if (output_internal == Type_U1) {
+                    } else if (output_size == 1) {
                         stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                         stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
                     }
+                } else {
+                    assert(false);
                 }
             }
 
@@ -1374,7 +1378,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         case Expression_SizeOf: {
             SizeOf_Node* size_of = &expression->data.size_of;
 
-            output_unsigned_integer(size_of->added_type.data.internal, get_size(&size_of->type, &state->generic), state);
+            output_unsigned_integer(size_of->computed_result_type.data.internal, get_size(&size_of->type, &state->generic), state);
             break;
         }
         default:
@@ -1383,16 +1387,16 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
     }
 }
 
-void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_State* state) {
-    switch (definition->kind) {
-        case Definition_Procedure: {
-            Procedure_Node* procedure = &definition->data.procedure;
+void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
+    switch (item->kind) {
+        case Item_Procedure: {
+            Procedure_Node* procedure = &item->data.procedure;
             // TODO: use some sort of annotation to specify entry procedure
-            if (strcmp(definition->name, "main") == 0) {
+            if (strcmp(item->name, "main") == 0) {
                 stringbuffer_appendstring(&state->instructions, "main:\n");
             } else {
                 char buffer[128] = {};
-                sprintf(buffer, "%s.%zu:\n", definition->name, state->generic.current_file->id);
+                sprintf(buffer, "%s.%zu:\n", item->name, state->generic.current_file->id);
                 stringbuffer_appendstring(&state->instructions, buffer);
             }
 
@@ -1417,20 +1421,20 @@ void output_definition_fasm_linux_x86_64(Definition_Node* definition, Output_Sta
             stringbuffer_appendstring(&state->instructions, "  ret\n");
             break;
         }
-        case Definition_Type:
-            break;
-        case Definition_Global:
-            Global_Node* global = &definition->data.global;
+        case Item_Global:
+            Global_Node* global = &item->data.global;
             size_t size = get_size(&global->type, &state->generic);
 
             char buffer[128] = {};
-            sprintf(buffer, "  %s.%zu: rb %zu\n", definition->name, state->generic.current_file->id, size);
+            sprintf(buffer, "  %s.%zu: rb %zu\n", item->name, state->generic.current_file->id, size);
             stringbuffer_appendstring(&state->bss, buffer);
             break;
-        case Definition_Use:
+        case Item_Type:
+            break;
+        case Item_Use:
             break;
         default:
-            printf("Unhandled definition_type!\n");
+            printf("Unhandled item_type!\n");
             exit(1);
     }
 }
@@ -1460,9 +1464,9 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         File_Node* file_node = &program->elements[j];
         state.generic.current_file = file_node;
 
-        for (size_t i = 0; i < file_node->definitions.count; i++) {
-            Definition_Node* definition = &file_node->definitions.elements[i];
-            output_definition_fasm_linux_x86_64(definition, &state);
+        for (size_t i = 0; i < file_node->items.count; i++) {
+            Item_Node* item = &file_node->items.elements[i];
+            output_item_fasm_linux_x86_64(item, &state);
         }
 
     }

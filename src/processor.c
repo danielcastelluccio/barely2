@@ -32,7 +32,7 @@ typedef struct {
     Type* wanted_type;
 } Process_State;
 
-Definition_Identifier retrieve_assign_to_definition_identifier(Retrieve_Assign_Node* retrieve_assign) {
+Item_Identifier retrieve_assign_to_item_identifier(Retrieve_Assign_Node* retrieve_assign) {
     return retrieve_assign->data.identifier;
 }
 
@@ -58,16 +58,16 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
         }
     }
 
-    for (size_t i = 0; i < checked->definitions.count; i++) {
-        Definition_Node* definition = &checked->definitions.elements[i];
-        if (definition->kind == Definition_Use) {
-            char* path = definition->data.use.path;
+    for (size_t i = 0; i < checked->items.count; i++) {
+        Item_Node* item = &checked->items.elements[i];
+        if (item->kind == Item_Use) {
+            char* path = item->data.use.path;
             char* relative_path;
 
-            if (definition->data.use.package != NULL) {
+            if (item->data.use.package != NULL) {
                 char* package_path = NULL;
                 for (size_t j = 0; j < state->package_names->count; j++) {
-                    if (strcmp(state->package_names->elements[j], definition->data.use.package) == 0) {
+                    if (strcmp(state->package_names->elements[j], item->data.use.package) == 0) {
                         package_path = state->package_paths->elements[j];
                     }
                 }
@@ -76,7 +76,7 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
                     return false;
                 }
 
-                relative_path = concatenate_folder_file_path(package_path, definition->data.use.path);
+                relative_path = concatenate_folder_file_path(package_path, item->data.use.path);
             } else {
                 char* current_folder = string_substring(checked_path, 0, last_slash);
                 relative_path = concatenate_folder_file_path(current_folder, path);
@@ -93,21 +93,21 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
     return false;
 }
 
-Resolved_Definition resolve_definition(Generic_State* state, Definition_Identifier data) {
+Resolved_Item resolve_item(Generic_State* state, Item_Identifier data) {
     for (size_t j = 0; j < state->program->count; j++) {
         File_Node* file_node = &state->program->elements[j];
         if (uses(state->current_file, file_node, state) || state->current_file == file_node) {
-            for (size_t i = 0; i < file_node->definitions.count; i++) {
-                Definition_Node* definition = &file_node->definitions.elements[i];
+            for (size_t i = 0; i < file_node->items.count; i++) {
+                Item_Node* item = &file_node->items.elements[i];
                 // TODO: support multi retrieves & assigns
-                if (data.kind == Identifier_Single && strcmp(definition->name, data.data.single) == 0) {
-                    return (Resolved_Definition) { file_node, definition };
+                if (data.kind == Identifier_Single && strcmp(item->name, data.data.single) == 0) {
+                    return (Resolved_Item) { file_node, item };
                 }
             }
         }
     }
 
-    return (Resolved_Definition) { NULL, NULL };
+    return (Resolved_Item) { NULL, NULL };
 }
 
 Type create_basic_single_type(char* name) {
@@ -301,16 +301,16 @@ bool consume_in_reference(Process_State* state) {
     return cached;
 }
 
-Definition_Identifier basic_type_to_definition_identifier(Basic_Type type) {
-    Definition_Identifier definition_identifier;
+Item_Identifier basic_type_to_item_identifier(Basic_Type type) {
+    Item_Identifier item_identifier;
     if (type.kind == Type_Single) {
-        definition_identifier.data.single = type.data.single;
-        definition_identifier.kind = Identifier_Single;
+        item_identifier.data.single = type.data.single;
+        item_identifier.kind = Identifier_Single;
     } else {
-        definition_identifier.data.multi = type.data.multi;
-        definition_identifier.kind = Identifier_Multi;
+        item_identifier.data.multi = type.data.multi;
+        item_identifier.kind = Identifier_Multi;
     }
-    return definition_identifier;
+    return item_identifier;
 }
 
 static Type* _usize_type;
@@ -422,10 +422,10 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     }
 
                     if (!found) {
-                        Definition_Node* definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(assign_part)).definition;
-                        if (definition != NULL) {
-                            if (definition->kind == Definition_Global) {
-                                *type = definition->data.global.type;
+                        Item_Node* item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(assign_part)).item;
+                        if (item != NULL) {
+                            if (item->kind == Item_Global) {
+                                *type = item->data.global.type;
                                 found = true;
                             }
                         }
@@ -444,7 +444,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     process_expression(assign_part->data.struct_.expression, state);
                     Type struct_type = stack_type_pop(&state->stack);
 
-                    assign_part->data.struct_.added_type = struct_type;
+                    assign_part->data.struct_.computed_struct_type = struct_type;
 
                     Type* struct_type_raw;
                     if (struct_type.kind == Type_Pointer) {
@@ -457,10 +457,10 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     if (strcmp(assign_part->data.struct_.name, "*") == 0) {
                         *type = *struct_type_raw;
                     } else {
-                        Definition_Identifier definition_identifier = basic_type_to_definition_identifier(struct_type_raw->data.basic);
+                        Item_Identifier item_identifier = basic_type_to_item_identifier(struct_type_raw->data.basic);
 
-                        Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                        Struct_Node* struct_ = &definition->data.type.data.struct_;
+                        Item_Node* item = resolve_item(&state->generic, item_identifier).item;
+                        Struct_Node* struct_ = &item->data.type.data.struct_;
                         for (size_t i = 0; i < struct_->items.count; i++) {
                             Declaration* declaration = &struct_->items.elements[i];
                             if (strcmp(declaration->name, assign_part->data.struct_.name) == 0) {
@@ -495,7 +495,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 
                     Type* element_type = wanted_types.elements[assign->parts.count - i - 1];
 
-                    assign_part->data.array.added_type = array_type;
+                    assign_part->data.array.computed_array_type = array_type;
 
                     state->wanted_type = usize_type();
 
@@ -906,7 +906,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         exit(1);
                     }
 
-                    invoke->data.operator.added_type = first;
+                    invoke->data.operator.computed_operand_type = first;
                     stack_type_push(&state->stack, first);
                 }
 
@@ -929,7 +929,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         exit(1);
                     }
 
-                    invoke->data.operator.added_type = first;
+                    invoke->data.operator.computed_operand_type = first;
 
                     stack_type_push(&state->stack, create_basic_single_type("bool"));
                 }
@@ -952,7 +952,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     array_type_raw = &array_type;
                 }
 
-                retrieve->data.array.added_type = array_type;
+                retrieve->data.array.computed_array_type = array_type;
 
                 state->wanted_type = usize_type();
                 process_expression(retrieve->data.array.expression_inner, state);
@@ -999,7 +999,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 process_expression(retrieve->data.struct_.expression, state);
                 Type struct_type = stack_type_pop(&state->stack);
 
-                retrieve->data.struct_.added_type = struct_type;
+                retrieve->data.struct_.computed_struct_type = struct_type;
 
                 Type* struct_type_raw;
                 if (struct_type.kind == Type_Pointer) {
@@ -1012,10 +1012,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 if (strcmp(retrieve->data.struct_.name, "*") == 0) {
                     item_type = *struct_type_raw;
                 } else {
-                    Definition_Identifier definition_identifier = basic_type_to_definition_identifier(struct_type_raw->data.basic);
+                    Item_Identifier item_identifier = basic_type_to_item_identifier(struct_type_raw->data.basic);
 
-                    Definition_Node* definition = resolve_definition(&state->generic, definition_identifier).definition;
-                    Struct_Node* struct_ = &definition->data.type.data.struct_;
+                    Item_Node* item = resolve_item(&state->generic, item_identifier).item;
+                    Struct_Node* struct_ = &item->data.type.data.struct_;
                     for (size_t i = 0; i < struct_->items.count; i++) {
                         Declaration* declaration = &struct_->items.elements[i];
                         if (strcmp(declaration->name, retrieve->data.struct_.name) == 0) {
@@ -1050,12 +1050,12 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
-                Definition_Node* definition = resolve_definition(&state->generic, retrieve_assign_to_definition_identifier(retrieve)).definition;
-                if (definition != NULL) {
+                Item_Node* item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(retrieve)).item;
+                if (item != NULL) {
                     found = true;
-                    switch (definition->kind) {
-                        case Definition_Procedure:
-                            Procedure_Literal_Node* procedure = &definition->data.procedure.data.literal;
+                    switch (item->kind) {
+                        case Item_Procedure:
+                            Procedure_Literal_Node* procedure = &item->data.procedure.data.literal;
 
                             Type type;
                             Procedure_Type procedure_type;
@@ -1074,8 +1074,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             type.data.procedure = procedure_type;
                             stack_type_push(&state->stack, type);
                             break;
-                        case Definition_Global:
-                            Global_Node* global = &definition->data.global;
+                        case Item_Global:
+                            Global_Node* global = &item->data.global;
                             
                             if (consume_in_reference(state)) {
                                 stack_type_push(&state->stack, create_pointer_type(global->type));
@@ -1084,7 +1084,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             }
                             break;
                         default:
-                            printf("Unhandled definition retrieve!\n");
+                            printf("Unhandled item retrieve!\n");
                             exit(1);
                     }
                 }
@@ -1207,7 +1207,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 exit(1);
             }
 
-            cast->added_type = input;
+            cast->computed_input_type = input;
 
             stack_type_append(&state->stack, cast->type);
             break;
@@ -1219,7 +1219,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 wanted_type = usize_type();
             }
 
-            size_of->added_type = *wanted_type;
+            size_of->computed_result_type = *wanted_type;
             stack_type_append(&state->stack, *wanted_type);
             break;
         }
@@ -1229,10 +1229,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
     }
 }
 
-void process_definition(Definition_Node* definition, Process_State* state) {
-    switch (definition->kind) {
-        case Definition_Procedure: {
-            Procedure_Node* procedure = &definition->data.procedure;
+void process_item(Item_Node* item, Process_State* state) {
+    switch (item->kind) {
+        case Item_Procedure: {
+            Procedure_Node* procedure = &item->data.procedure;
             state->current_declares = array_declaration_new(4);
             state->current_arguments = procedure->data.literal.arguments;
             state->current_returns = procedure->data.literal.returns;
@@ -1241,14 +1241,14 @@ void process_definition(Definition_Node* definition, Process_State* state) {
             process_expression(procedure->data.literal.body, state);
             break;
         }
-        case Definition_Type:
+        case Item_Type:
             break;
-        case Definition_Global:
+        case Item_Global:
             break;
-        case Definition_Use:
+        case Item_Use:
             break;
         default:
-            printf("Unhandled definition_type!\n");
+            printf("Unhandled item_type!\n");
             exit(1);
     }
 }
@@ -1275,9 +1275,9 @@ void process(Program* program, Array_String* package_names, Array_String* packag
         File_Node* file_node = &program->elements[j];
         state.generic.current_file = file_node;
 
-        for (size_t i = 0; i < file_node->definitions.count; i++) {
-            Definition_Node* definition = &file_node->definitions.elements[i];
-            process_definition(definition, &state);
+        for (size_t i = 0; i < file_node->items.count; i++) {
+            Item_Node* item = &file_node->items.elements[i];
+            process_item(item, &state);
         }
     }
 }

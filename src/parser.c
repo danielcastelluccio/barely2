@@ -390,7 +390,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 Retrieve_Node node = {};
                 node.location = location;
                 node.kind = Retrieve_Assign_Identifier;
-                Definition_Identifier identifier = {};
+                Item_Identifier identifier = {};
                 identifier.kind = Identifier_Single;
                 identifier.data.single = name;
 
@@ -705,9 +705,9 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
-Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
+Item_Node parse_item(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
-    Definition_Node result;
+    Item_Node result;
 
     char* keyword = consume_keyword(tokens, &index);
     if (strcmp(keyword, "proc") == 0) {
@@ -774,7 +774,7 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
                 break;
         }
 
-        result.kind = Definition_Procedure;
+        result.kind = Item_Procedure;
         result.data.procedure = node;
     } else if (strcmp(keyword, "type") == 0) {
         Type_Node node;
@@ -819,27 +819,27 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
 
         consume_check(tokens, &index, Token_Semicolon);
 
-        result.kind = Definition_Type;
+        result.kind = Item_Type;
         result.data.type = node;
     } else if (strcmp(keyword, "mod") == 0) {
         Module_Node node;
-        node.definitions = array_definition_node_new(8);
+        node.items = array_item_node_new(8);
         
         consume_identifier(tokens, &index);
         consume_check(tokens, &index, Token_Colon);
         consume_check(tokens, &index, Token_LeftCurlyBrace);
 
         while (peek(tokens, index) != Token_RightCurlyBrace) {
-            Definition_Node definition = parse_definition(tokens, &index);
-            Definition_Node* definition_allocated = malloc(sizeof(Definition_Node));
-            *definition_allocated = definition;
-            array_definition_node_append(&node.definitions, definition);
+            Item_Node item = parse_item(tokens, &index);
+            Item_Node* item_allocated = malloc(sizeof(Item_Node));
+            *item_allocated = item;
+            array_item_node_append(&node.items, item);
         }
 
         consume(tokens, &index);
         consume_check(tokens, &index, Token_Semicolon);
 
-        result.kind = Definition_Module;
+        result.kind = Item_Module;
         result.data.module = node;
     } else if (strcmp(keyword, "global") == 0) {
         Global_Node node;
@@ -852,7 +852,7 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
 
         consume_check(tokens, &index, Token_Semicolon);
 
-        result.kind = Definition_Global;
+        result.kind = Item_Global;
         result.data.global = node;
     } else if (strcmp(keyword, "use") == 0) {
         Use_Node node = {};
@@ -870,7 +870,7 @@ Definition_Node parse_definition(Tokens* tokens, size_t* index_in) {
 
         consume_check(tokens, &index, Token_Semicolon);
 
-        result.kind = Definition_Use;
+        result.kind = Item_Use;
         result.data.use = node;
     } else {
         printf("Error: Unexpected token ");
@@ -890,13 +890,13 @@ File_Node parse(char* path, Tokens* tokens) {
     result.path = path;
     result.id = file_id++;
 
-    Array_Definition_Node array = array_definition_node_new(32);
+    Array_Item_Node array = array_item_node_new(32);
     size_t index = 0;
     while (index < tokens->count) {
-        Definition_Node node = parse_definition(tokens, &index);
-        array_definition_node_append(&array, node);
+        Item_Node node = parse_item(tokens, &index);
+        array_item_node_append(&array, node);
     }
 
-    result.definitions = array;
+    result.items = array;
     return result;
 }

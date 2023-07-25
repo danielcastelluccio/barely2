@@ -136,7 +136,7 @@ typedef struct {
         Expression_Node* procedure;
         struct {
             Operator operator;
-            Type added_type;
+            Type computed_operand_type;
         } operator;
     } data;
     Array_Expression_Node arguments;
@@ -152,7 +152,7 @@ typedef struct {
         char* single;
         Array_String multi;
     } data;
-} Definition_Identifier;
+} Item_Identifier;
 
 typedef struct {
     enum {
@@ -161,16 +161,16 @@ typedef struct {
         Retrieve_Assign_Array,
     } kind;
     union {
-        Definition_Identifier identifier;
+        Item_Identifier identifier;
         struct {
             Expression_Node* expression;
             char* name;
-            Type added_type;
+            Type computed_struct_type;
         } struct_;
         struct {
             Expression_Node* expression_outer;
             Expression_Node* expression_inner;
-            Type added_type;
+            Type computed_array_type;
         } array;
     } data;
     Location location;
@@ -189,13 +189,13 @@ typedef struct {
 typedef struct {
     Type type;
     Expression_Node* expression;
-    Type added_type;
+    Type computed_input_type;
     Location location;
 } Cast_Node;
 
 typedef struct {
     Type type;
-    Type added_type;
+    Type computed_result_type;
     Location location;
 } SizeOf_Node;
 
@@ -296,13 +296,13 @@ typedef struct {
     } data;
 } Type_Node;
 
-struct Definition_Node;
-typedef struct Definition_Node Definition_Node;
+struct Item_Node;
+typedef struct Item_Node Item_Node;
 
-Dynamic_Array_Def(Definition_Node, Array_Definition_Node, array_definition_node_)
+Dynamic_Array_Def(Item_Node, Array_Item_Node, array_item_node_)
 
 typedef struct {
-    Array_Definition_Node definitions;
+    Array_Item_Node items;
 } Module_Node;
 
 typedef struct {
@@ -314,14 +314,14 @@ typedef struct {
     char* path;
 } Use_Node;
 
-struct Definition_Node {
+struct Item_Node {
     char* name;
     enum {
-        Definition_Procedure,
-        Definition_Type,
-        Definition_Module,
-        Definition_Global,
-        Definition_Use,
+        Item_Procedure,
+        Item_Type,
+        Item_Module,
+        Item_Global,
+        Item_Use,
     } kind;
     union {
         Procedure_Node procedure;
@@ -335,7 +335,7 @@ struct Definition_Node {
 typedef struct {
     char* path;
     size_t id;
-    Array_Definition_Node definitions;
+    Array_Item_Node items;
 } File_Node;
 
 Dynamic_Array_Def(File_Node, Program, program_)
