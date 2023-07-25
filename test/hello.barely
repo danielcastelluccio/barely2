@@ -1,0 +1,5 @@
+//@out: Hello World!
+
+proc main : () {
+    @syscall3(1, 1, "Hello World!", 13);
+};

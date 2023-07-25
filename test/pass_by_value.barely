@@ -1,0 +1,21 @@
+//@out: abcdabcd
+
+type A : {
+    a: usize;
+    b: usize;
+};
+
+proc main : () {
+    var a: A;
+    a.a = 4;
+    a.b = 5;
+
+    c(a);
+};
+
+proc c : (a: A) {
+    var b: A = a;
+
+    @syscall3(1, 1, "abcdefh", b.a);
+    @syscall3(1, 1, "abcdefh", b.b);
+};
