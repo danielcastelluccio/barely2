@@ -65,6 +65,8 @@ size_t get_size(Type* type, Generic_State* state) {
                     return 2;
                 case Type_U1:
                     return 1;
+                case Type_F8:
+                    return 8;
             }
             break;
         }
@@ -743,6 +745,26 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
+                        } else if (is_internal_type(Type_F8, &operator_type)) {
+                            stringbuffer_appendstring(&state->instructions, "  fld qword [rsp+8]\n");
+                            switch (invoke->data.operator.operator) {
+                                case Operator_Add:
+                                    stringbuffer_appendstring(&state->instructions, "  fadd qword [rsp]\n");
+                                    break;
+                                case Operator_Subtract:
+                                    stringbuffer_appendstring(&state->instructions, "  fsub qword [rsp]\n");
+                                    break;
+                                case Operator_Multiply:
+                                    stringbuffer_appendstring(&state->instructions, "  fmul qword [rsp]\n");
+                                    break;
+                                case Operator_Divide:
+                                    stringbuffer_appendstring(&state->instructions, "  fdiv qword [rsp]\n");
+                                    break;
+                                default:
+                                    assert(false);
+                            }
+                            stringbuffer_appendstring(&state->instructions, "  fstp qword [rsp+8]\n");
+                            stringbuffer_appendstring(&state->instructions, "  add rsp, 8\n");
                         } else {
                             assert(false);
                         }
@@ -878,6 +900,39 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 default:
                                     assert(false);
                             }
+                            stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
+                        } else if (is_internal_type(Type_F8, &operator_type)) {
+                            stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  fld qword [rsp]\n");
+                            stringbuffer_appendstring(&state->instructions, "  fld qword [rsp+8]\n");
+                            stringbuffer_appendstring(&state->instructions, "  fcomi st1\n");
+                            switch (invoke->data.operator.operator) {
+                                case Operator_Equal:
+                                    stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
+                                    break;
+                                case Operator_NotEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovne rcx, rdx\n");
+                                    break;
+                                case Operator_Less:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovb rcx, rdx\n");
+                                    break;
+                                case Operator_LessEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovbe rcx, rdx\n");
+                                    break;
+                                case Operator_Greater:
+                                    stringbuffer_appendstring(&state->instructions, "  cmova rcx, rdx\n");
+                                    break;
+                                case Operator_GreaterEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
+                                    break;
+                                default:
+                                    assert(false);
+                            }
+                            stringbuffer_appendstring(&state->instructions, "  fstp tword [rsp]\n");
+                            stringbuffer_appendstring(&state->instructions, "  fstp tword [rsp]\n");
+                            stringbuffer_appendstring(&state->instructions, "  add rsp, 16\n");
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
                         } else {
@@ -1295,7 +1350,34 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
             Internal_Type type = number->type->data.internal;
-            output_unsigned_integer(type, number->value, state);
+            if (type == Type_F8) {
+                double value;
+                switch (number->kind) {
+                    case Number_Integer:
+                        value = (double) number->value.integer;
+                        break;
+                    case Number_Decimal:
+                        value = number->value.decimal;
+                        break;
+                }
+
+                stringbuffer_appendstring(&state->instructions, "  sub rsp, 8\n");
+                char buffer[128] = {};
+                sprintf(buffer, "  mov rax, %zu\n", *(size_t*) &value);
+                stringbuffer_appendstring(&state->instructions, buffer);
+                stringbuffer_appendstring(&state->instructions, "  mov [rsp], rax\n");
+            } else {
+                size_t value;
+                switch (number->kind) {
+                    case Number_Integer:
+                        value = number->value.integer;
+                        break;
+                    case Number_Decimal:
+                        value = (size_t) number->value.decimal;
+                        break;
+                }
+                output_unsigned_integer(type, value, state);
+            }
             break;
         }
         case Expression_Boolean: {
@@ -1368,6 +1450,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                         stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
                     }
+                } else if (input_internal == Type_F8 && output_internal == Type_U8) {
+                    stringbuffer_appendstring(&state->instructions, "  fld qword [rsp]\n");
+                    stringbuffer_appendstring(&state->instructions, "  fisttp qword [rsp]\n");
                 } else {
                     assert(false);
                 }

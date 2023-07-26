@@ -40,7 +40,7 @@ bool is_number_type(Type* type) {
     if (type->kind == Type_Internal) {
         Internal_Type internal = type->data.internal;
 
-        if (internal == Type_USize || internal == Type_U8 || internal == Type_U4 || internal == Type_U2 || internal == Type_U1) {
+        if (internal == Type_USize || internal == Type_U8 || internal == Type_U4 || internal == Type_U2 || internal == Type_U1 || internal == Type_F8) {
             return true;
         }
     }
@@ -278,6 +278,9 @@ void print_type_inline(Type* type) {
                     break;
                 case Type_U1:
                     printf("u1");
+                    break;
+                case Type_F8:
+                    printf("f8");
                     break;
             }
             break;
@@ -1193,6 +1196,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                 if ((input_internal == Type_USize || input_internal == Type_U8 || input_internal == Type_U4 || input_internal == Type_U2 || input_internal == Type_U1) && 
                         (output_internal == Type_USize || output_internal == Type_U8 || output_internal == Type_U4 || output_internal == Type_U2 || output_internal == Type_U1)) {
+                    is_valid = true;
+                } else if (input_internal == Type_F8 && output_internal == Type_U8) {
                     is_valid = true;
                 }
             }

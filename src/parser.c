@@ -138,21 +138,30 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
         result.data.array = array;
     } else {
         char* name = consume_identifier(tokens, &index);
-        if (strcmp(name, "usize") == 0 || strcmp(name, "u8") == 0 || strcmp(name, "u4") == 0 || strcmp(name, "u2") == 0 || strcmp(name, "u1") == 0) {
-            Internal_Type internal;
+        Internal_Type internal;
+        bool is_internal = false;
 
-            if (strcmp(name, "usize") == 0) {
-                internal = Type_USize;
-            } else if (strcmp(name, "u8") == 0) {
-                internal = Type_U8;
-            } else if (strcmp(name, "u4") == 0) {
-                internal = Type_U4;
-            } else if (strcmp(name, "u2") == 0) {
-                internal = Type_U2;
-            } else if (strcmp(name, "u1") == 0) {
-                internal = Type_U1;
-            }
+        if (strcmp(name, "usize") == 0) {
+            internal = Type_USize;
+            is_internal = true;
+        } else if (strcmp(name, "u8") == 0) {
+            internal = Type_U8;
+            is_internal = true;
+        } else if (strcmp(name, "u4") == 0) {
+            internal = Type_U4;
+            is_internal = true;
+        } else if (strcmp(name, "u2") == 0) {
+            internal = Type_U2;
+            is_internal = true;
+        } else if (strcmp(name, "u1") == 0) {
+            internal = Type_U1;
+            is_internal = true;
+        } else if (strcmp(name, "f8") == 0) {
+            internal = Type_F8;
+            is_internal = true;
+        }
 
+        if (is_internal) {
             result.kind = Type_Internal;
             result.data.internal = internal;
         } else {
@@ -328,8 +337,17 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         case Token_Number: {
             Number_Node node;
 
-            size_t value = strtoul(consume_number(tokens, &index), NULL, 0);
-            node.value = value;
+            char* string_value = consume_number(tokens, &index);
+
+            if (string_contains(string_value, '.')) {
+                double value = strtod(string_value, NULL);
+                node.kind = Number_Decimal;
+                node.value.decimal = value;
+            } else {
+                size_t value = strtoul(string_value, NULL, 0);
+                node.kind = Number_Integer;
+                node.value.integer = value;
+            }
 
             result.kind = Expression_Number;
             result.data.number = node;
@@ -370,6 +388,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 result.data.size_of = node;
             } else if (strcmp(name, "@cast") == 0) {
                 Cast_Node node;
+                node.location = location;
 
                 consume_check(tokens, &index, Token_LeftParenthesis);
 

@@ -17,6 +17,7 @@ typedef enum {
     Type_U4,
     Type_U2,
     Type_U1,
+    Type_F8,
 } Internal_Type;
 
 typedef struct {
@@ -85,7 +86,14 @@ typedef struct {
 } Block_Node;
 
 typedef struct {
-    size_t value;
+    enum {
+        Number_Integer,
+        Number_Decimal,
+    } kind;
+    union {
+        size_t integer;
+        double decimal;
+    } value;
     Type* type;
 } Number_Node;
 

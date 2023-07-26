@@ -351,6 +351,12 @@ Tokens tokenize(char* file, char* contents) {
                 default:
                     stringbuffer_append(&buffer, character);
                     i++;
+
+                    if (character >= '0' && character <= '9' && contents[i] == '.') {
+                        stringbuffer_append(&buffer, contents[i]);
+                        i++;
+                    }
+
                     break;
             }
         }
