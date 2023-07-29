@@ -166,6 +166,8 @@ Tokens tokenize(char* file, char* contents) {
         if (in_comment) {
             if (character == '\n') {
                 in_comment = false;
+                col = 1;
+                row++;
             }
             i++;
         } else if (in_string) {
