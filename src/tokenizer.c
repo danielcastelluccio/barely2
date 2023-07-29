@@ -13,6 +13,10 @@ bool is_keyword(char* buffer) {
         return true;
     } else if (strcmp(buffer, "type") == 0) {
         return true;
+    } else if (strcmp(buffer, "struct") == 0) {
+        return true;
+    } else if (strcmp(buffer, "union") == 0) {
+        return true;
     } else if (strcmp(buffer, "mod") == 0) {
         return true;
     } else if (strcmp(buffer, "global") == 0) {
@@ -353,8 +357,16 @@ Tokens tokenize(char* file, char* contents) {
                     i++;
 
                     if (character >= '0' && character <= '9' && contents[i] == '.') {
-                        stringbuffer_append(&buffer, contents[i]);
-                        i++;
+                        bool is_number_buffer = true;
+                        for (size_t j = 0; j < buffer.count; j++) {
+                            if (buffer.elements[j] < '0' || buffer.elements[j] > '9') {
+                                is_number_buffer = false;
+                            }
+                        }
+                        if (is_number_buffer) {
+                            stringbuffer_append(&buffer, contents[i]);
+                            i++;
+                        }
                     }
 
                     break;

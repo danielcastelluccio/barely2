@@ -136,6 +136,46 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
         result.kind = Type_Array;
         result.data.array = array;
+    } else if (peek(tokens, index) == Token_Keyword) {
+        char* keyword = consume_keyword(tokens, &index);
+
+        if (strcmp(keyword, "proc") == 0) {
+            index += 1;
+
+            Procedure_Type procedure = {
+                .arguments = array_type_new(2),
+                .returns = array_type_new(1),
+            };
+
+            while (peek(tokens, index) != Token_RightParenthesis) {
+                if (peek(tokens, index) == Token_Comma) {
+                    index += 1;
+                    continue;
+                }
+
+                Type* type = malloc(sizeof(Type));
+                *type = parse_type(tokens, &index);
+                array_type_append(&procedure.arguments, type);
+            }
+
+            consume(tokens, &index);
+
+            if (peek(tokens, index) == Token_Colon) {
+                index += 1;
+
+                bool looking_at_returns = true;
+                while (looking_at_returns) {
+                    Type* type = malloc(sizeof(Type));
+                    *type = parse_type(tokens, &index);
+                    array_type_append(&procedure.returns, type);
+
+                    looking_at_returns = peek(tokens, index) == Token_Comma;
+                }
+            }
+
+            result.kind = Type_Procedure;
+            result.data.procedure = procedure;
+        }
     } else {
         char* name = consume_identifier(tokens, &index);
         Internal_Type internal;
@@ -535,19 +575,19 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         if (peek(tokens, index) == Token_Period) {
             running = true;
             Retrieve_Node node;
-            node.kind = Retrieve_Assign_Struct;
+            node.kind = Retrieve_Assign_Parent;
 
             consume(tokens, &index);
 
             Expression_Node* previous_result = malloc(sizeof(Expression_Node));
             *previous_result = result;
-            node.data.struct_.expression = previous_result;
+            node.data.parent.expression = previous_result;
 
             if (peek(tokens, index) == Token_Asterisk) {
                 consume(tokens, &index);
-                node.data.struct_.name = "*";
+                node.data.parent.name = "*";
             } else {
-                node.data.struct_.name = consume_identifier(tokens, &index);
+                node.data.parent.name = consume_identifier(tokens, &index);
             }
 
             result.kind = Expression_Retrieve;
@@ -804,29 +844,61 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
         consume_check(tokens, &index, Token_Colon);
 
         switch (peek(tokens, index)) {
-            case Token_LeftCurlyBrace: {
-                Struct_Node struct_node;
-                consume(tokens, &index);
+            case Token_Keyword: {
+                char* keyword = consume_keyword(tokens, &index);
 
-                Array_Declaration items = array_declaration_new(4);
-                while (peek(tokens, index) != Token_RightCurlyBrace) {
-                    if (peek(tokens, index) == Token_Semicolon) {
-                        consume(tokens, &index);
-                        continue;
+                if (strcmp(keyword, "struct") == 0) {
+                    Struct_Node struct_node;
+                    consume(tokens, &index);
+
+                    Array_Declaration items = array_declaration_new(4);
+                    while (peek(tokens, index) != Token_RightCurlyBrace) {
+                        if (peek(tokens, index) == Token_Semicolon) {
+                            consume(tokens, &index);
+                            continue;
+                        }
+
+                        Location location = tokens->elements[index].location;
+                        char* name = consume_identifier(tokens, &index);
+                        consume_check(tokens, &index, Token_Colon);
+                        Type type = parse_type(tokens, &index);
+
+                        array_declaration_append(&items, (Declaration) { name, type, location });
                     }
+                    struct_node.items = items;
+                    consume(tokens, &index);
 
-                    Location location = tokens->elements[index].location;
-                    char* name = consume_identifier(tokens, &index);
-                    consume_check(tokens, &index, Token_Colon);
-                    Type type = parse_type(tokens, &index);
+                    node.kind = Type_Node_Struct;
+                    node.data.struct_ = struct_node;
+                } else if (strcmp(keyword, "union") == 0) {
+                    Union_Node union_node;
+                    consume(tokens, &index);
 
-                    array_declaration_append(&items, (Declaration) { name, type, location });
+                    Array_Declaration items = array_declaration_new(4);
+                    while (peek(tokens, index) != Token_RightCurlyBrace) {
+                        if (peek(tokens, index) == Token_Semicolon) {
+                            consume(tokens, &index);
+                            continue;
+                        }
+
+                        Location location = tokens->elements[index].location;
+                        char* name = consume_identifier(tokens, &index);
+                        consume_check(tokens, &index, Token_Colon);
+                        Type type = parse_type(tokens, &index);
+
+                        array_declaration_append(&items, (Declaration) { name, type, location });
+                    }
+                    union_node.items = items;
+                    consume(tokens, &index);
+
+                    node.kind = Type_Node_Union;
+                    node.data.union_ = union_node;
+                } else {
+                    printf("Error: Unexpected token ");
+                    print_token(&tokens->elements[index - 1], false);
+                    printf("\n");
+                    exit(1);
                 }
-                struct_node.items = items;
-                consume(tokens, &index);
-
-                node.kind = Type_Node_Struct;
-                node.data.struct_ = struct_node;
                 break;
             }
             default:

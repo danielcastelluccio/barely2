@@ -198,6 +198,29 @@ bool is_type(Type* wanted, Type* given) {
         return wanted->data.internal == given->data.internal;
     }
 
+    if (wanted->kind == Type_Procedure) {
+        Procedure_Type* wanted_proc = &wanted->data.procedure;
+        Procedure_Type* given_proc = &given->data.procedure;
+
+        bool is_valid = true;
+        if (wanted_proc->arguments.count != given_proc->arguments.count) is_valid = false;
+        if (wanted_proc->returns.count != given_proc->returns.count) is_valid = false;
+
+        for (size_t i = 0; i < wanted_proc->arguments.count; i++) {
+            if (!is_type(array_type_get(&wanted_proc->arguments, i), given_proc->arguments.elements[i])) {
+                is_valid = false;
+            }
+        }
+
+        for (size_t i = 0; i < wanted_proc->returns.count; i++) {
+            if (!is_type(wanted_proc->returns.elements[i], given_proc->returns.elements[i])) {
+                is_valid = false;
+            }
+        }
+
+        return is_valid;
+    }
+
     return false;
 }
 
@@ -443,36 +466,51 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     array_type_append(&wanted_types, type);
                 }
 
-                if (assign_part->kind == Retrieve_Assign_Struct) {
-                    process_expression(assign_part->data.struct_.expression, state);
-                    Type struct_type = stack_type_pop(&state->stack);
+                if (assign_part->kind == Retrieve_Assign_Parent) {
+                    process_expression(assign_part->data.parent.expression, state);
+                    Type parent_type = stack_type_pop(&state->stack);
 
-                    assign_part->data.struct_.computed_struct_type = struct_type;
+                    assign_part->data.parent.computed_parent_type = parent_type;
 
-                    Type* struct_type_raw;
-                    if (struct_type.kind == Type_Pointer) {
-                        struct_type_raw = struct_type.data.pointer.child;
+                    Type* parent_type_raw;
+                    if (parent_type.kind == Type_Pointer) {
+                        parent_type_raw = parent_type.data.pointer.child;
                     } else {
-                        struct_type_raw = &struct_type;
+                        parent_type_raw = &parent_type;
                     }
 
-                    Type* type = malloc(sizeof(Type));
-                    if (strcmp(assign_part->data.struct_.name, "*") == 0) {
-                        *type = *struct_type_raw;
+                    Type* item_type = malloc(sizeof(Type));
+                    if (strcmp(assign_part->data.parent.name, "*") == 0) {
+                        *item_type = *parent_type_raw;
                     } else {
-                        Item_Identifier item_identifier = basic_type_to_item_identifier(struct_type_raw->data.basic);
+                        Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
 
                         Item_Node* item = resolve_item(&state->generic, item_identifier).item;
-                        Struct_Node* struct_ = &item->data.type.data.struct_;
-                        for (size_t i = 0; i < struct_->items.count; i++) {
-                            Declaration* declaration = &struct_->items.elements[i];
-                            if (strcmp(declaration->name, assign_part->data.struct_.name) == 0) {
-                                *type = declaration->type;
+                        switch (item->data.type.kind) {
+                            case Type_Node_Struct: {
+                                Struct_Node* struct_ = &item->data.type.data.struct_;
+                                for (size_t i = 0; i < struct_->items.count; i++) {
+                                    Declaration* declaration = &struct_->items.elements[i];
+                                    if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
+                                        *item_type = declaration->type;
+                                    }
+                                }
+                                break;
+                            }
+                            case Type_Node_Union: {
+                                Union_Node* union_ = &item->data.type.data.union_;
+                                for (size_t i = 0; i < union_->items.count; i++) {
+                                    Declaration* declaration = &union_->items.elements[i];
+                                    if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
+                                        *item_type = declaration->type;
+                                    }
+                                }
+                                break;
                             }
                         }
                     }
 
-                    array_type_append(&wanted_types, type);
+                    array_type_append(&wanted_types, item_type);
                 }
             }
 
@@ -553,7 +591,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     }
                 }
 
-                if (assign_part->kind == Retrieve_Assign_Struct) {
+                if (assign_part->kind == Retrieve_Assign_Parent) {
                     Type* item_type = wanted_types.elements[assign->parts.count - i - 1];
 
                     if (state->stack.count == 0) {
@@ -827,13 +865,13 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     process_expression(procedure, state);
 
                     Type type = stack_type_pop(&state->stack);
-                    if (type.kind != Type_Procedure) {
+                    if (type.kind != Type_Pointer || type.data.pointer.child->kind != Type_Procedure) {
                         print_error_stub(&invoke->location);
                         printf("Attempting to invoke a non procedure\n");
                         exit(1);
                     }
 
-                    Procedure_Type* procedure_type = &type.data.procedure;
+                    Procedure_Type* procedure_type = &type.data.pointer.child->data.procedure;
                     size_t arg_index = 0;
                     for (size_t i = 0; i < invoke->arguments.count; i++) {
                         size_t stack_start = state->stack.count;
@@ -997,33 +1035,49 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 }
             }
 
-            if (!found && retrieve->kind == Retrieve_Assign_Struct) {
+            if (!found && retrieve->kind == Retrieve_Assign_Parent) {
                 bool in_reference = consume_in_reference(state);
-                process_expression(retrieve->data.struct_.expression, state);
-                Type struct_type = stack_type_pop(&state->stack);
+                process_expression(retrieve->data.parent.expression, state);
+                Type parent_type = stack_type_pop(&state->stack);
 
-                retrieve->data.struct_.computed_struct_type = struct_type;
+                retrieve->data.parent.computed_parent_type = parent_type;
 
-                Type* struct_type_raw;
-                if (struct_type.kind == Type_Pointer) {
-                    struct_type_raw = struct_type.data.pointer.child;
+                Type* parent_type_raw;
+                if (parent_type.kind == Type_Pointer) {
+                    parent_type_raw = parent_type.data.pointer.child;
                 } else {
-                    struct_type_raw = &struct_type;
+                    parent_type_raw = &parent_type;
                 }
 
                 Type item_type;
-                if (strcmp(retrieve->data.struct_.name, "*") == 0) {
-                    item_type = *struct_type_raw;
+                if (strcmp(retrieve->data.parent.name, "*") == 0) {
+                    item_type = *parent_type_raw;
                 } else {
-                    Item_Identifier item_identifier = basic_type_to_item_identifier(struct_type_raw->data.basic);
+                    Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
 
                     Item_Node* item = resolve_item(&state->generic, item_identifier).item;
-                    Struct_Node* struct_ = &item->data.type.data.struct_;
-                    for (size_t i = 0; i < struct_->items.count; i++) {
-                        Declaration* declaration = &struct_->items.elements[i];
-                        if (strcmp(declaration->name, retrieve->data.struct_.name) == 0) {
-                            item_type = declaration->type;
-                            found = true;
+                    switch (item->data.type.kind) {
+                        case Type_Node_Struct: {
+                            Struct_Node* struct_ = &item->data.type.data.struct_;
+                            for (size_t i = 0; i < struct_->items.count; i++) {
+                                Declaration* declaration = &struct_->items.elements[i];
+                                if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
+                                    item_type = declaration->type;
+                                    found = true;
+                                }
+                            }
+                            break;
+                        }
+                        case Type_Node_Union: {
+                            Union_Node* union_ = &item->data.type.data.union_;
+                            for (size_t i = 0; i < union_->items.count; i++) {
+                                Declaration* declaration = &union_->items.elements[i];
+                                if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
+                                    item_type = declaration->type;
+                                    found = true;
+                                }
+                            }
+                            break;
                         }
                     }
                 }
@@ -1075,7 +1129,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                             type.kind = Type_Procedure;
                             type.data.procedure = procedure_type;
-                            stack_type_push(&state->stack, type);
+                            stack_type_push(&state->stack, create_pointer_type(type));
                             break;
                         case Item_Global:
                             Global_Node* global = &item->data.global;

@@ -11,7 +11,8 @@ typedef struct { \
 Array_Type_ name##new(size_t size); \
 void name##append(Array_Type_* array, Type_Inner element); \
 void name##clear(Array_Type_* array); \
-void name##free(Array_Type_* array);
+void name##free(Array_Type_* array); \
+Type_Inner name##get(Array_Type_* array, size_t index);
 
 #define Dynamic_Array_Impl(Type_Inner, Array_Type_, name) \
 Array_Type_ name##new(size_t size) { \
@@ -42,6 +43,10 @@ void name##clear(Array_Type_* array) { \
 \
 void name##free(Array_Type_* array) { \
     free(array->elements); \
+} \
+\
+Type_Inner name##get(Array_Type_* array, size_t index) { \
+    return array->elements[index]; \
 } \
 
 #endif

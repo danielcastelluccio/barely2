@@ -165,7 +165,7 @@ typedef struct {
 typedef struct {
     enum {
         Retrieve_Assign_Identifier,
-        Retrieve_Assign_Struct,
+        Retrieve_Assign_Parent,
         Retrieve_Assign_Array,
     } kind;
     union {
@@ -173,8 +173,8 @@ typedef struct {
         struct {
             Expression_Node* expression;
             char* name;
-            Type computed_struct_type;
-        } struct_;
+            Type computed_parent_type;
+        } parent;
         struct {
             Expression_Node* expression_outer;
             Expression_Node* expression_inner;
@@ -296,11 +296,17 @@ typedef struct {
 } Struct_Node;
 
 typedef struct {
+    Array_Declaration items;
+} Union_Node;
+
+typedef struct {
     enum {
         Type_Node_Struct,
+        Type_Node_Union,
     } kind;
     union {
         Struct_Node struct_;
+        Union_Node union_;
     } data;
 } Type_Node;
 
