@@ -1,6 +1,6 @@
-//@out: abcdabcd
+//@out: abcdeabcde
 
-type A : {
+type A : union {
     a: usize;
     b: usize;
 };

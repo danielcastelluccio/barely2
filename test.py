@@ -6,14 +6,7 @@ def run(compiler, directory):
     tests_count = 0
     tests_passed = 0
 
-    index_file = open(directory + "/index")
-
-    directory_files = os.listdir(directory)
-    directory_files.remove("index")
-
-    for file_name in index_file.readlines():
-        file_name = file_name[:-1]
-        directory_files.remove(file_name)
+    for file_name in os.listdir(directory):
         file = open(directory + "/" + file_name)
         contents = file.readlines()
 
@@ -44,11 +37,12 @@ def run(compiler, directory):
             print(output.stdout, end='')
             passed = False
 
-        output = subprocess.run(["./output"], capture_output = True, text = True)
-        if output.stdout[:-1] != wanted_output:
-            print("FAILED: " + file_name + " (behavior)")
-            print("Expected: " + str(bytes(wanted_output, 'utf-8')) + " Given: " + str(bytes(output.stdout[:-1], 'utf-8')))
-            passed = False
+        if passed:
+            output = subprocess.run(["./output"], capture_output = True, text = True)
+            if output.stdout != wanted_output:
+                print("FAILED: " + file_name + " (behavior)")
+                print("Expected: " + str(bytes(wanted_output, 'utf-8')) + " Given: " + str(bytes(output.stdout, 'utf-8')))
+                passed = False
 
         tests_count += 1
         if passed:
@@ -56,9 +50,6 @@ def run(compiler, directory):
             tests_passed += 1
 
     print(" - " + str(tests_passed) + "/" + str(tests_count) + " tests passed")
-
-    if len(directory_files) > 0:
-        print(" - NOTE: test files " + str(directory_files) + " not included")
 
 args = sys.argv
 assert(len(args) == 4)

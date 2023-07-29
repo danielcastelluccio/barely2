@@ -10,12 +10,6 @@ proc main : () {
     a.a = 4;
     a.b = 5;
 
-    c(a);
-};
-
-proc c : (a: A) {
-    var b: A = a;
-
-    @syscall3(1, 1, "abcdefh", b.a);
-    @syscall3(1, 1, "abcdefh", b.b);
+    @syscall3(1, 1, "abcdefh", a.a);
+    @syscall3(1, 1, "abcdefh", a.b);
 };

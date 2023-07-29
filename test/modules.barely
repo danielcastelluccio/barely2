@@ -1,0 +1,11 @@
+//@out: abcd
+
+mod A : {
+    proc baz : () {
+        @syscall3(1, 1, "abcdefgh", 4);
+    };
+};
+
+proc main : () {
+    A::baz();
+};

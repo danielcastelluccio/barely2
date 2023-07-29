@@ -1,0 +1,8 @@
+//@out: abcd
+
+global a : usize;
+
+proc main : () {
+    a = 4;
+    @syscall3(1, 1, "abcdefgh", a);
+};
