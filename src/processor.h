@@ -15,6 +15,7 @@ Dynamic_Array_Def(size_t, Array_Size, array_size_)
 
 typedef struct {
     File_Node* file;
+    Module_Node* parent_module;
     Item_Node* item;
 } Resolved_Item;
 
@@ -24,7 +25,6 @@ bool is_internal_type(Internal_Type wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);
 void process(Program* program, Array_String* package_names, Array_String* package_paths);
-Item_Identifier retrieve_assign_to_item_identifier(Retrieve_Assign_Node* retrieve_assign);
 Item_Identifier basic_type_to_item_identifier(Basic_Type type);
 
 #endif

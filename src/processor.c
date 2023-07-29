@@ -32,10 +32,6 @@ typedef struct {
     Type* wanted_type;
 } Process_State;
 
-Item_Identifier retrieve_assign_to_item_identifier(Retrieve_Assign_Node* retrieve_assign) {
-    return retrieve_assign->data.identifier;
-}
-
 bool is_number_type(Type* type) {
     if (type->kind == Type_Internal) {
         Internal_Type internal = type->data.internal;
@@ -94,20 +90,52 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
 }
 
 Resolved_Item resolve_item(Generic_State* state, Item_Identifier data) {
+    Item_Identifier initial_search;
+    if (data.kind == Identifier_Single) {
+        initial_search = data;
+    } else if (data.kind == Identifier_Multi) {
+        initial_search.kind = Identifier_Single;
+        initial_search.data.single = data.data.multi.elements[0];
+    }
+
+    Resolved_Item result = { NULL, NULL, NULL };
     for (size_t j = 0; j < state->program->count; j++) {
         File_Node* file_node = &state->program->elements[j];
+        bool stop = false;
         if (uses(state->current_file, file_node, state) || state->current_file == file_node) {
             for (size_t i = 0; i < file_node->items.count; i++) {
                 Item_Node* item = &file_node->items.elements[i];
-                // TODO: support multi retrieves & assigns
-                if (data.kind == Identifier_Single && strcmp(item->name, data.data.single) == 0) {
-                    return (Resolved_Item) { file_node, item };
+                if (initial_search.kind == Identifier_Single && strcmp(item->name, initial_search.data.single) == 0) {
+                    result = (Resolved_Item) { file_node, NULL, item };
+                    stop = true;
+                    break;
                 }
             }
         }
+
+        if (stop) {
+            break;
+        }
     }
 
-    return (Resolved_Item) { NULL, NULL };
+    if (data.kind == Identifier_Multi) {
+        size_t identifier_index = 1;
+        while (result.item->kind == Item_Module) {
+            Module_Node* module = &result.item->data.module;
+            char* wanted_name = data.data.multi.elements[identifier_index];
+            for (size_t i = 0; i < module->items.count; i++) {
+                Item_Node* item = &module->items.elements[i];
+                if (strcmp(item->name, wanted_name) == 0) {
+                    result = (Resolved_Item) { result.file, module, item };
+                    break;
+                }
+            }
+
+            identifier_index++;
+        }
+    }
+
+    return result;
 }
 
 Type create_basic_single_type(char* name) {
@@ -410,6 +438,8 @@ void process_statement(Statement_Node* statement, Process_State* state) {
             Array_Type wanted_types = array_type_new(1);
             for (size_t i = 0; i < assign->parts.count; i++) {
                 Statement_Assign_Part* assign_part = &assign->parts.elements[i];
+                Type* wanted_type = malloc(sizeof(Type));
+                bool found = false;
 
                 if (assign_part->kind == Retrieve_Assign_Array) {
                     process_expression(assign_part->data.array.expression_outer, state);
@@ -430,14 +460,13 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         exit(1);
                     }
 
-                    array_type_append(&wanted_types, array_type_raw->data.array.element_type);
+                    wanted_type = array_type_raw->data.array.element_type;
+                    found = true;
                 }
 
-                if (assign_part->kind == Retrieve_Assign_Identifier) {
-                    assert(assign_part->data.identifier.kind == Identifier_Single);
+                if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
                     char* name = assign_part->data.identifier.data.single;
 
-                    bool found = false;
                     Type* type = malloc(sizeof(Type));
                     for (size_t j = 0; j < state->current_declares.count; j++) {
                         if (strcmp(state->current_declares.elements[j].name, name) == 0) {
@@ -448,7 +477,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     }
 
                     if (!found) {
-                        Item_Node* item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(assign_part)).item;
+                        Item_Node* item = resolve_item(&state->generic, assign_part->data.identifier).item;
                         if (item != NULL) {
                             if (item->kind == Item_Global) {
                                 *type = item->data.global.type;
@@ -457,13 +486,17 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         }
                     }
 
-                    if (!found) {
-                        print_error_stub(&assign_part->location);
-                        printf("Assign not found\n");
-                        exit(1);
-                    }
+                    wanted_type = type;
+                }
 
-                    array_type_append(&wanted_types, type);
+                if (assign_part->kind == Retrieve_Assign_Identifier) {
+                    Item_Node* item = resolve_item(&state->generic, assign_part->data.identifier).item;
+                    if (item != NULL) {
+                        if (item->kind == Item_Global) {
+                            *wanted_type = item->data.global.type;
+                            found = true;
+                        }
+                    }
                 }
 
                 if (assign_part->kind == Retrieve_Assign_Parent) {
@@ -479,9 +512,9 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         parent_type_raw = &parent_type;
                     }
 
-                    Type* item_type = malloc(sizeof(Type));
                     if (strcmp(assign_part->data.parent.name, "*") == 0) {
-                        *item_type = *parent_type_raw;
+                        *wanted_type = *parent_type_raw;
+                        found = true;
                     } else {
                         Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
 
@@ -492,7 +525,8 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                                 for (size_t i = 0; i < struct_->items.count; i++) {
                                     Declaration* declaration = &struct_->items.elements[i];
                                     if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
-                                        *item_type = declaration->type;
+                                        *wanted_type = declaration->type;
+                                        found = true;
                                     }
                                 }
                                 break;
@@ -502,16 +536,23 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                                 for (size_t i = 0; i < union_->items.count; i++) {
                                     Declaration* declaration = &union_->items.elements[i];
                                     if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
-                                        *item_type = declaration->type;
+                                        *wanted_type = declaration->type;
+                                        found = true;
                                     }
                                 }
                                 break;
                             }
                         }
                     }
-
-                    array_type_append(&wanted_types, item_type);
                 }
+
+                if (!found) {
+                    print_error_stub(&assign_part->location);
+                    printf("Assign not found\n");
+                    exit(1);
+                }
+
+                array_type_append(&wanted_types, wanted_type);
             }
 
             if (assign->expression->kind == Expression_Multi) {
@@ -569,8 +610,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     }
                 }
 
-                if (assign_part->kind == Retrieve_Assign_Identifier) {
-                    assert(assign_part->data.identifier.kind == Identifier_Single);
+                if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
                     Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
 
                     if (state->stack.count == 0) {
@@ -655,7 +695,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
             break;
         }
         default:
-            printf("Unhandled statement_type!\n");
+            printf("Unhandled statement type %i!\n", statement->kind);
             exit(1);
     }
 }
@@ -677,6 +717,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             Block_Node* block = &expression->data.block;
             array_size_append(&state->scoped_declares, state->current_declares.count);
             for (size_t i = 0; i < block->statements.count; i++) {
+                //printf("a\n");
+                //printf("%i\n", block->statements.elements[i]->kind);
                 process_statement(block->statements.elements[i], state);
             }
             state->current_declares.count = state->scoped_declares.elements[state->scoped_declares.count - 1];
@@ -1014,8 +1056,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 found = true;
             }
 
-            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
-                assert(retrieve->data.identifier.kind == Identifier_Single);
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier && retrieve->data.identifier.kind == Identifier_Single) {
                 Type variable_type;
                 for (int i = state->current_declares.count - 1; i >= 0; i--) {
                     Declaration* declaration = &state->current_declares.elements[i];
@@ -1032,6 +1073,22 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     } else {
                         stack_type_push(&state->stack, variable_type);
                     }
+                }
+            }
+
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier && retrieve->data.identifier.kind == Identifier_Single) {
+                Type type;
+                for (size_t i =  0; i < state->current_arguments.count; i--) {
+                    Declaration* declaration = &state->current_arguments.elements[state->current_arguments.count - i - 1];
+                    if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
+                        type = declaration->type;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found) {
+                    stack_type_push(&state->stack, type);
                 }
             }
 
@@ -1090,24 +1147,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
-                assert(retrieve->data.identifier.kind == Identifier_Single);
-                Type type;
-                for (size_t i =  0; i < state->current_arguments.count; i--) {
-                    Declaration* declaration = &state->current_arguments.elements[state->current_arguments.count - i - 1];
-                    if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
-                        type = declaration->type;
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (found) {
-                    stack_type_push(&state->stack, type);
-                }
-            }
-
-            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
-                Item_Node* item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(retrieve)).item;
+                Item_Node* item = resolve_item(&state->generic, retrieve->data.identifier).item;
                 if (item != NULL) {
                     found = true;
                     switch (item->kind) {
@@ -1300,6 +1340,13 @@ void process_item(Item_Node* item, Process_State* state) {
             process_expression(procedure->data.literal.body, state);
             break;
         }
+        case Item_Module:
+            Module_Node* module = &item->data.module;
+            for (size_t i = 0; i < module->items.count; i++) {
+                Item_Node* item = &module->items.elements[i];
+                process_item(item, state);
+            }
+            break;
         case Item_Type:
             break;
         case Item_Global:
@@ -1307,7 +1354,7 @@ void process_item(Item_Node* item, Process_State* state) {
         case Item_Use:
             break;
         default:
-            printf("Unhandled item_type!\n");
+            printf("Unhandled item type!\n");
             exit(1);
     }
 }

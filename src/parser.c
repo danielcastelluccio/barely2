@@ -233,7 +233,7 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
 Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
-    Statement_Node result;
+    Statement_Node result = {};
 
     Token_Kind token = peek(tokens, index);
     if (token == Token_Keyword && strcmp(tokens->elements[index].data, "var") == 0) {
@@ -362,10 +362,9 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             Array_Statement_Node statements = array_statement_node_new(32);
 
             while (peek(tokens, index) != Token_RightCurlyBrace) {
-                Statement_Node statement = parse_statement(tokens, &index);
-                Statement_Node* statement_allocated = malloc(sizeof(Statement_Node));
-                *statement_allocated = statement;
-                array_statement_node_append(&statements, statement_allocated);
+                Statement_Node* statement = malloc(sizeof(Statement_Node));
+                *statement = parse_statement(tokens, &index);
+                array_statement_node_append(&statements, statement);
             }
             node.statements = statements;
             consume(tokens, &index);
@@ -764,6 +763,8 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
+static size_t module_id;
+
 Item_Node parse_item(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
     Item_Node result;
@@ -915,8 +916,10 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
     } else if (strcmp(keyword, "mod") == 0) {
         Module_Node node;
         node.items = array_item_node_new(8);
+        node.id = module_id;
+        module_id++;
         
-        consume_identifier(tokens, &index);
+        result.name = consume_identifier(tokens, &index);
         consume_check(tokens, &index, Token_Colon);
         consume_check(tokens, &index, Token_LeftCurlyBrace);
 
@@ -935,8 +938,7 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
     } else if (strcmp(keyword, "global") == 0) {
         Global_Node node;
 
-        char* name = consume_identifier(tokens, &index);
-        result.name = name;
+        result.name = consume_identifier(tokens, &index);
         consume_check(tokens, &index, Token_Colon);
 
         node.type = parse_type(tokens, &index);

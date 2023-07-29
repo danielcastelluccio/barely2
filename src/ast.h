@@ -317,6 +317,7 @@ Dynamic_Array_Def(Item_Node, Array_Item_Node, array_item_node_)
 
 typedef struct {
     Array_Item_Node items;
+    size_t id;
 } Module_Node;
 
 typedef struct {

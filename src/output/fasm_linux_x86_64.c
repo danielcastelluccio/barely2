@@ -18,6 +18,7 @@ typedef struct {
     Array_Declaration current_arguments;
     Array_Type current_returns;
     Expression_Node* current_body;
+    Module_Node* current_module;
     bool in_reference;
 } Output_State;
 
@@ -411,7 +412,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
-                    Resolved_Item resolved_item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(assign_part));
+                    Resolved_Item resolved_item = resolve_item(&state->generic, assign_part->data.identifier);
                     Item_Node* item = resolved_item.item;
 
                     if (item != NULL) {
@@ -429,7 +430,11 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s.%zu+%zu], rax\n", item->name, resolved_item.file->id, i);
+                                        sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
+                                        if (resolved_item.parent_module != NULL) {
+                                            sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
+                                        }
+                                        sprintf(buffer + strlen(buffer), "%zu+%zu], rax\n", resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 8;
@@ -440,7 +445,11 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                         memset(buffer, 0, 128);
 
-                                        sprintf(buffer, "  mov [%s.%zu+%zu], al\n", item->name, resolved_item.file->id, i);
+                                        sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
+                                        if (resolved_item.parent_module != NULL) {
+                                            sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
+                                        }
+                                        sprintf(buffer + strlen(buffer), "%zu+%zu], al\n", resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         i += 1;
@@ -1268,21 +1277,30 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
 
             if (!found) {
-                Resolved_Item resolved_item = resolve_item(&state->generic, retrieve_assign_to_item_identifier(retrieve));
+                Resolved_Item resolved_item = resolve_item(&state->generic, retrieve->data.identifier);
                 Item_Node* item = resolved_item.item;
                 if (item != NULL) {
                     found = true;
                     switch (item->kind) {
                         case Item_Procedure:
                             char buffer[128] = {};
-                            sprintf(buffer, "  push %s.%zu\n", item->name, resolved_item.file->id);
+                            sprintf(buffer + strlen(buffer), "  push %s.", item->name);
+                            if (resolved_item.parent_module != NULL) {
+                                sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
+                            }
+                            sprintf(buffer + strlen(buffer), "%zu\n", resolved_item.file->id);
                             stringbuffer_appendstring(&state->instructions, buffer);
                             break;
                         case Item_Global:
                             Global_Node* global = &item->data.global;
                             if (consume_in_reference_output(state)) {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  lea rax, [%s]\n", item->name);
+                                sprintf(buffer + strlen(buffer), "  lea rax, [%s.", item->name);
+                                if (resolved_item.parent_module != NULL) {
+                                    sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
+                                }
+                                sprintf(buffer + strlen(buffer), "%zu]\n", resolved_item.file->id);
+
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 stringbuffer_appendstring(&state->instructions, "  push rax\n");
                             } else {
@@ -1296,7 +1314,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 while (i < size) {
                                     if (size - i >= 8) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov rax, [%s.%zu+%zu]\n", item->name, resolved_item.file->id, i);
+                                        sprintf(buffer + strlen(buffer), "  mov rax, [%s.", item->name);
+                                        if (resolved_item.parent_module != NULL) {
+                                            sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
+                                        }
+                                        sprintf(buffer + strlen(buffer), "%zu+%zu]\n", resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
@@ -1307,7 +1329,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                         i += 8;
                                     } else if (size - i >= 1) {
                                         char buffer[128] = {};
-                                        sprintf(buffer, "  mov al, [%s.%zu+%zu]\n", item->name, resolved_item.file->id, i);
+                                        sprintf(buffer + strlen(buffer), "  mov al, [%s.", item->name);
+                                        if (resolved_item.parent_module != NULL) {
+                                            sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
+                                        }
+                                        sprintf(buffer + strlen(buffer), "%zu+%zu]\n", resolved_item.file->id, i);
                                         stringbuffer_appendstring(&state->instructions, buffer);
 
                                         memset(buffer, 0, 128);
@@ -1541,7 +1567,13 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
                 stringbuffer_appendstring(&state->instructions, "main:\n");
             } else {
                 char buffer[128] = {};
-                sprintf(buffer, "%s.%zu:\n", item->name, state->generic.current_file->id);
+                sprintf(buffer + strlen(buffer), "%s.", item->name);
+
+                if (state->current_module != NULL) {
+                    sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
+                }
+
+                sprintf(buffer + strlen(buffer), "%zu:\n", state->generic.current_file->id);
                 stringbuffer_appendstring(&state->instructions, buffer);
             }
 
@@ -1571,15 +1603,29 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             size_t size = get_size(&global->type, &state->generic);
 
             char buffer[128] = {};
-            sprintf(buffer, "  %s.%zu: rb %zu\n", item->name, state->generic.current_file->id, size);
+            sprintf(buffer + strlen(buffer), "%s.", item->name);
+
+            if (state->current_module != NULL) {
+                sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
+            }
+
+            sprintf(buffer + strlen(buffer), "%zu: rb %zu\n", state->generic.current_file->id, size);
             stringbuffer_appendstring(&state->bss, buffer);
+            break;
+        case Item_Module:
+            Module_Node* module = &item->data.module;
+            for (size_t i = 0; i < module->items.count; i++) {
+                state->current_module = module;
+                Item_Node* item = &module->items.elements[i];
+                output_item_fasm_linux_x86_64(item, state);
+            }
             break;
         case Item_Type:
             break;
         case Item_Use:
             break;
         default:
-            printf("Unhandled item_type!\n");
+            printf("Unhandled item type!\n");
             exit(1);
     }
 }
@@ -1602,6 +1648,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         .current_arguments = {},
         .current_returns = {},
         .current_body = NULL,
+        .current_module = NULL,
         .in_reference = false,
     };
 
@@ -1611,6 +1658,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
 
         for (size_t i = 0; i < file_node->items.count; i++) {
             Item_Node* item = &file_node->items.elements[i];
+            state.current_module = NULL;
             output_item_fasm_linux_x86_64(item, &state);
         }
     }
