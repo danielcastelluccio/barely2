@@ -17,6 +17,8 @@ bool is_keyword(char* buffer) {
         return true;
     } else if (strcmp(buffer, "union") == 0) {
         return true;
+    } else if (strcmp(buffer, "enum") == 0) {
+        return true;
     } else if (strcmp(buffer, "mod") == 0) {
         return true;
     } else if (strcmp(buffer, "global") == 0) {

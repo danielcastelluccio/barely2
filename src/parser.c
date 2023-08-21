@@ -4,7 +4,6 @@
 
 #include "parser.h"
 #include "tokenizer.h"
-#include "string_util.h"
 
 Token_Kind peek(Tokens* tokens, size_t index) {
     Token* current = &tokens->elements[index];
@@ -894,6 +893,25 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
 
                     node.kind = Type_Node_Union;
                     node.data.union_ = union_node;
+                } else if (strcmp(keyword, "enum") == 0) {
+                    Enum_Node enum_node;
+                    consume(tokens, &index);
+
+                    Array_String items = array_string_new(4);
+                    while (peek(tokens, index) != Token_RightCurlyBrace) {
+                        if (peek(tokens, index) == Token_Semicolon) {
+                            consume(tokens, &index);
+                            continue;
+                        }
+
+                        char* name = consume_identifier(tokens, &index);
+                        array_string_append(&items, name);
+                    }
+                    enum_node.items = items;
+                    consume(tokens, &index);
+
+                    node.kind = Type_Node_Enum;
+                    node.data.enum_ = enum_node;
                 } else {
                     printf("Error: Unexpected token ");
                     print_token(&tokens->elements[index - 1], false);

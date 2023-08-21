@@ -6,6 +6,7 @@
 #include "dynamic_array.h"
 #include "string_util.h"
 
+Dynamic_Array_Impl(char*, Array_String, array_string_)
 Dynamic_Array_Impl(char, String_Buffer, stringbuffer_)
 
 char* copy_string(char* string) {

@@ -3,6 +3,7 @@
 
 #include "dynamic_array.h"
 
+Dynamic_Array_Def(char*, Array_String, array_string_)
 Dynamic_Array_Def(char, String_Buffer, stringbuffer_)
 
 bool string_contains(char* string, char character);

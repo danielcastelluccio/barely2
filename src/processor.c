@@ -3,7 +3,6 @@
 
 #include "ast_print.h"
 #include "file_util.h"
-#include "string_util.h"
 #include "processor.h"
 
 Dynamic_Array_Impl(Type, Stack_Type, stack_type_)
@@ -89,7 +88,7 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
     return false;
 }
 
-Resolved_Item resolve_item(Generic_State* state, Item_Identifier data) {
+Resolved resolve(Generic_State* state, Item_Identifier data) {
     Item_Identifier initial_search;
     if (data.kind == Identifier_Single) {
         initial_search = data;
@@ -98,7 +97,7 @@ Resolved_Item resolve_item(Generic_State* state, Item_Identifier data) {
         initial_search.data.single = data.data.multi.elements[0];
     }
 
-    Resolved_Item result = { NULL, NULL, NULL };
+    Resolved result = { NULL, NULL, Unresolved, {} };
     for (size_t j = 0; j < state->program->count; j++) {
         File_Node* file_node = &state->program->elements[j];
         bool stop = false;
@@ -106,7 +105,7 @@ Resolved_Item resolve_item(Generic_State* state, Item_Identifier data) {
             for (size_t i = 0; i < file_node->items.count; i++) {
                 Item_Node* item = &file_node->items.elements[i];
                 if (initial_search.kind == Identifier_Single && strcmp(item->name, initial_search.data.single) == 0) {
-                    result = (Resolved_Item) { file_node, NULL, item };
+                    result = (Resolved) { file_node, NULL, Resolved_Item, { .item = item } };
                     stop = true;
                     break;
                 }
@@ -120,18 +119,23 @@ Resolved_Item resolve_item(Generic_State* state, Item_Identifier data) {
 
     if (data.kind == Identifier_Multi) {
         size_t identifier_index = 1;
-        while (result.item->kind == Item_Module) {
-            Module_Node* module = &result.item->data.module;
+        while (result.kind == Resolved_Item && result.data.item->kind == Item_Module) {
+            Module_Node* module = &result.data.item->data.module;
             char* wanted_name = data.data.multi.elements[identifier_index];
             for (size_t i = 0; i < module->items.count; i++) {
                 Item_Node* item = &module->items.elements[i];
                 if (strcmp(item->name, wanted_name) == 0) {
-                    result = (Resolved_Item) { result.file, module, item };
+                    result = (Resolved) { result.file, module, Resolved_Item, { .item = item } };
                     break;
                 }
             }
 
             identifier_index++;
+        }
+
+        if (result.kind == Resolved_Item && result.data.item->kind == Item_Type && result.data.item->data.type.kind == Type_Node_Enum) {
+            char* wanted_name = data.data.multi.elements[identifier_index];
+            result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.data.enum_, .variant = wanted_name} } };
         }
     }
 
@@ -367,6 +371,18 @@ Item_Identifier basic_type_to_item_identifier(Basic_Type type) {
     return item_identifier;
 }
 
+Basic_Type item_identifier_to_basic_type(Item_Identifier identifier) {
+    Basic_Type basic;
+    if (identifier.kind == Identifier_Single) {
+        basic.data.single = identifier.data.single;
+        basic.kind = Type_Single;
+    } else {
+        basic.data.multi = identifier.data.multi;
+        basic.kind = Type_Multi;
+    }
+    return basic;
+}
+
 static Type* _usize_type;
 
 Type* usize_type() {
@@ -477,10 +493,10 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     }
 
                     if (!found) {
-                        Item_Node* item = resolve_item(&state->generic, assign_part->data.identifier).item;
-                        if (item != NULL) {
-                            if (item->kind == Item_Global) {
-                                *type = item->data.global.type;
+                        Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
+                        if (resolved.kind == Resolved_Item) {
+                            if (resolved.data.item->kind == Item_Global) {
+                                *type = resolved.data.item->data.global.type;
                                 found = true;
                             }
                         }
@@ -490,10 +506,10 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                 }
 
                 if (assign_part->kind == Retrieve_Assign_Identifier) {
-                    Item_Node* item = resolve_item(&state->generic, assign_part->data.identifier).item;
-                    if (item != NULL) {
-                        if (item->kind == Item_Global) {
-                            *wanted_type = item->data.global.type;
+                    Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
+                    if (resolved.kind == Resolved_Item) {
+                        if (resolved.data.item->kind == Item_Global) {
+                            *wanted_type = resolved.data.item->data.global.type;
                             found = true;
                         }
                     }
@@ -518,30 +534,44 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     } else {
                         Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
 
-                        Item_Node* item = resolve_item(&state->generic, item_identifier).item;
-                        switch (item->data.type.kind) {
-                            case Type_Node_Struct: {
-                                Struct_Node* struct_ = &item->data.type.data.struct_;
-                                for (size_t i = 0; i < struct_->items.count; i++) {
-                                    Declaration* declaration = &struct_->items.elements[i];
-                                    if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
-                                        *wanted_type = declaration->type;
-                                        found = true;
+                        Resolved resolved = resolve(&state->generic, item_identifier);
+                        switch (resolved.kind) {
+                            case Resolved_Item: {
+                                Item_Node* item = resolved.data.item;
+                                switch (item->data.type.kind) {
+                                    case Type_Node_Struct: {
+                                        Struct_Node* struct_ = &item->data.type.data.struct_;
+                                        for (size_t i = 0; i < struct_->items.count; i++) {
+                                            Declaration* declaration = &struct_->items.elements[i];
+                                            if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
+                                                *wanted_type = declaration->type;
+                                                found = true;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                    case Type_Node_Union: {
+                                        Union_Node* union_ = &item->data.type.data.union_;
+                                        for (size_t i = 0; i < union_->items.count; i++) {
+                                            Declaration* declaration = &union_->items.elements[i];
+                                            if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
+                                                *wanted_type = declaration->type;
+                                                found = true;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                    case Type_Node_Enum: {
+                                        assert(false);
                                     }
                                 }
                                 break;
                             }
-                            case Type_Node_Union: {
-                                Union_Node* union_ = &item->data.type.data.union_;
-                                for (size_t i = 0; i < union_->items.count; i++) {
-                                    Declaration* declaration = &union_->items.elements[i];
-                                    if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
-                                        *wanted_type = declaration->type;
-                                        found = true;
-                                    }
-                                }
-                                break;
+                            case Resolved_Enum_Variant: {
+                                assert(false);
                             }
+                            case Unresolved:
+                                assert(false);
                         }
                     }
                 }
@@ -1112,30 +1142,41 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 } else {
                     Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
 
-                    Item_Node* item = resolve_item(&state->generic, item_identifier).item;
-                    switch (item->data.type.kind) {
-                        case Type_Node_Struct: {
-                            Struct_Node* struct_ = &item->data.type.data.struct_;
-                            for (size_t i = 0; i < struct_->items.count; i++) {
-                                Declaration* declaration = &struct_->items.elements[i];
-                                if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
-                                    item_type = declaration->type;
-                                    found = true;
+                    Resolved resolved = resolve(&state->generic, item_identifier);
+                    switch (resolved.kind) {
+                        case Resolved_Item: {
+                            Item_Node* item = resolved.data.item;
+                            switch (item->data.type.kind) {
+                                case Type_Node_Struct: {
+                                    Struct_Node* struct_ = &item->data.type.data.struct_;
+                                    for (size_t i = 0; i < struct_->items.count; i++) {
+                                        Declaration* declaration = &struct_->items.elements[i];
+                                        if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
+                                            item_type = declaration->type;
+                                            found = true;
+                                        }
+                                    }
+                                    break;
+                                }
+                                case Type_Node_Union: {
+                                    Union_Node* union_ = &item->data.type.data.union_;
+                                    for (size_t i = 0; i < union_->items.count; i++) {
+                                        Declaration* declaration = &union_->items.elements[i];
+                                        if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
+                                            item_type = declaration->type;
+                                            found = true;
+                                        }
+                                    }
+                                    break;
+                                }
+                                case Type_Node_Enum: {
+                                    assert(false);
                                 }
                             }
                             break;
                         }
-                        case Type_Node_Union: {
-                            Union_Node* union_ = &item->data.type.data.union_;
-                            for (size_t i = 0; i < union_->items.count; i++) {
-                                Declaration* declaration = &union_->items.elements[i];
-                                if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
-                                    item_type = declaration->type;
-                                    found = true;
-                                }
-                            }
-                            break;
-                        }
+                        default:
+                            assert(false);
                     }
                 }
 
@@ -1147,43 +1188,68 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
-                Item_Node* item = resolve_item(&state->generic, retrieve->data.identifier).item;
-                if (item != NULL) {
-                    found = true;
-                    switch (item->kind) {
-                        case Item_Procedure:
-                            Procedure_Literal_Node* procedure = &item->data.procedure.data.literal;
+                Resolved resolved = resolve(&state->generic, retrieve->data.identifier);
+                switch (resolved.kind) {
+                    case Resolved_Item: {
+                        Item_Node* item = resolved.data.item;
+                        found = true;
+                        switch (item->kind) {
+                            case Item_Procedure:
+                                Procedure_Literal_Node* procedure = &item->data.procedure.data.literal;
 
-                            Type type;
-                            Procedure_Type procedure_type;
-                            procedure_type.arguments = array_type_new(4);
-                            procedure_type.returns = array_type_new(4);
+                                Type type;
+                                Procedure_Type procedure_type;
+                                procedure_type.arguments = array_type_new(4);
+                                procedure_type.returns = array_type_new(4);
 
-                            for (size_t i = 0; i < procedure->arguments.count; i++) {
-                                array_type_append(&procedure_type.arguments, &procedure->arguments.elements[i].type);
-                            }
+                                for (size_t i = 0; i < procedure->arguments.count; i++) {
+                                    array_type_append(&procedure_type.arguments, &procedure->arguments.elements[i].type);
+                                }
 
-                            for (size_t i = 0; i < procedure->returns.count; i++) {
-                                array_type_append(&procedure_type.returns, procedure->returns.elements[i]);
-                            }
+                                for (size_t i = 0; i < procedure->returns.count; i++) {
+                                    array_type_append(&procedure_type.returns, procedure->returns.elements[i]);
+                                }
 
-                            type.kind = Type_Procedure;
-                            type.data.procedure = procedure_type;
-                            stack_type_push(&state->stack, create_pointer_type(type));
-                            break;
-                        case Item_Global:
-                            Global_Node* global = &item->data.global;
-                            
-                            if (consume_in_reference(state)) {
-                                stack_type_push(&state->stack, create_pointer_type(global->type));
-                            } else {
-                                stack_type_push(&state->stack, global->type);
-                            }
-                            break;
-                        default:
-                            printf("Unhandled item retrieve!\n");
-                            exit(1);
+                                type.kind = Type_Procedure;
+                                type.data.procedure = procedure_type;
+                                stack_type_push(&state->stack, create_pointer_type(type));
+                                break;
+                            case Item_Global:
+                                Global_Node* global = &item->data.global;
+
+                                if (consume_in_reference(state)) {
+                                    stack_type_push(&state->stack, create_pointer_type(global->type));
+                                } else {
+                                    stack_type_push(&state->stack, global->type);
+                                }
+                                break;
+                            default:
+                                assert(false);
+                        }
+                        break;
                     }
+                    case Resolved_Enum_Variant: {
+                        found = true;
+                        Type type;
+                        type.kind = Type_Basic;
+                        Basic_Type basic = item_identifier_to_basic_type(retrieve->data.identifier);
+
+                        // Kinda a hack, probably should make a more robust way to handling enumerations
+                        if (basic.data.multi.count > 2) {
+                            basic.data.multi.count--;
+                        } else {
+                            basic.kind = Type_Single;
+                            basic.data.single = basic.data.multi.elements[0];
+                        }
+
+                        type.data.basic = basic;
+                        stack_type_push(&state->stack, type);
+                        break;
+                    }
+                    case Unresolved:
+                        break;
+                    default:
+                        assert(false);
                 }
             }
 

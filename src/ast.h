@@ -4,7 +4,7 @@
 #include "dynamic_array.h"
 #include "tokenizer.h"
 
-Dynamic_Array_Def(char*, Array_String, array_string_)
+#include "string_util.h"
 
 struct Type;
 typedef struct Type Type;
@@ -300,13 +300,19 @@ typedef struct {
 } Union_Node;
 
 typedef struct {
+    Array_String items;
+} Enum_Node;
+
+typedef struct {
     enum {
         Type_Node_Struct,
         Type_Node_Union,
+        Type_Node_Enum,
     } kind;
     union {
         Struct_Node struct_;
         Union_Node union_;
+        Enum_Node enum_;
     } data;
 } Type_Node;
 

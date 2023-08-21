@@ -16,10 +16,21 @@ Dynamic_Array_Def(size_t, Array_Size, array_size_)
 typedef struct {
     File_Node* file;
     Module_Node* parent_module;
-    Item_Node* item;
-} Resolved_Item;
+    enum {
+        Unresolved,
+        Resolved_Item,
+        Resolved_Enum_Variant,
+    } kind;
+    union {
+        Item_Node* item;
+        struct {
+            Enum_Node* enum_;
+            char* variant;
+        } enum_;
+    } data;
+} Resolved;
 
-Resolved_Item resolve_item(Generic_State* state, Item_Identifier data);
+Resolved resolve(Generic_State* state, Item_Identifier data);
 bool is_type(Type* wanted, Type* given);
 bool is_internal_type(Internal_Type wanted, Type* given);
 Type create_internal_type(Internal_Type type);
