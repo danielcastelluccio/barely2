@@ -25,7 +25,7 @@ size_t get_size(Type* type, Generic_State* state) {
     switch (type->kind) {
         case Type_Basic: {
             Basic_Type* basic = &type->data.basic;
-            Item_Identifier item_identifier = basic_type_to_item_identifier(*basic);
+            Identifier item_identifier = basic_type_to_item_identifier(*basic);
             Resolved resolved = resolve(state, item_identifier);
             if (resolved.kind == Resolved_Item) {
                 Item_Node* item = resolved.data.item;
@@ -282,7 +282,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         parent_type_raw = &parent_type;
                     }
 
-                    Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
+                    Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
                     Resolved resolved = resolve(&state->generic, item_identifier);
                     size_t location = 0;
                     size_t size = 0;
@@ -1112,7 +1112,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         parent_type_raw = &parent_type;
                     }
 
-                    Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
+                    Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
                     Resolved resolved = resolve(&state->generic, item_identifier);
                     if (resolved.kind != Resolved_Item) {
                         assert(false);

@@ -160,7 +160,7 @@ typedef struct {
         char* single;
         Array_String multi;
     } data;
-} Item_Identifier;
+} Identifier;
 
 typedef struct {
     enum {
@@ -169,7 +169,7 @@ typedef struct {
         Retrieve_Assign_Array,
     } kind;
     union {
-        Item_Identifier identifier;
+        Identifier identifier;
         struct {
             Expression_Node* expression;
             char* name;

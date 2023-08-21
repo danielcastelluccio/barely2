@@ -447,7 +447,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 Retrieve_Node node = {};
                 node.location = location;
                 node.kind = Retrieve_Assign_Identifier;
-                Item_Identifier identifier = {};
+                Identifier identifier = {};
                 identifier.kind = Identifier_Single;
                 identifier.data.single = name;
 

@@ -88,8 +88,8 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
     return false;
 }
 
-Resolved resolve(Generic_State* state, Item_Identifier data) {
-    Item_Identifier initial_search;
+Resolved resolve(Generic_State* state, Identifier data) {
+    Identifier initial_search;
     if (data.kind == Identifier_Single) {
         initial_search = data;
     } else if (data.kind == Identifier_Multi) {
@@ -359,8 +359,8 @@ bool consume_in_reference(Process_State* state) {
     return cached;
 }
 
-Item_Identifier basic_type_to_item_identifier(Basic_Type type) {
-    Item_Identifier item_identifier;
+Identifier basic_type_to_item_identifier(Basic_Type type) {
+    Identifier item_identifier;
     if (type.kind == Type_Single) {
         item_identifier.data.single = type.data.single;
         item_identifier.kind = Identifier_Single;
@@ -371,7 +371,7 @@ Item_Identifier basic_type_to_item_identifier(Basic_Type type) {
     return item_identifier;
 }
 
-Basic_Type item_identifier_to_basic_type(Item_Identifier identifier) {
+Basic_Type item_identifier_to_basic_type(Identifier identifier) {
     Basic_Type basic;
     if (identifier.kind == Identifier_Single) {
         basic.data.single = identifier.data.single;
@@ -532,7 +532,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         *wanted_type = *parent_type_raw;
                         found = true;
                     } else {
-                        Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
+                        Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
 
                         Resolved resolved = resolve(&state->generic, item_identifier);
                         switch (resolved.kind) {
@@ -1140,7 +1140,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 if (strcmp(retrieve->data.parent.name, "*") == 0) {
                     item_type = *parent_type_raw;
                 } else {
-                    Item_Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
+                    Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
 
                     Resolved resolved = resolve(&state->generic, item_identifier);
                     switch (resolved.kind) {
