@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -39,6 +40,7 @@ char* string_substring(char* string, size_t start, size_t end) {
 }
 
 void stringbuffer_appendstring(String_Buffer* buffer, char* string) {
+    // seems quite inefficient, adding one at a time
     for (size_t i = 0; i < strlen(string); i++) {
         stringbuffer_append(buffer, string[i]);
     }

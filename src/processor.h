@@ -36,6 +36,6 @@ bool is_internal_type(Internal_Type wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);
 void process(Program* program, Array_String* package_names, Array_String* package_paths);
-Identifier basic_type_to_item_identifier(Basic_Type type);
+Identifier basic_type_to_identifier(Basic_Type type);
 
 #endif

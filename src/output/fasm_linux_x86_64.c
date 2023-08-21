@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -25,8 +26,8 @@ size_t get_size(Type* type, Generic_State* state) {
     switch (type->kind) {
         case Type_Basic: {
             Basic_Type* basic = &type->data.basic;
-            Identifier item_identifier = basic_type_to_item_identifier(*basic);
-            Resolved resolved = resolve(state, item_identifier);
+            Identifier identifier = basic_type_to_identifier(*basic);
+            Resolved resolved = resolve(state, identifier);
             if (resolved.kind == Resolved_Item) {
                 Item_Node* item = resolved.data.item;
                 Type_Node* type = &item->data.type;
@@ -72,6 +73,7 @@ size_t get_size(Type* type, Generic_State* state) {
             switch (*internal) {
                 case Type_USize:
                 case Type_U8:
+                case Type_F8:
                     return 8;
                 case Type_U4:
                     return 4;
@@ -79,8 +81,6 @@ size_t get_size(Type* type, Generic_State* state) {
                     return 2;
                 case Type_U1:
                     return 1;
-                case Type_F8:
-                    return 8;
             }
             break;
         }
@@ -282,8 +282,8 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         parent_type_raw = &parent_type;
                     }
 
-                    Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
-                    Resolved resolved = resolve(&state->generic, item_identifier);
+                    Identifier identifier = basic_type_to_identifier(parent_type_raw->data.basic);
+                    Resolved resolved = resolve(&state->generic, identifier);
                     size_t location = 0;
                     size_t size = 0;
                     if (resolved.kind != Resolved_Item) {
@@ -417,64 +417,67 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
-                    Resolved resolved_item = resolve(&state->generic, assign_part->data.identifier);
-                    if (resolved_item.kind != Resolved_Item) {
-                        assert(false);
-                    }
+                    Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
+                    switch (resolved.kind) {
+                        case Resolved_Item: {
+                            Item_Node* item = resolved.data.item;
+                            switch (item->kind) {
+                                case Item_Global: {
+                                    Global_Node* global = &item->data.global;
+                                    size_t size = get_size(&global->type, &state->generic);
 
-                    Item_Node* item = resolved_item.data.item;
-                    if (item != NULL) {
-                        switch (item->kind) {
-                            case Item_Global: {
-                                Global_Node* global = &item->data.global;
-                                size_t size = get_size(&global->type, &state->generic);
+                                    size_t i = 0;
+                                    while (i < size) {
+                                        if (size - i >= 8) {
+                                            char buffer[128] = {};
+                                            sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
+                                            stringbuffer_appendstring(&state->instructions, buffer);
 
-                                size_t i = 0;
-                                while (i < size) {
-                                    if (size - i >= 8) {
-                                        char buffer[128] = {};
-                                        sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
-                                        stringbuffer_appendstring(&state->instructions, buffer);
+                                            memset(buffer, 0, 128);
 
-                                        memset(buffer, 0, 128);
+                                            sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
+                                            if (resolved.parent_module != NULL) {
+                                                sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
+                                            }
+                                            sprintf(buffer + strlen(buffer), "%zu+%zu], rax\n", resolved.file->id, i);
+                                            stringbuffer_appendstring(&state->instructions, buffer);
 
-                                        sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
-                                        if (resolved_item.parent_module != NULL) {
-                                            sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
+                                            i += 8;
+                                        } else if (size - i >= 1) {
+                                            char buffer[128] = {};
+                                            sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
+                                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                                            memset(buffer, 0, 128);
+
+                                            sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
+                                            if (resolved.parent_module != NULL) {
+                                                sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
+                                            }
+                                            sprintf(buffer + strlen(buffer), "%zu+%zu], al\n", resolved.file->id, i);
+                                            stringbuffer_appendstring(&state->instructions, buffer);
+
+                                            i += 1;
                                         }
-                                        sprintf(buffer + strlen(buffer), "%zu+%zu], rax\n", resolved_item.file->id, i);
-                                        stringbuffer_appendstring(&state->instructions, buffer);
-
-                                        i += 8;
-                                    } else if (size - i >= 1) {
-                                        char buffer[128] = {};
-                                        sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
-                                        stringbuffer_appendstring(&state->instructions, buffer);
-
-                                        memset(buffer, 0, 128);
-
-                                        sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
-                                        if (resolved_item.parent_module != NULL) {
-                                            sprintf(buffer + strlen(buffer), "%zu.", resolved_item.parent_module->id);
-                                        }
-                                        sprintf(buffer + strlen(buffer), "%zu+%zu], al\n", resolved_item.file->id, i);
-                                        stringbuffer_appendstring(&state->instructions, buffer);
-
-                                        i += 1;
                                     }
-                                }
 
-                                char buffer[128] = {};
-                                sprintf(buffer, "  add rsp, %zu\n", size);
-                                stringbuffer_appendstring(&state->instructions, buffer);
-                                    
-                                found = true;
-                                break;
+                                    char buffer[128] = {};
+                                    sprintf(buffer, "  add rsp, %zu\n", size);
+                                    stringbuffer_appendstring(&state->instructions, buffer);
+
+                                    found = true;
+                                    break;
+                                }
+                                default:
+                                    printf("Unhandled assign to item!\n");
+                                    exit(1);
                             }
-                            default:
-                                printf("Unhandled assign to item!\n");
-                                exit(1);
+                            break;
                         }
+                        case Unresolved:
+                            break;
+                        default:
+                            assert(false);
                     }
                 }
             }
@@ -586,7 +589,7 @@ void output_unsigned_integer(Internal_Type type, size_t value, Output_State* sta
 
 bool is_enum_type(Type* type, Generic_State* generic_state) {
     if (type->kind == Type_Basic) {
-        Resolved resolved = resolve(generic_state, basic_type_to_item_identifier(type->data.basic));
+        Resolved resolved = resolve(generic_state, basic_type_to_identifier(type->data.basic));
         if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type && resolved.data.item->data.type.kind == Type_Node_Enum) {
             return true;
         }
@@ -626,62 +629,32 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 if (procedure->kind == Expression_Retrieve) {
                     char* name = procedure->data.retrieve.data.identifier.data.single;
 
-                    if (strcmp(name, "@syscall6") == 0) {
-                        stringbuffer_appendstring(&state->instructions, "  pop r9\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop r8\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop r10\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdx\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rsi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
+                    if (strncmp(name, "@syscall", 8) == 0) {
+                        handled = true;
+
+                        size_t arg_count = (size_t) atoi(name + 8);
+
+                        if (arg_count >= 6) {
+                            stringbuffer_appendstring(&state->instructions, "  pop r9\n");
+                        }
+                        if (arg_count >= 5) {
+                            stringbuffer_appendstring(&state->instructions, "  pop r8\n");
+                        }
+                        if (arg_count >= 4) {
+                            stringbuffer_appendstring(&state->instructions, "  pop r10\n");
+                        }
+                        if (arg_count >= 3) {
+                            stringbuffer_appendstring(&state->instructions, "  pop rdx\n");
+                        }
+                        if (arg_count >= 2) {
+                            stringbuffer_appendstring(&state->instructions, "  pop rsi\n");
+                        }
+                        if (arg_count >= 1) {
+                            stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
+                        }
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                         stringbuffer_appendstring(&state->instructions, "  syscall\n");
                         stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                        handled = true;
-                    } else if (strcmp(name, "@syscall5") == 0) {
-                        stringbuffer_appendstring(&state->instructions, "  pop r8\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop r10\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdx\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rsi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                        stringbuffer_appendstring(&state->instructions, "  syscall\n");
-                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                        handled = true;
-                    } else if (strcmp(name, "@syscall4") == 0) {
-                        stringbuffer_appendstring(&state->instructions, "  pop r10\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdx\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rsi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                        stringbuffer_appendstring(&state->instructions, "  syscall\n");
-                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                        handled = true;
-                    } else if (strcmp(name, "@syscall3") == 0) {
-                        stringbuffer_appendstring(&state->instructions, "  pop rdx\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rsi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                        stringbuffer_appendstring(&state->instructions, "  syscall\n");
-                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                        handled = true;
-                    } else if (strcmp(name, "@syscall2") == 0) {
-                        stringbuffer_appendstring(&state->instructions, "  pop rsi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                        stringbuffer_appendstring(&state->instructions, "  syscall\n");
-                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                        handled = true;
-                    } else if (strcmp(name, "@syscall1") == 0) {
-                        stringbuffer_appendstring(&state->instructions, "  pop rdi\n");
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                        stringbuffer_appendstring(&state->instructions, "  syscall\n");
-                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                        handled = true;
-                    } else if (strcmp(name, "@syscall0") == 0) {
-                        stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                        stringbuffer_appendstring(&state->instructions, "  syscall\n");
-                        stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                        handled = true;
                     }
                 }
 
@@ -844,7 +817,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_LessEqual: {
                         Type operator_type = invoke->data.operator.computed_operand_type;
 
-                        if (is_internal_type(Type_U8, &operator_type)) {
+                        if (is_internal_type(Type_U8, &operator_type) || is_internal_type(Type_USize, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
                             stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
@@ -1050,13 +1023,13 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
                     output_expression_fasm_linux_x86_64(retrieve->data.array.expression_inner, state);
 
-                    size_t size = get_size(array_type_raw->data.array.element_type, &state->generic);
+                    size_t element_size = get_size(array_type_raw->data.array.element_type, &state->generic);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
 
                     char buffer[128] = {};
-                    sprintf(buffer, "  mov rdx, %zu\n", size);
+                    sprintf(buffer, "  mov rdx, %zu\n", element_size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     stringbuffer_appendstring(&state->instructions, "  mul rdx\n");
@@ -1066,12 +1039,12 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  push rax\n");
                     } else {
                         memset(buffer, 0, 128);
-                        sprintf(buffer, "  sub rsp, %zu\n", size);
+                        sprintf(buffer, "  sub rsp, %zu\n", element_size);
                         stringbuffer_appendstring(&state->instructions, buffer);
 
                         size_t i = 0;
-                        while (i < size) {
-                            if (size - i >= 8) {
+                        while (i < element_size) {
+                            if (element_size - i >= 8) {
                                 char buffer[128] = {};
                                 sprintf(buffer, "  mov rbx, [rax+rcx+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
@@ -1082,7 +1055,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 stringbuffer_appendstring(&state->instructions, buffer);
 
                                 i += 8;
-                            } else if (size - i >= 1) {
+                            } else if (element_size - i >= 1) {
                                 char buffer[128] = {};
                                 sprintf(buffer, "  mov bl, [rax+rcx+%zu]\n", i);
                                 stringbuffer_appendstring(&state->instructions, buffer);
@@ -1112,8 +1085,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         parent_type_raw = &parent_type;
                     }
 
-                    Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
-                    Resolved resolved = resolve(&state->generic, item_identifier);
+                    Identifier identifier = basic_type_to_identifier(parent_type_raw->data.basic);
+                    Resolved resolved = resolve(&state->generic, identifier);
                     if (resolved.kind != Resolved_Item) {
                         assert(false);
                     }
@@ -1121,11 +1094,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     Item_Node* item = resolved.data.item;
                     size_t location = 0;
                     size_t size = 0;
-                    switch (item->data.type.kind) {
-                        case Type_Node_Struct: {
-                            if (strcmp(retrieve->data.parent.name, "*") == 0) {
-                                size = get_size(parent_type_raw, &state->generic);
-                            } else {
+                    if (strcmp(retrieve->data.parent.name, "*") == 0) {
+                        size = get_size(parent_type_raw, &state->generic);
+                    } else {
+                        switch (item->data.type.kind) {
+                            case Type_Node_Struct: {
                                 Struct_Node* struct_ = &item->data.type.data.struct_;
                                 for (size_t i = 0; i < struct_->items.count; i++) {
                                     Declaration* declaration = &struct_->items.elements[i];
@@ -1136,13 +1109,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     }
                                     location += item_size;
                                 }
+                                break;
                             }
-                            break;
-                        }
-                        case Type_Node_Union: {
-                            if (strcmp(retrieve->data.parent.name, "*") == 0) {
-                                size = get_size(parent_type_raw, &state->generic);
-                            } else {
+                            case Type_Node_Union: {
                                 Union_Node* union_ = &item->data.type.data.union_;
                                 for (size_t i = 0; i < union_->items.count; i++) {
                                     Declaration* declaration = &union_->items.elements[i];
@@ -1152,13 +1121,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                         break;
                                     }
                                 }
-
-                                location = 0;
+                                break;
                             }
-                            break;
+                            case Type_Node_Enum:
+                                assert(false);
                         }
-                        case Type_Node_Enum:
-                            assert(false);
                     }
 
                     output_expression_fasm_linux_x86_64(retrieve->data.parent.expression, state);
@@ -1171,7 +1138,6 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, buffer);
 
                         stringbuffer_appendstring(&state->instructions, "  push rax\n");
-
                     } else {
                         char buffer[128] = {};
                         sprintf(buffer, "  sub rsp, %zu\n", size);

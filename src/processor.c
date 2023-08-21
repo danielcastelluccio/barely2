@@ -358,19 +358,19 @@ bool consume_in_reference(Process_State* state) {
     return cached;
 }
 
-Identifier basic_type_to_item_identifier(Basic_Type type) {
-    Identifier item_identifier;
+Identifier basic_type_to_identifier(Basic_Type type) {
+    Identifier identifier;
     if (type.kind == Type_Single) {
-        item_identifier.data.single = type.data.single;
-        item_identifier.kind = Identifier_Single;
+        identifier.data.single = type.data.single;
+        identifier.kind = Identifier_Single;
     } else {
-        item_identifier.data.multi = type.data.multi;
-        item_identifier.kind = Identifier_Multi;
+        identifier.data.multi = type.data.multi;
+        identifier.kind = Identifier_Multi;
     }
-    return item_identifier;
+    return identifier;
 }
 
-Basic_Type item_identifier_to_basic_type(Identifier identifier) {
+Basic_Type identifier_to_basic_type(Identifier identifier) {
     Basic_Type basic;
     if (identifier.kind == Identifier_Single) {
         basic.data.single = identifier.data.single;
@@ -531,9 +531,9 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         *wanted_type = *parent_type_raw;
                         found = true;
                     } else {
-                        Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
+                        Identifier identifier = basic_type_to_identifier(parent_type_raw->data.basic);
 
-                        Resolved resolved = resolve(&state->generic, item_identifier);
+                        Resolved resolved = resolve(&state->generic, identifier);
                         switch (resolved.kind) {
                             case Resolved_Item: {
                                 Item_Node* item = resolved.data.item;
@@ -1107,7 +1107,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier && retrieve->data.identifier.kind == Identifier_Single) {
                 Type type;
-                for (size_t i =  0; i < state->current_arguments.count; i--) {
+                for (size_t i = 0; i < state->current_arguments.count; i++) {
                     Declaration* declaration = &state->current_arguments.elements[state->current_arguments.count - i - 1];
                     if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
                         type = declaration->type;
@@ -1139,9 +1139,9 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 if (strcmp(retrieve->data.parent.name, "*") == 0) {
                     item_type = *parent_type_raw;
                 } else {
-                    Identifier item_identifier = basic_type_to_item_identifier(parent_type_raw->data.basic);
+                    Identifier identifier = basic_type_to_identifier(parent_type_raw->data.basic);
 
-                    Resolved resolved = resolve(&state->generic, item_identifier);
+                    Resolved resolved = resolve(&state->generic, identifier);
                     switch (resolved.kind) {
                         case Resolved_Item: {
                             Item_Node* item = resolved.data.item;
@@ -1231,7 +1231,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         found = true;
                         Type type;
                         type.kind = Type_Basic;
-                        Basic_Type basic = item_identifier_to_basic_type(retrieve->data.identifier);
+                        Basic_Type basic = identifier_to_basic_type(retrieve->data.identifier);
 
                         // Kinda a hack, probably should make a more robust way to handling enumerations
                         if (basic.data.multi.count > 2) {
