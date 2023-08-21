@@ -538,21 +538,19 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                             case Resolved_Item: {
                                 Item_Node* item = resolved.data.item;
                                 switch (item->data.type.kind) {
-                                    case Type_Node_Struct: {
-                                        Struct_Node* struct_ = &item->data.type.data.struct_;
-                                        for (size_t i = 0; i < struct_->items.count; i++) {
-                                            Declaration* declaration = &struct_->items.elements[i];
-                                            if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
-                                                *wanted_type = declaration->type;
-                                                found = true;
-                                            }
-                                        }
-                                        break;
-                                    }
+                                    case Type_Node_Struct:
                                     case Type_Node_Union: {
-                                        Union_Node* union_ = &item->data.type.data.union_;
-                                        for (size_t i = 0; i < union_->items.count; i++) {
-                                            Declaration* declaration = &union_->items.elements[i];
+                                        Array_Declaration* items;
+                                        if (item->data.type.kind == Type_Node_Struct) {
+                                            Struct_Node* struct_ = &item->data.type.data.struct_;
+                                            items = &struct_->items;
+                                        } else {
+                                            Union_Node* union_ = &item->data.type.data.union_;
+                                            items = &union_->items;
+                                        }
+
+                                        for (size_t i = 0; i < items->count; i++) {
+                                            Declaration* declaration = &items->elements[i];
                                             if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
                                                 *wanted_type = declaration->type;
                                                 found = true;
@@ -1146,24 +1144,23 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         case Resolved_Item: {
                             Item_Node* item = resolved.data.item;
                             switch (item->data.type.kind) {
-                                case Type_Node_Struct: {
-                                    Struct_Node* struct_ = &item->data.type.data.struct_;
-                                    for (size_t i = 0; i < struct_->items.count; i++) {
-                                        Declaration* declaration = &struct_->items.elements[i];
-                                        if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
-                                            item_type = declaration->type;
-                                            found = true;
-                                        }
-                                    }
-                                    break;
-                                }
+                                case Type_Node_Struct:
                                 case Type_Node_Union: {
-                                    Union_Node* union_ = &item->data.type.data.union_;
-                                    for (size_t i = 0; i < union_->items.count; i++) {
-                                        Declaration* declaration = &union_->items.elements[i];
+                                    Array_Declaration* items;
+                                    if (item->data.type.kind == Type_Node_Struct) {
+                                        Struct_Node* struct_ = &item->data.type.data.struct_;
+                                        items = &struct_->items;
+                                    } else {
+                                        Union_Node* union_ = &item->data.type.data.union_;
+                                        items = &union_->items;
+                                    }
+
+                                    for (size_t i = 0; i < items->count; i++) {
+                                        Declaration* declaration = &items->elements[i];
                                         if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
                                             item_type = declaration->type;
                                             found = true;
+                                            break;
                                         }
                                     }
                                     break;
