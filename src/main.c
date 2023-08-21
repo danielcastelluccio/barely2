@@ -4,7 +4,6 @@
 #include "parser.h"
 #include "processor.h"
 #include "file_util.h"
-#include "ast_print.h"
 
 #include "output/fasm_linux_x86_64.h"
 

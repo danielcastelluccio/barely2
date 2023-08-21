@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "ast_print.h"
 #include "file_util.h"
 #include "processor.h"
 
