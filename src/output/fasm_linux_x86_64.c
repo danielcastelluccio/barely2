@@ -106,6 +106,9 @@ size_t get_size(Type* type, Generic_State* state) {
             }
             return size;
         }
+        case Type_Enum: {
+            return 8;
+        }
         default:
             assert(false);
     }
@@ -232,6 +235,7 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                     result.size = item_size;
                     break;
                 }
+                result.location += item_size;
             }
             break;
         }
@@ -655,6 +659,8 @@ bool is_enum_type(Type* type, Generic_State* generic_state) {
         if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type && resolved.data.item->data.type.kind == Type_Node_Enum) {
             return true;
         }
+    } else if (type->kind == Type_Enum) {
+        return true;
     }
     return false;
 }
@@ -1314,6 +1320,23 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 }
             }
 
+            //if (!found) {
+            //    if (retrieve->kind == Retrieve_Assign_Identifier) {
+            //        if (retrieve->data.identifier.kind == Identifier_Multi && strcmp(retrieve->data.identifier.data.multi.elements[0], "") == 0) {
+            //            char* enum_variant = retrieve->data.identifier.data.multi.elements[1];
+
+            //            Enum_Type* enum_type = &retrieve->computed_result_type.data.enum_;
+            //            for (size_t i = 0; i < enum_type->items.count; i++) {
+            //                if (strcmp(enum_variant, enum_type->items.elements[i]) == 0) {
+            //                    //retrieve->computed_result_type = *state->wanted_type;
+            //                    //stack_type_push(&state->stack, *state->wanted_type);
+            //                    //found = true;
+            //                }
+            //            }
+            //        }
+            //    }
+            //}
+
             if (!found) {
                 Resolved resolved = resolve(&state->generic, retrieve->data.identifier);
                 switch (resolved.kind) {
@@ -1394,11 +1417,20 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         break;
                     }
                     case Resolved_Enum_Variant: {
-                        Enum_Node* enum_ = resolved.data.enum_.enum_;
-                        char* variant = resolved.data.enum_.variant;
                         size_t index = 0;
-                        while (strcmp(enum_->items.elements[index], variant) != 0) {
-                            index++;
+                        Enum_Node* enum_ = resolved.data.enum_.enum_;
+                        if (enum_ == NULL) {
+                            Enum_Type* enum_2 = &retrieve->computed_result_type.data.enum_;
+
+                            char* variant = resolved.data.enum_.variant;
+                            while (strcmp(enum_2->items.elements[index], variant) != 0) {
+                                index++;
+                            }
+                        } else {
+                            char* variant = resolved.data.enum_.variant;
+                            while (strcmp(enum_->items.elements[index], variant) != 0) {
+                                index++;
+                            }
                         }
 
                         char buffer[128] = {};

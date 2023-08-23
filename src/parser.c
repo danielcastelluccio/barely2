@@ -209,6 +209,25 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
                 result.kind = Type_Union;
                 result.data.union_ = union_type;
             }
+        } else if (strcmp(keyword, "enum") == 0) {
+            Enum_Type enum_type;
+            consume(tokens, &index);
+
+            Array_String items = array_string_new(4);
+            while (peek(tokens, index) != Token_RightCurlyBrace) {
+                if (peek(tokens, index) == Token_Semicolon) {
+                    consume(tokens, &index);
+                    continue;
+                }
+
+                char* name = consume_identifier(tokens, &index);
+                array_string_append(&items, name);
+            }
+            enum_type.items = items;
+            consume(tokens, &index);
+
+            result.kind = Type_Enum;
+            result.data.enum_ = enum_type;
         } else {
             assert(false);
         }
@@ -507,6 +526,28 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             }
             break;
         }
+        case Token_DoubleColon: {
+            Retrieve_Node node = {};
+            node.location = tokens->elements[index].location;
+            node.kind = Retrieve_Assign_Identifier;
+            Identifier identifier = {};
+
+            identifier.kind = Identifier_Multi;
+            Array_String names = array_string_new(2);
+            array_string_append(&names, "");
+            while (peek(tokens, index) == Token_DoubleColon) {
+                consume(tokens, &index);
+
+                array_string_append(&names, consume_identifier(tokens, &index));
+            }
+            identifier.data.multi = names;
+
+            node.kind = Retrieve_Assign_Identifier;
+            node.data.identifier = identifier;
+            result.kind = Expression_Retrieve;
+            result.data.retrieve = node;
+            break;
+        }
         case Token_Keyword: {
             char* name = consume_keyword(tokens, &index);
 
@@ -597,6 +638,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             break;
         }
         default: {
+            printf("a\n");
             printf("Error: Unexpected token ");
             print_token(&tokens->elements[index], false);
             printf("\n");
@@ -880,6 +922,8 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
         result.name = name;
 
         consume_check(tokens, &index, Token_Colon);
+
+        //node.type = parse_type(tokens, &index);
 
         switch (peek(tokens, index)) {
             case Token_Keyword: {

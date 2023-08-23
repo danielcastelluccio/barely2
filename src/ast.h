@@ -59,6 +59,10 @@ typedef struct {
     Array_Declaration_Pointer items;
 } Union_Type;
 
+typedef struct {
+    Array_String items;
+} Enum_Type;
+
 struct Type {
     enum {
         Type_None,
@@ -69,6 +73,7 @@ struct Type {
         Type_Internal,
         Type_Struct,
         Type_Union,
+        Type_Enum,
         Type_RegisterSize,
     } kind;
     union {
@@ -79,6 +84,7 @@ struct Type {
         Internal_Type internal;
         Struct_Type struct_;
         Union_Type union_;
+        Enum_Type enum_;
     } data;
 };
 
@@ -198,6 +204,7 @@ typedef struct {
             Type computed_array_type;
         } array;
     } data;
+    Type computed_result_type;
     Location location;
 } Retrieve_Assign_Node;
 
@@ -321,6 +328,7 @@ typedef struct {
 } Enum_Node;
 
 typedef struct {
+    //Type type;
     enum {
         Type_Node_Struct,
         Type_Node_Union,

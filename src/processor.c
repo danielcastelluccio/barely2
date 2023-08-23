@@ -117,24 +117,28 @@ Resolved resolve(Generic_State* state, Identifier data) {
     }
 
     if (data.kind == Identifier_Multi) {
-        size_t identifier_index = 1;
-        while (result.kind == Resolved_Item && result.data.item->kind == Item_Module) {
-            Module_Node* module = &result.data.item->data.module;
-            char* wanted_name = data.data.multi.elements[identifier_index];
-            for (size_t i = 0; i < module->items.count; i++) {
-                Item_Node* item = &module->items.elements[i];
-                if (strcmp(item->name, wanted_name) == 0) {
-                    result = (Resolved) { result.file, module, Resolved_Item, { .item = item } };
-                    break;
+        if (strcmp(data.data.multi.elements[0], "") == 0) {
+            result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = NULL, .variant = data.data.multi.elements[1]} } };
+        } else {
+            size_t identifier_index = 1;
+            while (result.kind == Resolved_Item && result.data.item->kind == Item_Module) {
+                Module_Node* module = &result.data.item->data.module;
+                char* wanted_name = data.data.multi.elements[identifier_index];
+                for (size_t i = 0; i < module->items.count; i++) {
+                    Item_Node* item = &module->items.elements[i];
+                    if (strcmp(item->name, wanted_name) == 0) {
+                        result = (Resolved) { result.file, module, Resolved_Item, { .item = item } };
+                        break;
+                    }
                 }
+
+                identifier_index++;
             }
 
-            identifier_index++;
-        }
-
-        if (result.kind == Resolved_Item && result.data.item->kind == Item_Type && result.data.item->data.type.kind == Type_Node_Enum) {
-            char* wanted_name = data.data.multi.elements[identifier_index];
-            result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.data.enum_, .variant = wanted_name} } };
+            if (result.kind == Resolved_Item && result.data.item->kind == Item_Type && result.data.item->data.type.kind == Type_Node_Enum) {
+                char* wanted_name = data.data.multi.elements[identifier_index];
+                result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.data.enum_, .variant = wanted_name} } };
+            }
         }
     }
 
@@ -252,6 +256,23 @@ bool is_type(Type* wanted, Type* given) {
         return is_valid;
     }
 
+    if (wanted->kind == Type_Enum) {
+        Enum_Type* wanted_enum = &wanted->data.enum_;
+        Enum_Type* given_enum = &given->data.enum_;
+
+        bool is_valid = true;
+        if (wanted_enum->items.count != given_enum->items.count) is_valid = false;
+        if (wanted_enum->items.count != given_enum->items.count) is_valid = false;
+
+        for (size_t i = 0; i < wanted_enum->items.count; i++) {
+            if (strcmp(given_enum->items.elements[i], given_enum->items.elements[i]) != 0) {
+                is_valid = false;
+            }
+        }
+
+        return is_valid;
+    }
+
     return false;
 }
 
@@ -337,6 +358,16 @@ void print_type_inline(Type* type) {
                     printf("f8");
                     break;
             }
+            break;
+        }
+        case Type_Enum: {
+            Enum_Type* enum_type = &type->data.enum_;
+            printf("enum { ");
+            for (size_t i = 0; i < enum_type->items.count; i++) {
+                printf("%s", enum_type->items.elements[i]);
+                printf("; ");
+            }
+            printf("}");
             break;
         }
         case Type_RegisterSize: {
@@ -1185,6 +1216,23 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 }
 
                 stack_type_push(&state->stack, item_type);
+            }
+
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
+                if (retrieve->data.identifier.kind == Identifier_Multi && strcmp(retrieve->data.identifier.data.multi.elements[0], "") == 0) {
+                    assert(state->wanted_type->kind == Type_Enum);
+
+                    char* enum_variant = retrieve->data.identifier.data.multi.elements[1];
+
+                    Enum_Type* enum_type = &state->wanted_type->data.enum_;
+                    for (size_t i = 0; i < enum_type->items.count; i++) {
+                        if (strcmp(enum_variant, enum_type->items.elements[i]) == 0) {
+                            retrieve->computed_result_type = *state->wanted_type;
+                            stack_type_push(&state->stack, *state->wanted_type);
+                            found = true;
+                        }
+                    }
+                }
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
