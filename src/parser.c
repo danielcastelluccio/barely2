@@ -180,7 +180,7 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
             Array_Declaration_Pointer items = array_declaration_pointer_new(4);
             while (peek(tokens, index) != Token_RightCurlyBrace) {
-                if (peek(tokens, index) == Token_Semicolon) {
+                if (peek(tokens, index) == Token_Comma) {
                     consume(tokens, &index);
                     continue;
                 }
@@ -215,7 +215,7 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
             Array_String items = array_string_new(4);
             while (peek(tokens, index) != Token_RightCurlyBrace) {
-                if (peek(tokens, index) == Token_Semicolon) {
+                if (peek(tokens, index) == Token_Comma) {
                     consume(tokens, &index);
                     continue;
                 }

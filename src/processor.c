@@ -360,14 +360,39 @@ void print_type_inline(Type* type) {
             }
             break;
         }
+        case Type_Struct:
+        case Type_Union: {
+            Array_Declaration_Pointer* items;
+            if (type->kind == Type_Struct) {
+                Struct_Type* struct_type = &type->data.struct_;
+                items = &struct_type->items;
+                printf("struct { ");
+            } else if (type->kind == Type_Union) {
+                Union_Type* union_type = &type->data.union_;
+                items = &union_type->items;
+                printf("union { ");
+            }
+            for (size_t i = 0; i < items->count; i++) {
+                Declaration* declaration = items->elements[i];
+                printf("%s: ", declaration->name);
+                print_type_inline(&declaration->type);
+                if (i < items->count - 1) {
+                    printf(", ");
+                }
+            }
+            printf(" }");
+            break;
+        }
         case Type_Enum: {
             Enum_Type* enum_type = &type->data.enum_;
             printf("enum { ");
             for (size_t i = 0; i < enum_type->items.count; i++) {
                 printf("%s", enum_type->items.elements[i]);
-                printf("; ");
+                if (i < enum_type->items.count - 1) {
+                    printf(", ");
+                }
             }
-            printf("}");
+            printf(" }");
             break;
         }
         case Type_RegisterSize: {
