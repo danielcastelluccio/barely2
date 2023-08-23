@@ -135,9 +135,9 @@ Resolved resolve(Generic_State* state, Identifier data) {
                 identifier_index++;
             }
 
-            if (result.kind == Resolved_Item && result.data.item->kind == Item_Type && result.data.item->data.type.kind == Type_Node_Enum) {
+            if (result.kind == Resolved_Item && result.data.item->kind == Item_Type && result.data.item->data.type.type.kind == Type_Enum) {
                 char* wanted_name = data.data.multi.elements[identifier_index];
-                result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.data.enum_, .variant = wanted_name} } };
+                result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.type.data.enum_, .variant = wanted_name} } };
             }
         }
     }
@@ -437,31 +437,8 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
             switch (resolved.kind) {
                 case Resolved_Item: {
                     Item_Node* item = resolved.data.item;
-                    switch (item->data.type.kind) {
-                        case Type_Node_Struct:
-                        case Type_Node_Union: {
-                            Array_Declaration* items;
-                            if (item->data.type.kind == Type_Node_Struct) {
-                                Struct_Node* struct_ = &item->data.type.data.struct_;
-                                items = &struct_->items;
-                            } else {
-                                Union_Node* union_ = &item->data.type.data.union_;
-                                items = &union_->items;
-                            }
-
-                            for (size_t i = 0; i < items->count; i++) {
-                                Declaration* declaration = &items->elements[i];
-                                if (strcmp(declaration->name, item_name) == 0) {
-                                    result = &declaration->type;
-                                }
-                            }
-                            break;
-                        }
-                        case Type_Node_Enum: {
-                            assert(false);
-                        }
-                    }
-                    break;
+                    assert(item->kind == Item_Type);
+                    return get_parent_item_type(&item->data.type.type, item_name, state);
                 }
                 case Resolved_Enum_Variant: {
                     assert(false);

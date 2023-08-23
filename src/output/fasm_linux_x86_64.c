@@ -30,31 +30,9 @@ size_t get_size(Type* type, Generic_State* state) {
             Resolved resolved = resolve(state, identifier);
             if (resolved.kind == Resolved_Item) {
                 Item_Node* item = resolved.data.item;
+                assert(item->kind == Item_Type);
                 Type_Node* type = &item->data.type;
-                switch (type->kind) {
-                    case Type_Node_Struct: {
-                        size_t size = 0;
-                        Struct_Node* struct_ = &type->data.struct_;
-                        for (size_t i = 0; i < struct_->items.count; i++) {
-                            size += get_size(&struct_->items.elements[i].type, state);
-                        }
-                        return size;
-                    }
-                    case Type_Node_Union: {
-                        size_t size = 0;
-                        Union_Node* union_ = &type->data.union_;
-                        for (size_t i = 0; i < union_->items.count; i++) {
-                            size_t size_temp = get_size(&union_->items.elements[i].type, state);
-                            if (size_temp > size) {
-                                size = size_temp;
-                            }
-                        }
-                        return size;
-                    }
-                    case Type_Node_Enum: {
-                        return 8;
-                    }
-                }
+                return get_size(&type->type, state);
             }
             break;
         }
@@ -180,38 +158,8 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
             assert(resolved.kind == Resolved_Item);
 
             Item_Node* item = resolved.data.item;
-            switch (item->data.type.kind) {
-                case Type_Node_Struct: {
-                    Struct_Node* struct_ = &item->data.type.data.struct_;
-                    for (size_t i = 0; i < struct_->items.count; i++) {
-                        Declaration* declaration = &struct_->items.elements[i];
-                        size_t item_size = get_size(&declaration->type, state);
-                        if (strcmp(declaration->name, item_name) == 0) {
-                            result.size = item_size;
-                            break;
-                        }
-                        result.location += item_size;
-                    }
-                    break;
-                }
-                case Type_Node_Union: {
-                    Union_Node* union_ = &item->data.type.data.union_;
-                    for (size_t i = 0; i < union_->items.count; i++) {
-                        Declaration* declaration = &union_->items.elements[i];
-                        size_t item_size = get_size(&declaration->type, state);
-                        if (strcmp(declaration->name, item_name) == 0) {
-                            result.size = item_size;
-                            break;
-                        }
-                    }
-
-                    result.location = 0;
-                    break;
-                }
-                case Type_Node_Enum:
-                    assert(false);
-            }
-            break;
+            assert(item->kind == Item_Type);
+            return get_parent_item_location_size(&item->data.type.type, item_name, state);
         }
         case Type_Struct: {
             Struct_Type* struct_type = &parent_type->data.struct_;
@@ -656,8 +604,8 @@ void output_unsigned_integer(Internal_Type type, size_t value, Output_State* sta
 bool is_enum_type(Type* type, Generic_State* generic_state) {
     if (type->kind == Type_Basic) {
         Resolved resolved = resolve(generic_state, basic_type_to_identifier(type->data.basic));
-        if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type && resolved.data.item->data.type.kind == Type_Node_Enum) {
-            return true;
+        if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type) {
+            return is_enum_type(&resolved.data.item->data.type.type, generic_state);
         }
     } else if (type->kind == Type_Enum) {
         return true;
@@ -1418,7 +1366,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     }
                     case Resolved_Enum_Variant: {
                         size_t index = 0;
-                        Enum_Node* enum_ = resolved.data.enum_.enum_;
+                        Enum_Type* enum_ = resolved.data.enum_.enum_;
                         if (enum_ == NULL) {
                             Enum_Type* enum_2 = &retrieve->computed_result_type.data.enum_;
 

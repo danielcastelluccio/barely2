@@ -316,29 +316,7 @@ typedef struct {
 } Procedure_Node;
 
 typedef struct {
-    Array_Declaration items;
-} Struct_Node;
-
-typedef struct {
-    Array_Declaration items;
-} Union_Node;
-
-typedef struct {
-    Array_String items;
-} Enum_Node;
-
-typedef struct {
-    //Type type;
-    enum {
-        Type_Node_Struct,
-        Type_Node_Union,
-        Type_Node_Enum,
-    } kind;
-    union {
-        Struct_Node struct_;
-        Union_Node union_;
-        Enum_Node enum_;
-    } data;
+    Type type;
 } Type_Node;
 
 struct Item_Node;

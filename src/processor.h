@@ -24,7 +24,7 @@ typedef struct {
     union {
         Item_Node* item;
         struct {
-            Enum_Node* enum_;
+            Enum_Type* enum_;
             char* variant;
         } enum_;
     } data;
