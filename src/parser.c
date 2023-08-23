@@ -174,6 +174,36 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
             result.kind = Type_Procedure;
             result.data.procedure = procedure;
+        } else if (strcmp(keyword, "struct") == 0) {
+            Struct_Type struct_type;
+
+            consume(tokens, &index);
+
+            Array_Declaration_Pointer items = array_declaration_pointer_new(4);
+            while (peek(tokens, index) != Token_RightCurlyBrace) {
+                if (peek(tokens, index) == Token_Semicolon) {
+                    consume(tokens, &index);
+                    continue;
+                }
+
+                Location location = tokens->elements[index].location;
+                char* name = consume_identifier(tokens, &index);
+                consume_check(tokens, &index, Token_Colon);
+                Type type = parse_type(tokens, &index);
+
+                Declaration* declaration = malloc(sizeof(Declaration));
+                declaration->name = name;
+                declaration->type = type;
+                declaration->location = location;
+                array_declaration_pointer_append(&items, declaration);
+            }
+            struct_type.items = items;
+            consume(tokens, &index);
+
+            result.kind = Type_Struct;
+            result.data.struct_ = struct_type;
+        } else {
+            assert(false);
         }
     } else {
         char* name = consume_identifier(tokens, &index);

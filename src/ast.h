@@ -46,6 +46,15 @@ typedef struct {
     Type* element_type;
 } BArray_Type;
 
+struct Declaration;
+typedef struct Declaration Declaration;
+
+Dynamic_Array_Def(Declaration*, Array_Declaration_Pointer, array_declaration_pointer_)
+
+typedef struct {
+    Array_Declaration_Pointer items;
+} Struct_Type;
+
 struct Type {
     enum {
         Type_None,
@@ -54,6 +63,7 @@ struct Type {
         Type_Procedure,
         Type_Array,
         Type_Internal,
+        Type_Struct,
         Type_RegisterSize,
     } kind;
     union {
@@ -62,6 +72,7 @@ struct Type {
         Procedure_Type procedure;
         BArray_Type array;
         Internal_Type internal;
+        Struct_Type struct_;
     } data;
 };
 
@@ -71,11 +82,11 @@ typedef struct Statement_Node Statement_Node;
 struct Expression_Node;
 typedef struct Expression_Node Expression_Node;
 
-typedef struct {
+struct Declaration {
     char* name;
     Type type;
     Location location;
-} Declaration;
+};
 
 Dynamic_Array_Def(Statement_Node*, Array_Statement_Node, array_statement_node_)
 Dynamic_Array_Def(Expression_Node*, Array_Expression_Node, array_expression_node_)

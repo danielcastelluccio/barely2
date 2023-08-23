@@ -1,5 +1,6 @@
 #include "ast.h"
 
+Dynamic_Array_Impl(Declaration*, Array_Declaration_Pointer, array_declaration_pointer_)
 Dynamic_Array_Impl(Statement_Node*, Array_Statement_Node, array_statement_node_)
 Dynamic_Array_Impl(Item_Node, Array_Item_Node, array_item_node_)
 Dynamic_Array_Impl(Expression_Node*, Array_Expression_Node, array_expression_node_)

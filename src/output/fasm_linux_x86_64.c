@@ -87,6 +87,14 @@ size_t get_size(Type* type, Generic_State* state) {
         case Type_Pointer: {
             return 8;
         }
+        case Type_Struct: {
+            size_t size = 0;
+            Struct_Type* struct_ = &type->data.struct_;
+            for (size_t i = 0; i < struct_->items.count; i++) {
+                size += get_size(&struct_->items.elements[i]->type, state);
+            }
+            return size;
+        }
         default:
             assert(false);
     }
@@ -141,6 +149,75 @@ bool consume_in_reference_output(Output_State* state) {
 }
 
 void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_State* state);
+
+typedef struct {
+    size_t size;
+    size_t location;
+} Location_Size_Data;
+
+Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_name, Generic_State* state) {
+    Location_Size_Data result = {};
+
+    switch (parent_type->kind) {
+        case Type_Basic: {
+            Identifier identifier = basic_type_to_identifier(parent_type->data.basic);
+            Resolved resolved = resolve(state, identifier);
+
+            assert(resolved.kind == Resolved_Item);
+
+            Item_Node* item = resolved.data.item;
+            switch (item->data.type.kind) {
+                case Type_Node_Struct: {
+                    Struct_Node* struct_ = &item->data.type.data.struct_;
+                    for (size_t i = 0; i < struct_->items.count; i++) {
+                        Declaration* declaration = &struct_->items.elements[i];
+                        size_t item_size = get_size(&declaration->type, state);
+                        if (strcmp(declaration->name, item_name) == 0) {
+                            result.size = item_size;
+                            break;
+                        }
+                        result.location += item_size;
+                    }
+                    break;
+                }
+                case Type_Node_Union: {
+                    Union_Node* union_ = &item->data.type.data.union_;
+                    for (size_t i = 0; i < union_->items.count; i++) {
+                        Declaration* declaration = &union_->items.elements[i];
+                        size_t item_size = get_size(&declaration->type, state);
+                        if (strcmp(declaration->name, item_name) == 0) {
+                            result.size = item_size;
+                            break;
+                        }
+                    }
+
+                    result.location = 0;
+                    break;
+                }
+                case Type_Node_Enum:
+                    assert(false);
+            }
+            break;
+        }
+        case Type_Struct: {
+            Struct_Type* struct_type = &parent_type->data.struct_;
+            for (size_t i = 0; i < struct_type->items.count; i++) {
+                Declaration* declaration = struct_type->items.elements[i];
+                size_t item_size = get_size(&declaration->type, state);
+                if (strcmp(declaration->name, item_name) == 0) {
+                    result.size = item_size;
+                    break;
+                }
+                result.location += item_size;
+            }
+            break;
+        }
+        default:
+            assert(false);
+    }
+
+    return result;
+}
 
 void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State* state) {
     switch (statement->kind) {
@@ -282,53 +359,15 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         parent_type_raw = &parent_type;
                     }
 
-                    Identifier identifier = basic_type_to_identifier(parent_type_raw->data.basic);
-                    Resolved resolved = resolve(&state->generic, identifier);
                     size_t location = 0;
                     size_t size = 0;
-                    if (resolved.kind != Resolved_Item) {
-                        assert(false);
-                    }
 
-                    Item_Node* item = resolved.data.item;
-                    switch (item->data.type.kind) {
-                        case Type_Node_Struct: {
-                            if (strcmp(assign_part->data.parent.name, "*") == 0) {
-                                size = get_size(parent_type_raw, &state->generic);
-                            } else {
-                                Struct_Node* struct_ = &item->data.type.data.struct_;
-                                for (size_t i = 0; i < struct_->items.count; i++) {
-                                    Declaration* declaration = &struct_->items.elements[i];
-                                    size_t item_size = get_size(&declaration->type, &state->generic);
-                                    if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
-                                        size = item_size;
-                                        break;
-                                    }
-                                    location += item_size;
-                                }
-                            }
-                            break;
-                        }
-                        case Type_Node_Union: {
-                            if (strcmp(assign_part->data.parent.name, "*") == 0) {
-                                size = get_size(parent_type_raw, &state->generic);
-                            } else {
-                                Union_Node* union_ = &item->data.type.data.union_;
-                                for (size_t i = 0; i < union_->items.count; i++) {
-                                    Declaration* declaration = &union_->items.elements[i];
-                                    size_t item_size = get_size(&declaration->type, &state->generic);
-                                    if (strcmp(declaration->name, assign_part->data.parent.name) == 0) {
-                                        size = item_size;
-                                        break;
-                                    }
-                                }
-
-                                location = 0;
-                            }
-                            break;
-                        }
-                        case Type_Node_Enum:
-                            assert(false);
+                    if (strcmp(assign_part->data.parent.name, "*") == 0) {
+                        size = get_size(parent_type_raw, &state->generic);
+                    } else {
+                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, assign_part->data.parent.name, &state->generic);
+                        location = result.location;
+                        size = result.size;
                     }
 
                     output_expression_fasm_linux_x86_64(assign_part->data.parent.expression, state);
@@ -1085,47 +1124,14 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         parent_type_raw = &parent_type;
                     }
 
-                    Identifier identifier = basic_type_to_identifier(parent_type_raw->data.basic);
-                    Resolved resolved = resolve(&state->generic, identifier);
-                    if (resolved.kind != Resolved_Item) {
-                        assert(false);
-                    }
-
-                    Item_Node* item = resolved.data.item;
                     size_t location = 0;
                     size_t size = 0;
                     if (strcmp(retrieve->data.parent.name, "*") == 0) {
                         size = get_size(parent_type_raw, &state->generic);
                     } else {
-                        switch (item->data.type.kind) {
-                            case Type_Node_Struct: {
-                                Struct_Node* struct_ = &item->data.type.data.struct_;
-                                for (size_t i = 0; i < struct_->items.count; i++) {
-                                    Declaration* declaration = &struct_->items.elements[i];
-                                    size_t item_size = get_size(&declaration->type, &state->generic);
-                                    if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
-                                        size = item_size;
-                                        break;
-                                    }
-                                    location += item_size;
-                                }
-                                break;
-                            }
-                            case Type_Node_Union: {
-                                Union_Node* union_ = &item->data.type.data.union_;
-                                for (size_t i = 0; i < union_->items.count; i++) {
-                                    Declaration* declaration = &union_->items.elements[i];
-                                    size_t item_size = get_size(&declaration->type, &state->generic);
-                                    if (strcmp(declaration->name, retrieve->data.parent.name) == 0) {
-                                        size = item_size;
-                                        break;
-                                    }
-                                }
-                                break;
-                            }
-                            case Type_Node_Enum:
-                                assert(false);
-                        }
+                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, retrieve->data.parent.name, &state->generic);
+                        location = result.location;
+                        size = result.size;
                     }
 
                     output_expression_fasm_linux_x86_64(retrieve->data.parent.expression, state);
@@ -1292,7 +1298,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         Item_Node* item = resolved.data.item;
                         found = true;
                         switch (item->kind) {
-                            case Item_Procedure:
+                            case Item_Procedure: {
                                 char buffer[128] = {};
                                 sprintf(buffer + strlen(buffer), "  push %s.", item->name);
                                 if (resolved.parent_module != NULL) {
@@ -1301,7 +1307,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 sprintf(buffer + strlen(buffer), "%zu\n", resolved.file->id);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 break;
-                            case Item_Global:
+                            }
+                            case Item_Global: {
                                 Global_Node* global = &item->data.global;
                                 if (consume_in_reference_output(state)) {
                                     char buffer[128] = {};
@@ -1356,6 +1363,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     }
                                 }
                                 break;
+                            }
                             default:
                                 printf("Unhandled item retrieve!\n");
                                 exit(1);
@@ -1626,7 +1634,7 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             stringbuffer_appendstring(&state->instructions, "  ret\n");
             break;
         }
-        case Item_Global:
+        case Item_Global: {
             Global_Node* global = &item->data.global;
             size_t size = get_size(&global->type, &state->generic);
 
@@ -1640,7 +1648,8 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             sprintf(buffer + strlen(buffer), "%zu: rb %zu\n", state->generic.current_file->id, size);
             stringbuffer_appendstring(&state->bss, buffer);
             break;
-        case Item_Module:
+        }
+        case Item_Module: {
             Module_Node* module = &item->data.module;
             for (size_t i = 0; i < module->items.count; i++) {
                 state->current_module = module;
@@ -1648,6 +1657,7 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
                 output_item_fasm_linux_x86_64(item, state);
             }
             break;
+        }
         case Item_Type:
             break;
         case Item_Use:
