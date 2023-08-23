@@ -704,18 +704,18 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     stringbuffer_appendstring(&state->instructions, "  call rax\n");
                 }
             } else if (invoke->kind == Invoke_Operator) {
-                switch (invoke->data.operator.operator) {
+                switch (invoke->data.operator_.operator_) {
                     case Operator_Add:
                     case Operator_Subtract:
                     case Operator_Multiply:
                     case Operator_Divide:
                     case Operator_Modulus: {
-                        Type operator_type = invoke->data.operator.computed_operand_type;
+                        Type operator_type = invoke->data.operator_.computed_operand_type;
 
                         if (is_internal_type(Type_U8, &operator_type) || is_internal_type(Type_USize, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
                             stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Add:
                                     stringbuffer_appendstring(&state->instructions, "  add rax, rbx\n");
                                     break;
@@ -742,7 +742,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  mov ebx, [rsp]\n");
                             stringbuffer_appendstring(&state->instructions, "  mov eax, [rsp+4]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 8\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Add:
                                     stringbuffer_appendstring(&state->instructions, "  add eax, ebx\n");
                                     break;
@@ -770,7 +770,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  mov bx, [rsp]\n");
                             stringbuffer_appendstring(&state->instructions, "  mov ax, [rsp+2]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 4\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Add:
                                     stringbuffer_appendstring(&state->instructions, "  add ax, bx\n");
                                     break;
@@ -798,7 +798,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
                             stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Add:
                                     stringbuffer_appendstring(&state->instructions, "  add al, bl\n");
                                     break;
@@ -824,7 +824,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
                         } else if (is_internal_type(Type_F8, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  fld qword [rsp+8]\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Add:
                                     stringbuffer_appendstring(&state->instructions, "  fadd qword [rsp]\n");
                                     break;
@@ -854,7 +854,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_GreaterEqual:
                     case Operator_Less:
                     case Operator_LessEqual: {
-                        Type operator_type = invoke->data.operator.computed_operand_type;
+                        Type operator_type = invoke->data.operator_.computed_operand_type;
 
                         if (is_internal_type(Type_U8, &operator_type) || is_internal_type(Type_USize, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
@@ -862,7 +862,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
                             stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                             stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Equal:
                                     stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
                                     break;
@@ -893,7 +893,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  mov eax, [rsp+4]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 8\n");
                             stringbuffer_appendstring(&state->instructions, "  cmp eax, ebx\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Equal:
                                     stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
                                     break;
@@ -924,7 +924,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  mov ax, [rsp+2]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 4\n");
                             stringbuffer_appendstring(&state->instructions, "  cmp ax, bx\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Equal:
                                     stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
                                     break;
@@ -955,7 +955,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");
                             stringbuffer_appendstring(&state->instructions, "  cmp al, bl\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Equal:
                                     stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
                                     break;
@@ -985,7 +985,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  fld qword [rsp]\n");
                             stringbuffer_appendstring(&state->instructions, "  fld qword [rsp+8]\n");
                             stringbuffer_appendstring(&state->instructions, "  fcomi st1\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Equal:
                                     stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
                                     break;
@@ -1018,7 +1018,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
                             stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                             stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
-                            switch (invoke->data.operator.operator) {
+                            switch (invoke->data.operator_.operator_) {
                                 case Operator_Equal:
                                     stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
                                     break;

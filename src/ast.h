@@ -154,9 +154,9 @@ typedef struct {
     union {
         Expression_Node* procedure;
         struct {
-            Operator operator;
+            Operator operator_;
             Type computed_operand_type;
-        } operator;
+        } operator_;
     } data;
     Array_Expression_Node arguments;
     Location location;

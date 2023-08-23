@@ -735,7 +735,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                     assert(false);
                     break;
             }
-            node.data.operator.operator = operator;
+            node.data.operator_.operator_ = operator;
 
             Expression_Node* left_side = malloc(sizeof(Expression_Node));
             *left_side = result;
@@ -807,7 +807,7 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
 
         Procedure_Node node;
         switch (consume(tokens, &index)) {
-            case Token_LeftParenthesis:
+            case Token_LeftParenthesis: {
                 Procedure_Literal_Node literal_node;
 
                 Array_Declaration arguments = array_declaration_new(4);
@@ -855,6 +855,7 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
                 node.kind = Procedure_Literal;
                 node.data.literal = literal_node;
                 break;
+            }
             default:
                 printf("Error: Unexpected token ");
                 print_token(&tokens->elements[index - 1], false);

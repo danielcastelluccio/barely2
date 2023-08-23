@@ -1001,7 +1001,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     }
                 }
             } else if (invoke->kind == Invoke_Operator) {
-                Operator operator = invoke->data.operator.operator;
+                Operator operator = invoke->data.operator_.operator_;
 
                 if (operator == Operator_Add ||
                         operator == Operator_Subtract ||
@@ -1043,7 +1043,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         exit(1);
                     }
 
-                    invoke->data.operator.computed_operand_type = first;
+                    invoke->data.operator_.computed_operand_type = first;
                     stack_type_push(&state->stack, first);
                 }
 
@@ -1066,7 +1066,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         exit(1);
                     }
 
-                    invoke->data.operator.computed_operand_type = first;
+                    invoke->data.operator_.computed_operand_type = first;
 
                     stack_type_push(&state->stack, create_basic_single_type("bool"));
                 }
