@@ -174,9 +174,8 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
             result.kind = Type_Procedure;
             result.data.procedure = procedure;
-        } else if (strcmp(keyword, "struct") == 0) {
-            Struct_Type struct_type;
-
+        } else if (strcmp(keyword, "struct") == 0 || strcmp(keyword, "union") == 0) {
+            bool is_struct = strcmp(keyword, "struct") == 0;
             consume(tokens, &index);
 
             Array_Declaration_Pointer items = array_declaration_pointer_new(4);
@@ -197,11 +196,19 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
                 declaration->location = location;
                 array_declaration_pointer_append(&items, declaration);
             }
-            struct_type.items = items;
             consume(tokens, &index);
 
-            result.kind = Type_Struct;
-            result.data.struct_ = struct_type;
+            if (is_struct) {
+                Struct_Type struct_type;
+                struct_type.items = items;
+                result.kind = Type_Struct;
+                result.data.struct_ = struct_type;
+            } else {
+                Union_Type union_type;
+                union_type.items = items;
+                result.kind = Type_Union;
+                result.data.union_ = union_type;
+            }
         } else {
             assert(false);
         }

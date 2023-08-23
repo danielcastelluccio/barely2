@@ -55,6 +55,10 @@ typedef struct {
     Array_Declaration_Pointer items;
 } Struct_Type;
 
+typedef struct {
+    Array_Declaration_Pointer items;
+} Union_Type;
+
 struct Type {
     enum {
         Type_None,
@@ -64,6 +68,7 @@ struct Type {
         Type_Array,
         Type_Internal,
         Type_Struct,
+        Type_Union,
         Type_RegisterSize,
     } kind;
     union {
@@ -73,6 +78,7 @@ struct Type {
         BArray_Type array;
         Internal_Type internal;
         Struct_Type struct_;
+        Union_Type union_;
     } data;
 };
 

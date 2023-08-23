@@ -440,9 +440,18 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
             }
             break;
         }
-        case Type_Struct: {
-            Struct_Type* struct_ = &parent_type->data.struct_;
-            Array_Declaration_Pointer* items = &struct_->items;
+        case Type_Struct:
+        case Type_Union: {
+            Array_Declaration_Pointer* items;
+            if (parent_type->kind == Type_Struct) {
+                Struct_Type* struct_ = &parent_type->data.struct_;
+                items = &struct_->items;
+            } else if (parent_type->kind == Type_Union) {
+                Union_Type* union_ = &parent_type->data.union_;
+                items = &union_->items;
+            } else {
+                assert(false);
+            }
 
             for (size_t i = 0; i < items->count; i++) {
                 Declaration* declaration = items->elements[i];

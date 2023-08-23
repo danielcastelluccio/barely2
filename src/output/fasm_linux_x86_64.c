@@ -95,6 +95,17 @@ size_t get_size(Type* type, Generic_State* state) {
             }
             return size;
         }
+        case Type_Union: {
+            size_t size = 0;
+            Union_Type* union_ = &type->data.union_;
+            for (size_t i = 0; i < union_->items.count; i++) {
+                size_t size_temp = get_size(&union_->items.elements[i]->type, state);
+                if (size_temp > size) {
+                    size = size_temp;
+                }
+            }
+            return size;
+        }
         default:
             assert(false);
     }
@@ -209,6 +220,18 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                     break;
                 }
                 result.location += item_size;
+            }
+            break;
+        }
+        case Type_Union: {
+            Union_Type* union_type = &parent_type->data.union_;
+            for (size_t i = 0; i < union_type->items.count; i++) {
+                Declaration* declaration = union_type->items.elements[i];
+                size_t item_size = get_size(&declaration->type, state);
+                if (strcmp(declaration->name, item_name) == 0) {
+                    result.size = item_size;
+                    break;
+                }
             }
             break;
         }
