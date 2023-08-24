@@ -40,7 +40,8 @@ size_t get_size(Type* type, Generic_State* state) {
             BArray_Type* array = &type->data.array;
 
             if (array->has_size) {
-                size_t size = array->size;
+                assert(array->size_type->kind == Type_Number);
+                size_t size = array->size_type->data.number.value;
                 return size * get_size(array->element_type, state);
             }
             break;

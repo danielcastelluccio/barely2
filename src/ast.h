@@ -41,7 +41,7 @@ typedef struct {
 } Procedure_Type;
 
 typedef struct {
-    size_t size;
+    Type* size_type;
     bool has_size;
     Type* element_type;
 } BArray_Type;
@@ -63,6 +63,10 @@ typedef struct {
     Array_String items;
 } Enum_Type;
 
+typedef struct {
+    size_t value;
+} Number_Type;
+
 struct Type {
     enum {
         Type_None,
@@ -74,6 +78,7 @@ struct Type {
         Type_Struct,
         Type_Union,
         Type_Enum,
+        Type_Number,
         Type_RegisterSize,
     } kind;
     union {
@@ -85,6 +90,7 @@ struct Type {
         Struct_Type struct_;
         Union_Type union_;
         Enum_Type enum_;
+        Number_Type number;
     } data;
 };
 

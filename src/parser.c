@@ -122,8 +122,9 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
         if (peek(tokens, index) != Token_RightBracket) {
             array.has_size = true;
-            char* size = consume_number(tokens, &index);
-            array.size = atoi(size);
+            Type* size_type = malloc(sizeof(Type));
+            *size_type = parse_type(tokens, &index);
+            array.size_type = size_type;
         }
 
         consume_check(tokens, &index, Token_RightBracket);
@@ -231,6 +232,13 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
         } else {
             assert(false);
         }
+    } else if (peek(tokens, index) == Token_Number) {
+        Number_Type number_type;
+        char* value_string = consume_number(tokens, &index);
+        number_type.value = atoll(value_string);
+
+        result.kind = Type_Number;
+        result.data.number = number_type;
     } else {
         char* name = consume_identifier(tokens, &index);
         Internal_Type internal;

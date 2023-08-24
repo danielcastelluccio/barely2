@@ -224,7 +224,7 @@ bool is_type(Type* wanted, Type* given) {
     if (wanted->kind == Type_Array) {
         if (wanted->data.array.has_size) {
             if (!given->data.array.has_size) return false;
-            if (wanted->data.array.size != given->data.array.size) return false;
+            if (!is_type(wanted->data.array.size_type, given->data.array.size_type)) return false;
         }
         return is_type(wanted->data.array.element_type, given->data.array.element_type);
     }
@@ -307,7 +307,7 @@ void print_type_inline(Type* type) {
             BArray_Type* array = &type->data.array;
             printf("[");
             if (array->has_size) {
-                printf("%zu", array->size);
+                print_type_inline(array->size_type);
             }
             printf("]");
             print_type_inline(array->element_type);
