@@ -242,32 +242,54 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
     } else {
         char* name = consume_identifier(tokens, &index);
         Internal_Type internal;
-        bool is_internal = false;
+        bool found = false;
 
-        if (strcmp(name, "usize") == 0) {
-            internal = Type_USize;
-            is_internal = true;
-        } else if (strcmp(name, "u8") == 0) {
-            internal = Type_U8;
-            is_internal = true;
-        } else if (strcmp(name, "u4") == 0) {
-            internal = Type_U4;
-            is_internal = true;
-        } else if (strcmp(name, "u2") == 0) {
-            internal = Type_U2;
-            is_internal = true;
-        } else if (strcmp(name, "u1") == 0) {
-            internal = Type_U1;
-            is_internal = true;
-        } else if (strcmp(name, "f8") == 0) {
-            internal = Type_F8;
-            is_internal = true;
+        if (!found) {
+            if (strcmp(name, "@typeof") == 0) {
+                TypeOf_Type type_of;
+
+                consume_check(tokens, &index, Token_LeftParenthesis);
+
+                Expression_Node* expression = malloc(sizeof(Expression_Node));
+                *expression = parse_expression(tokens, &index);
+                type_of.expression = expression;
+
+                consume_check(tokens, &index, Token_RightParenthesis);
+
+                result.kind = Type_TypeOf;
+                result.data.type_of = type_of;
+                found = true;
+            }
         }
 
-        if (is_internal) {
-            result.kind = Type_Internal;
-            result.data.internal = internal;
-        } else {
+        if (!found) {
+            if (strcmp(name, "usize") == 0) {
+                internal = Type_USize;
+                found = true;
+            } else if (strcmp(name, "u8") == 0) {
+                internal = Type_U8;
+                found = true;
+            } else if (strcmp(name, "u4") == 0) {
+                internal = Type_U4;
+                found = true;
+            } else if (strcmp(name, "u2") == 0) {
+                internal = Type_U2;
+                found = true;
+            } else if (strcmp(name, "u1") == 0) {
+                internal = Type_U1;
+                found = true;
+            } else if (strcmp(name, "f8") == 0) {
+                internal = Type_F8;
+                found = true;
+            }
+
+            if (found) {
+                result.kind = Type_Internal;
+                result.data.internal = internal;
+            }
+        }
+
+        if (!found) {
             Basic_Type basic;
             basic.kind = Type_Single;
 
@@ -646,7 +668,6 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             break;
         }
         default: {
-            printf("a\n");
             printf("Error: Unexpected token ");
             print_token(&tokens->elements[index], false);
             printf("\n");

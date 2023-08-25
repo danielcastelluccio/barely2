@@ -809,6 +809,37 @@ bool is_like_number_literal(Expression_Node* expression) {
     return false;
 }
 
+Type* get_local_variable_type(Process_State* state, char* name) {
+    for (int i = state->current_declares.count - 1; i >= 0; i--) {
+        Declaration* declaration = &state->current_declares.elements[i];
+        if (strcmp(declaration->name, name) == 0) {
+            return &declaration->type;
+        }
+    }
+
+    return NULL;
+}
+
+void process_type_expression(Type* type, Process_State* state) {
+    switch (type->kind) {
+        case Type_TypeOf: {
+            TypeOf_Type* type_of = &type->data.type_of;
+            Expression_Node* expression = type_of->expression;
+            size_t stack_initial = state->stack.count;
+            process_expression(expression, state);
+
+            Type* type = malloc(sizeof(Type));
+            *type = stack_type_pop(&state->stack);
+            type_of->computed_result_type = type;
+
+            assert(state->stack.count == stack_initial);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void process_expression(Expression_Node* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
@@ -1153,21 +1184,14 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier && retrieve->data.identifier.kind == Identifier_Single) {
-                Type variable_type;
-                for (int i = state->current_declares.count - 1; i >= 0; i--) {
-                    Declaration* declaration = &state->current_declares.elements[i];
-                    if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
-                        variable_type = declaration->type;
-                        found = true;
-                        break;
-                    }
-                }
+                Type* variable_type = get_local_variable_type(state, retrieve->data.identifier.data.single);
 
-                if (found) {
+                if (variable_type != NULL) {
+                    found = true;
                     if (consume_in_reference(state)) {
-                        stack_type_push(&state->stack, create_pointer_type(variable_type));
+                        stack_type_push(&state->stack, create_pointer_type(*variable_type));
                     } else {
-                        stack_type_push(&state->stack, variable_type);
+                        stack_type_push(&state->stack, *variable_type);
                     }
                 }
             }
@@ -1435,6 +1459,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             if (wanted_type == NULL || !is_number_type(wanted_type)) {
                 wanted_type = usize_type();
             }
+
+            process_type_expression(&size_of->type, state);
 
             size_of->computed_result_type = *wanted_type;
             stack_type_append(&state->stack, *wanted_type);

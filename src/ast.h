@@ -11,6 +11,9 @@ typedef struct Type Type;
 
 Dynamic_Array_Def(Type*, Array_Type, array_type_)
 
+struct Expression_Node;
+typedef struct Expression_Node Expression_Node;
+
 typedef enum {
     Type_USize,
     Type_U8,
@@ -67,6 +70,11 @@ typedef struct {
     size_t value;
 } Number_Type;
 
+typedef struct {
+    Expression_Node* expression;
+    Type* computed_result_type;
+} TypeOf_Type;
+
 struct Type {
     enum {
         Type_None,
@@ -79,6 +87,7 @@ struct Type {
         Type_Union,
         Type_Enum,
         Type_Number,
+        Type_TypeOf,
         Type_RegisterSize,
     } kind;
     union {
@@ -91,14 +100,12 @@ struct Type {
         Union_Type union_;
         Enum_Type enum_;
         Number_Type number;
+        TypeOf_Type type_of;
     } data;
 };
 
 struct Statement_Node;
 typedef struct Statement_Node Statement_Node;
-
-struct Expression_Node;
-typedef struct Expression_Node Expression_Node;
 
 struct Declaration {
     char* name;

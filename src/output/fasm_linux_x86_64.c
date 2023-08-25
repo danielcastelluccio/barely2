@@ -88,12 +88,14 @@ size_t get_size(Type* type, Generic_State* state) {
         case Type_Enum: {
             return 8;
         }
+        case Type_TypeOf: {
+            return get_size(type->data.type_of.computed_result_type, state);
+        }
         default:
             assert(false);
     }
 
-    printf("Unhandled type!\n");
-    exit(1);
+    assert(false);
 }
 
 size_t collect_expression_locals_size(Expression_Node* expression, Output_State* state);
