@@ -616,6 +616,24 @@ bool is_enum_type(Type* type, Generic_State* generic_state) {
     return false;
 }
 
+size_t get_length(Type* type) {
+    switch (type->kind) {
+        case Type_Array: {
+            BArray_Type* array_type = &type->data.array;
+            assert(array_type->has_size);
+            return array_type->size_type->data.number.value;
+        }
+        case Type_Pointer: {
+            return get_length(type->data.pointer.child);
+        }
+        case Type_TypeOf: {
+            return get_length(type->data.type_of.computed_result_type);
+        }
+        default:
+            assert(false);
+    }
+}
+
 void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
@@ -1594,9 +1612,14 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             output_unsigned_integer(size_of->computed_result_type.data.internal, get_size(&size_of->type, &state->generic), state);
             break;
         }
+        case Expression_LengthOf: {
+            LengthOf_Node* length_of = &expression->data.length_of;
+
+            output_unsigned_integer(length_of->computed_result_type.data.internal, get_length(&length_of->type), state);
+            break;
+        }
         default:
-            printf("Unhandled expression_type!\n");
-            exit(1);
+            assert(false);
     }
 }
 

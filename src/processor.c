@@ -273,6 +273,10 @@ bool is_type(Type* wanted, Type* given) {
         return is_valid;
     }
 
+    if (wanted->kind == Type_Number) {
+        if (wanted->data.number.value == given->data.number.value) return true;
+    }
+
     return false;
 }
 
@@ -399,7 +403,12 @@ void print_type_inline(Type* type) {
             printf("size");
             break;
         }
+        case Type_Number: {
+            printf("%zu", type->data.number.value);
+            break;
+        }
         default:
+            printf("%i\n", type->kind);
             assert(false);
     }
 }
@@ -1466,9 +1475,21 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             stack_type_append(&state->stack, *wanted_type);
             break;
         }
+        case Expression_LengthOf: {
+            LengthOf_Node* length_of = &expression->data.length_of;
+            Type* wanted_type = state->wanted_type;
+            if (wanted_type == NULL || !is_number_type(wanted_type)) {
+                wanted_type = usize_type();
+            }
+
+            process_type_expression(&length_of->type, state);
+
+            length_of->computed_result_type = *wanted_type;
+            stack_type_append(&state->stack, *wanted_type);
+            break;
+        }
         default:
-            printf("Unhandled expression_type!\n");
-            exit(1);
+            assert(false);
     }
 }
 

@@ -244,6 +244,12 @@ typedef struct {
     Location location;
 } SizeOf_Node;
 
+typedef struct {
+    Type type;
+    Type computed_result_type;
+    Location location;
+} LengthOf_Node;
+
 struct Expression_Node {
     enum {
         Expression_Block,
@@ -258,6 +264,7 @@ struct Expression_Node {
         Expression_Boolean,
         Expression_Cast,
         Expression_SizeOf,
+        Expression_LengthOf,
     } kind;
     union {
         Block_Node block;
@@ -272,6 +279,7 @@ struct Expression_Node {
         Boolean_Node boolean;
         Cast_Node cast;
         SizeOf_Node size_of;
+        LengthOf_Node length_of;
     } data;
 };
 

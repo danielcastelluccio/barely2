@@ -510,6 +510,18 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
 
                 result.kind = Expression_SizeOf;
                 result.data.size_of = node;
+            } else if (strcmp(name, "@lengthof") == 0) {
+                LengthOf_Node node;
+
+                consume_check(tokens, &index, Token_LeftParenthesis);
+
+                Type type = parse_type(tokens, &index);
+                node.type = type;
+
+                consume_check(tokens, &index, Token_RightParenthesis);
+
+                result.kind = Expression_LengthOf;
+                result.data.length_of = node;
             } else if (strcmp(name, "@cast") == 0) {
                 Cast_Node node;
                 node.location = location;
