@@ -21,6 +21,7 @@ Dynamic_Array_Impl(size_t, Array_Size, array_size_)
 typedef struct {
     Generic_State generic;
     Stack_Type stack;
+    Item_Node* current_procedure;
     Array_Declaration current_declares;
     Array_Size scoped_declares;
     Array_Declaration current_arguments;
@@ -929,6 +930,53 @@ void process_type_expression(Type* type, Process_State* state) {
     }
 }
 
+Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, bool* uses_generics) {
+    Type result = type_in;
+    switch (type_in.kind) {
+        case Type_Procedure: {
+            Procedure_Type* procedure_in = &type_in.data.procedure;
+            Procedure_Type procedure_out = { .arguments = array_type_new(procedure_in->arguments.count), .returns = array_type_new(procedure_in->returns.count) };
+            for (size_t i = 0; i < procedure_in->arguments.count; i++) {
+                Type* result = malloc(sizeof(Type));
+                *result = apply_generics(parameters, inputs, *procedure_in->arguments.elements[i], uses_generics);
+                array_type_append(&procedure_out.arguments, result);
+            }
+
+            for (size_t i = 0; i < procedure_in->returns.count; i++) {
+                Type* result = malloc(sizeof(Type));
+                *result = apply_generics(parameters, inputs, *procedure_in->returns.elements[i], uses_generics);
+                array_type_append(&procedure_out.returns, result);
+            }
+
+            result.kind = Type_Procedure;
+            result.data.procedure = procedure_out;
+            break;
+        }
+        case Type_Basic: {
+            Basic_Type* basic = &type_in.data.basic;
+            if (basic->kind == Type_Single) {
+                for (size_t i = 0; i < parameters->count; i++) {
+                    if (strcmp(basic->data.single, parameters->elements[i]) == 0) {
+                        *uses_generics = true;
+                        if (inputs != NULL) {
+                            result = *inputs->elements[i];
+                        }
+                    }
+                }
+            } else {
+                assert(false);
+            }
+            break;
+        }
+        case Type_Internal: {
+            break;
+        }
+        default:
+            assert(false);
+    }
+    return result;
+}
+
 void process_expression(Expression_Node* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
@@ -1355,6 +1403,21 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 switch (resolved.kind) {
                     case Resolved_Item: {
                         Item_Node* item = resolved.data.item;
+
+                        bool item_generic = has_directive(&item->directives, Directive_IsGeneric);
+                        bool expression_generic = has_directive(&expression->directives, Directive_Generic);
+                        if (item_generic && !expression_generic) {
+                            print_error_stub(&retrieve->location);
+                            printf("Referencing generic item without generic constraints\n");
+                            exit(1);
+                        }
+
+                        if (!item_generic && expression_generic) {
+                            print_error_stub(&retrieve->location);
+                            printf("Referencing non-generic item with generic constraints\n");
+                            exit(1);
+                        }
+
                         found = true;
                         switch (item->kind) {
                             case Item_Procedure: {
@@ -1375,6 +1438,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                                 type.kind = Type_Procedure;
                                 type.data.procedure = procedure_type;
+                                if (expression_generic) {
+                                    bool _temp = false;
+                                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &get_directive(&expression->directives, Directive_Generic)->data.generic.types, type, &_temp);
+                                }
                                 stack_type_push(&state->stack, create_pointer_type(type));
                                 break;
                             }
@@ -1602,6 +1669,7 @@ void process_item(Item_Node* item, Process_State* state) {
 
     switch (item->kind) {
         case Item_Procedure: {
+            state->current_procedure = item;
             Procedure_Node* procedure = &item->data.procedure;
             state->current_declares = array_declaration_new(4);
             state->current_arguments = procedure->data.literal.arguments;
@@ -1631,10 +1699,116 @@ void process_item(Item_Node* item, Process_State* state) {
     }
 }
 
+void process_generics_expression(Expression_Node* expression, Generic_State* state, Array_String* current_procedure_generics, Array_Type* current_procedure_values);
+void process_generics_procedure(Item_Node* item, Generic_State* state, Array_Type* generic_values);
+
+void process_generics_statement(Statement_Node* statement, Generic_State* state, Array_String* current_procedure_generics, Array_Type* current_procedure_values) {
+    switch (statement->kind) {
+        case Statement_Expression: {
+            process_generics_expression(statement->data.expression.expression, state, current_procedure_generics, current_procedure_values);
+            break;
+        }
+        case Statement_Return: {
+            process_generics_expression(statement->data.return_.expression, state, current_procedure_generics, current_procedure_values);
+            break;
+        }
+        case Statement_Declare: {
+            process_generics_expression(statement->data.declare.expression, state, current_procedure_generics, current_procedure_values);
+            break;
+        }
+        case Statement_Assign: {
+            process_generics_expression(statement->data.assign.expression, state, current_procedure_generics, current_procedure_values);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void process_generics_expression(Expression_Node* expression, Generic_State* state, Array_String* current_procedure_generics, Array_Type* current_procedure_values) {
+    switch (expression->kind) {
+        case Expression_Block: {
+            Block_Node* block = &expression->data.block;
+            for (size_t i = 0; i < block->statements.count; i++) {
+                process_generics_statement(block->statements.elements[i], state, current_procedure_generics, current_procedure_values);
+            }
+            break;
+        }
+        case Expression_Invoke: {
+            Invoke_Node* invoke = &expression->data.invoke;
+            for (size_t i = 0; i < invoke->arguments.count; i++) {
+                process_generics_expression(invoke->arguments.elements[i], state, current_procedure_generics, current_procedure_values);
+            }
+            if (invoke->kind == Invoke_Standard) {
+                process_generics_expression(invoke->data.procedure, state, current_procedure_generics, current_procedure_values);
+            }
+            break;
+        }
+        case Expression_Retrieve: {
+            Retrieve_Node* retrieve = &expression->data.retrieve;
+            if (has_directive(&expression->directives, Directive_Generic)) {
+                Directive_Generic_Node* generic = &get_directive(&expression->directives, Directive_Generic)->data.generic;
+
+                Resolved resolved = resolve(state, retrieve->data.identifier);
+                assert(resolved.kind == Resolved_Item);
+
+                bool skip_process = false;
+
+                Array_Type replaced = array_type_new(generic->types.count);
+                for (size_t i = 0; i < generic->types.count; i++) {
+                    Type* type = malloc(sizeof(Type));
+                    bool uses_generics = false;
+                    *type = apply_generics(current_procedure_generics, current_procedure_values, *generic->types.elements[i], &uses_generics);
+                    if (uses_generics && current_procedure_values == NULL) {
+                        skip_process = true;
+                    }
+                    array_type_append(&replaced, type);
+                }
+
+                if (!skip_process) {
+                    process_generics_procedure(resolved.data.item, state, &replaced);
+                }
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void process_generics_procedure(Item_Node* item, Generic_State* state, Array_Type* generic_values) {
+    if (generic_values != NULL) {
+        Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
+        array_array_type_append(&isgeneric->implementations, *generic_values);
+    }
+
+    Procedure_Node* procedure = &item->data.procedure;
+    Array_String* isgeneric_types = NULL;
+    if (has_directive(&item->directives, Directive_IsGeneric)) {
+        isgeneric_types = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types;
+    }
+    process_generics_expression(procedure->data.literal.body, state, isgeneric_types, generic_values);
+}
+
+void process_generics(Generic_State* state) {
+    for (size_t j = 0; j < state->program->count; j++) {
+        File_Node* file_node = &state->program->elements[j];
+        state->current_file = file_node;
+
+        for (size_t i = 0; i < file_node->items.count; i++) {
+            Item_Node* item = &file_node->items.elements[i];
+            if (item->kind == Item_Procedure) {
+                process_generics_procedure(item, state, NULL);
+            }
+        }
+    }
+}
+
 void process(Program* program, Array_String* package_names, Array_String* package_paths) {
     Process_State state = (Process_State) {
         .generic = (Generic_State) {
             .program = program,
+            // should items just be able to store their file?
             .current_file = NULL,
             .package_names = package_names,
             .package_paths = package_paths,
@@ -1658,4 +1832,6 @@ void process(Program* program, Array_String* package_names, Array_String* packag
             process_item(item, &state);
         }
     }
+
+    process_generics(&state.generic);
 }

@@ -15,29 +15,31 @@ typedef struct {
     size_t flow_index;
     Array_Declaration current_declares;
     Array_Size scoped_declares;
-    Array_Declaration current_arguments;
-    Array_Type current_returns;
-    Expression_Node* current_body;
+    Item_Node* current_procedure;
+    Array_Type* current_generics_implementation;
     Module_Node* current_module;
     bool in_reference;
 } Output_State;
 
-size_t get_size(Type* type, Generic_State* state) {
-    switch (type->kind) {
+size_t get_size(Type* type_in, Output_State* state) {
+    bool _temp = false;
+    Type type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type_in, &_temp);
+    switch (type.kind) {
         case Type_Basic: {
-            Basic_Type* basic = &type->data.basic;
+            Basic_Type* basic = &type.data.basic;
             Identifier identifier = basic_type_to_identifier(*basic);
-            Resolved resolved = resolve(state, identifier);
+            Resolved resolved = resolve(&state->generic, identifier);
             if (resolved.kind == Resolved_Item) {
                 Item_Node* item = resolved.data.item;
                 assert(item->kind == Item_Type);
                 Type_Node* type = &item->data.type;
                 return get_size(&type->type, state);
             }
+            printf("basic fallthrough\n");
             break;
         }
         case Type_Array: {
-            BArray_Type* array = &type->data.array;
+            BArray_Type* array = &type.data.array;
 
             if (array->has_size) {
                 assert(array->size_type->kind == Type_Number);
@@ -47,7 +49,7 @@ size_t get_size(Type* type, Generic_State* state) {
             break;
         }
         case Type_Internal: {
-            Internal_Type* internal = &type->data.internal;
+            Internal_Type* internal = &type.data.internal;
 
             switch (*internal) {
                 case Type_USize:
@@ -68,7 +70,7 @@ size_t get_size(Type* type, Generic_State* state) {
         }
         case Type_Struct: {
             size_t size = 0;
-            Struct_Type* struct_ = &type->data.struct_;
+            Struct_Type* struct_ = &type.data.struct_;
             for (size_t i = 0; i < struct_->items.count; i++) {
                 size += get_size(&struct_->items.elements[i]->type, state);
             }
@@ -76,7 +78,7 @@ size_t get_size(Type* type, Generic_State* state) {
         }
         case Type_Union: {
             size_t size = 0;
-            Union_Type* union_ = &type->data.union_;
+            Union_Type* union_ = &type.data.union_;
             for (size_t i = 0; i < union_->items.count; i++) {
                 size_t size_temp = get_size(&union_->items.elements[i]->type, state);
                 if (size_temp > size) {
@@ -89,7 +91,7 @@ size_t get_size(Type* type, Generic_State* state) {
             return 8;
         }
         case Type_TypeOf: {
-            return get_size(type->data.type_of.computed_result_type, state);
+            return get_size(type.data.type_of.computed_result_type, state);
         }
         default:
             assert(false);
@@ -108,7 +110,7 @@ size_t collect_statement_locals_size(Statement_Node* statement, Output_State* st
         case Statement_Declare: {
             size_t size = 0;
             for (size_t i = 0; i < statement->data.declare.declarations.count; i++) {
-                size += get_size(&statement->data.declare.declarations.elements[i].type, &state->generic);
+                size += get_size(&statement->data.declare.declarations.elements[i].type, state);
             }
             return size;
         } 
@@ -150,13 +152,13 @@ typedef struct {
     size_t location;
 } Location_Size_Data;
 
-Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_name, Generic_State* state) {
+Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_name, Output_State* state) {
     Location_Size_Data result = {};
 
     switch (parent_type->kind) {
         case Type_Basic: {
             Identifier identifier = basic_type_to_identifier(parent_type->data.basic);
-            Resolved resolved = resolve(state, identifier);
+            Resolved resolved = resolve(&state->generic, identifier);
 
             assert(resolved.kind == Resolved_Item);
 
@@ -220,9 +222,9 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     Declaration declaration = declare->declarations.elements[i];
                     size_t location = 8;
                     for (size_t j = 0; j < state->current_declares.count; j++) {
-                        location += get_size(&state->current_declares.elements[j].type, &state->generic);
+                        location += get_size(&state->current_declares.elements[j].type, state);
                     }
-                    size_t size = get_size(&declaration.type, &state->generic);
+                    size_t size = get_size(&declaration.type, state);
 
                     size_t i = 0;
                     while (i < size) {
@@ -288,7 +290,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                     output_expression_fasm_linux_x86_64(assign_part->data.array.expression_inner, state);
 
-                    size_t size = get_size(array_type_raw->data.array.element_type, &state->generic);
+                    size_t size = get_size(array_type_raw->data.array.element_type, state);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
@@ -348,9 +350,9 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     size_t size = 0;
 
                     if (strcmp(assign_part->data.parent.name, "*") == 0) {
-                        size = get_size(parent_type_raw, &state->generic);
+                        size = get_size(parent_type_raw, state);
                     } else {
-                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, assign_part->data.parent.name, &state->generic);
+                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, assign_part->data.parent.name, state);
                         location = result.location;
                         size = result.size;
                     }
@@ -400,7 +402,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     size_t location = 8;
                     size_t size = 0;
                     for (size_t j = 0; j < state->current_declares.count; j++) {
-                        size_t declare_size = get_size(&state->current_declares.elements[j].type, &state->generic);
+                        size_t declare_size = get_size(&state->current_declares.elements[j].type, state);
                         if (strcmp(state->current_declares.elements[j].name, name) == 0) {
                             size = declare_size;
                             break;
@@ -448,7 +450,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                             switch (item->kind) {
                                 case Item_Global: {
                                     Global_Node* global = &item->data.global;
-                                    size_t size = get_size(&global->type, &state->generic);
+                                    size_t size = get_size(&global->type, state);
 
                                     size_t i = 0;
                                     while (i < size) {
@@ -512,17 +514,20 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
             Statement_Return_Node* return_ = &statement->data.return_;
             output_expression_fasm_linux_x86_64(return_->expression, state);
 
+            Array_Declaration* current_arguments = &state->current_procedure->data.procedure.data.literal.arguments;
+            Array_Type* current_returns = &state->current_procedure->data.procedure.data.literal.returns;
+
             size_t arguments_size = 0;
-            for (size_t i = 0; i < state->current_arguments.count; i++) {
-                arguments_size += get_size(&state->current_arguments.elements[i].type, &state->generic);
+            for (size_t i = 0; i < current_arguments->count; i++) {
+                arguments_size += get_size(&current_arguments->elements[i].type, state);
             }
 
             size_t returns_size = 0;
-            for (size_t i = 0; i < state->current_returns.count; i++) {
-                returns_size += get_size(state->current_returns.elements[i], &state->generic);
+            for (size_t i = 0; i < current_returns->count; i++) {
+                returns_size += get_size(current_returns->elements[i], state);
             }
 
-            size_t locals_size = 8 + collect_expression_locals_size(state->current_body, state);
+            size_t locals_size = 8 + collect_expression_locals_size(state->current_procedure->data.procedure.data.literal.body, state);
 
             // rdx = old rip
             char buffer[128] = {};
@@ -1067,7 +1072,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
                     output_expression_fasm_linux_x86_64(retrieve->data.array.expression_inner, state);
 
-                    size_t element_size = get_size(array_type_raw->data.array.element_type, &state->generic);
+                    size_t element_size = get_size(array_type_raw->data.array.element_type, state);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
@@ -1132,9 +1137,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     size_t location = 0;
                     size_t size = 0;
                     if (strcmp(retrieve->data.parent.name, "*") == 0) {
-                        size = get_size(parent_type_raw, &state->generic);
+                        size = get_size(parent_type_raw, state);
                     } else {
-                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, retrieve->data.parent.name, &state->generic);
+                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, retrieve->data.parent.name, state);
                         location = result.location;
                         size = result.size;
                     }
@@ -1192,7 +1197,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     size_t size = 0;
                     for (int i = state->current_declares.count - 1; i >= 0; i--) {
                         Declaration* declaration = &state->current_declares.elements[i];
-                        size_t declaration_size = get_size(&declaration->type, &state->generic);
+                        size_t declaration_size = get_size(&declaration->type, state);
 
                         if (found) {
                             location += declaration_size;
@@ -1248,11 +1253,13 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Identifier) {
+                    Array_Declaration* current_arguments = &state->current_procedure->data.procedure.data.literal.arguments;
+
                     size_t location = 8;
                     size_t size = 0;
-                    for (int i = state->current_arguments.count - 1; i >= 0; i--) {
-                        Declaration* declaration = &state->current_arguments.elements[i];
-                        size_t declaration_size = get_size(&declaration->type, &state->generic);
+                    for (int i = current_arguments->count - 1; i >= 0; i--) {
+                        Declaration* declaration = &current_arguments->elements[i];
+                        size_t declaration_size = get_size(&declaration->type, state);
                         if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
                             size = declaration_size;
                             found = true;
@@ -1343,7 +1350,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     stringbuffer_appendstring(&state->instructions, buffer);
                                     stringbuffer_appendstring(&state->instructions, "  push rax\n");
                                 } else {
-                                    size_t size = get_size(&global->type, &state->generic);
+                                    size_t size = get_size(&global->type, state);
 
                                     char buffer[128] = {};
                                     sprintf(buffer, "  sub rsp, %zu\n", size);
@@ -1573,7 +1580,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
                 if ((input_internal == Type_USize || input_internal == Type_U8 || input_internal == Type_U4 || input_internal == Type_U2 || input_internal == Type_U1) && 
                         (output_internal == Type_USize || output_internal == Type_U8 || output_internal == Type_U4 || output_internal == Type_U2 || output_internal == Type_U1)) {
-                    size_t input_size = get_size(&cast->computed_input_type, &state->generic);
+                    size_t input_size = get_size(&cast->computed_input_type, state);
                     if (input_size == 8) {
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     } else if (input_size == 4) {
@@ -1590,7 +1597,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
                     }
 
-                    size_t output_size = get_size(&cast->type, &state->generic);
+                    size_t output_size = get_size(&cast->type, state);
                     if (output_size == 8) {
                         stringbuffer_appendstring(&state->instructions, "  push rax\n");
                     } else if (output_size == 4) {
@@ -1616,7 +1623,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         case Expression_SizeOf: {
             SizeOf_Node* size_of = &expression->data.size_of;
 
-            output_unsigned_integer(size_of->computed_result_type.data.internal, get_size(&size_of->type, &state->generic), state);
+            output_unsigned_integer(size_of->computed_result_type.data.internal, get_size(&size_of->type, state), state);
             break;
         }
         case Expression_LengthOf: {
@@ -1666,11 +1673,18 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             stringbuffer_appendstring(&state->instructions, buffer);
 
             state->current_declares = array_declaration_new(4);
-            state->current_arguments = procedure->data.literal.arguments;
-            state->current_returns = procedure->data.literal.returns;
-            state->current_body = procedure->data.literal.body;
+            state->current_procedure = item;
+            state->current_generics_implementation = NULL;
 
-            output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
+            if (has_directive(&item->directives, Directive_IsGeneric)) {
+                Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
+                for (int i = 0; i < (int) isgeneric->implementations.count; i++) {
+                    state->current_generics_implementation = &isgeneric->implementations.elements[i];
+                    output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
+                }
+            } else {
+                output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
+            }
 
             stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
             stringbuffer_appendstring(&state->instructions, "  pop rbp\n");
@@ -1679,7 +1693,7 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
         }
         case Item_Global: {
             Global_Node* global = &item->data.global;
-            size_t size = get_size(&global->type, &state->generic);
+            size_t size = get_size(&global->type, state);
 
             char buffer[128] = {};
             sprintf(buffer + strlen(buffer), "%s.", item->name);
@@ -1726,9 +1740,8 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         .flow_index = 0,
         .current_declares = {},
         .scoped_declares = {},
-        .current_arguments = {},
-        .current_returns = {},
-        .current_body = NULL,
+        .current_procedure = NULL,
+        .current_generics_implementation = 0,
         .current_module = NULL,
         .in_reference = false,
     };

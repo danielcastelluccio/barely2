@@ -11,6 +11,8 @@ typedef struct Type Type;
 
 Dynamic_Array_Def(Type*, Array_Type, array_type_)
 
+Dynamic_Array_Def(Array_Type, Array_Array_Type, array_array_type_)
+
 struct Expression_Node;
 typedef struct Expression_Node Expression_Node;
 
@@ -19,14 +21,27 @@ typedef struct {
     bool result;
 } Directive_If_Node;
 
+typedef struct {
+    Array_Type types;
+} Directive_Generic_Node;
+
+typedef struct {
+    Array_String types;
+    Array_Array_Type implementations;
+} Directive_IsGeneric_Node;
+
 typedef enum {
     Directive_If,
+    Directive_IsGeneric,
+    Directive_Generic,
 } Directive_Kind;
 
 typedef struct {
     Directive_Kind kind;
     union {
         Directive_If_Node if_;
+        Directive_IsGeneric_Node is_generic;
+        Directive_Generic_Node generic;
     } data;
 } Directive_Node;
 
@@ -269,6 +284,7 @@ typedef struct {
 } LengthOf_Node;
 
 struct Expression_Node {
+    Array_Directive directives;
     enum {
         Expression_Block,
         Expression_Number,

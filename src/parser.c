@@ -5,19 +5,19 @@
 #include "parser.h"
 #include "tokenizer.h"
 
-Token_Kind peek(Tokens* tokens, size_t index) {
-    Token* current = &tokens->elements[index];
+Token_Kind peek(Parser_State* state, size_t index) {
+    Token* current = &state->tokens->elements[index];
     return current->kind;
 }
 
-Token_Kind consume(Tokens* tokens, size_t* index) {
-    Token* current = &tokens->elements[*index];
+Token_Kind consume(Parser_State* state, size_t* index) {
+    Token* current = &state->tokens->elements[*index];
     (*index)++;
     return current->kind;
 }
 
-void consume_check(Tokens* tokens, size_t* index, Token_Kind wanted_kind) {
-    Token* current = &tokens->elements[*index];
+void consume_check(Parser_State* state, size_t* index, Token_Kind wanted_kind) {
+    Token* current = &state->tokens->elements[*index];
     if (current->kind != wanted_kind) {
         Token temp = (Token) {
             wanted_kind,
@@ -39,8 +39,8 @@ void consume_check(Tokens* tokens, size_t* index, Token_Kind wanted_kind) {
     (*index)++;
 }
 
-char* consume_string(Tokens* tokens, size_t* index) {
-    Token* current = &tokens->elements[*index];
+char* consume_string(Parser_State* state, size_t* index) {
+    Token* current = &state->tokens->elements[*index];
     if (current->kind != Token_String) {
         printf("Error: Expected String, got ");
         print_token(current, false);
@@ -51,8 +51,8 @@ char* consume_string(Tokens* tokens, size_t* index) {
     return current->data;
 }
 
-char* consume_boolean(Tokens* tokens, size_t* index) {
-    Token* current = &tokens->elements[*index];
+char* consume_boolean(Parser_State* state, size_t* index) {
+    Token* current = &state->tokens->elements[*index];
     if (current->kind != Token_Boolean) {
         printf("Error: Expected Boolean, got ");
         print_token(current, false);
@@ -63,8 +63,8 @@ char* consume_boolean(Tokens* tokens, size_t* index) {
     return current->data;
 }
 
-char* consume_number(Tokens* tokens, size_t* index) {
-    Token* current = &tokens->elements[*index];
+char* consume_number(Parser_State* state, size_t* index) {
+    Token* current = &state->tokens->elements[*index];
     if (current->kind != Token_Number) {
         printf("Error: Expected Number, got ");
         print_token(current, false);
@@ -75,8 +75,8 @@ char* consume_number(Tokens* tokens, size_t* index) {
     return current->data;
 }
 
-char* consume_keyword(Tokens* tokens, size_t* index) {
-    Token* current = &tokens->elements[*index];
+char* consume_keyword(Parser_State* state, size_t* index) {
+    Token* current = &state->tokens->elements[*index];
     if (current->kind != Token_Keyword) {
         printf("Error: Expected Keyword, got ");
         print_token(current, false);
@@ -87,8 +87,8 @@ char* consume_keyword(Tokens* tokens, size_t* index) {
     return current->data;
 }
 
-char* consume_identifier(Tokens* tokens, size_t* index) {
-    Token* current = &tokens->elements[*index];
+char* consume_identifier(Parser_State* state, size_t* index) {
+    Token* current = &state->tokens->elements[*index];
     if (current->kind != Token_Identifier) {
         printf("Error: Expected Identifier, got ");
         print_token(current, false);
@@ -99,45 +99,45 @@ char* consume_identifier(Tokens* tokens, size_t* index) {
     return current->data;
 }
 
-Type parse_type(Tokens* tokens, size_t* index_in) {
+Type parse_type(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
     Type result;
 
-    if (peek(tokens, index) == Token_Asterisk) {
+    if (peek(state, index) == Token_Asterisk) {
         Pointer_Type pointer;
 
-        consume(tokens, &index);
+        consume(state, &index);
 
-        Type child = parse_type(tokens, &index);
+        Type child = parse_type(state, &index);
         Type* child_allocated = malloc(sizeof(Type));
         *child_allocated = child;
         pointer.child = child_allocated;
 
         result.kind = Type_Pointer;
         result.data.pointer = pointer;
-    } else if (peek(tokens, index) == Token_LeftBracket) {
-        consume(tokens, &index);
+    } else if (peek(state, index) == Token_LeftBracket) {
+        consume(state, &index);
         
         BArray_Type array = {};
 
-        if (peek(tokens, index) != Token_RightBracket) {
+        if (peek(state, index) != Token_RightBracket) {
             array.has_size = true;
             Type* size_type = malloc(sizeof(Type));
-            *size_type = parse_type(tokens, &index);
+            *size_type = parse_type(state, &index);
             array.size_type = size_type;
         }
 
-        consume_check(tokens, &index, Token_RightBracket);
+        consume_check(state, &index, Token_RightBracket);
 
-        Type child = parse_type(tokens, &index);
+        Type child = parse_type(state, &index);
         Type* child_allocated = malloc(sizeof(Type));
         *child_allocated = child;
         array.element_type = child_allocated;
 
         result.kind = Type_Array;
         result.data.array = array;
-    } else if (peek(tokens, index) == Token_Keyword) {
-        char* keyword = consume_keyword(tokens, &index);
+    } else if (peek(state, index) == Token_Keyword) {
+        char* keyword = consume_keyword(state, &index);
 
         if (strcmp(keyword, "proc") == 0) {
             index += 1;
@@ -147,29 +147,29 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
                 .returns = array_type_new(1),
             };
 
-            while (peek(tokens, index) != Token_RightParenthesis) {
-                if (peek(tokens, index) == Token_Comma) {
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
                     index += 1;
                     continue;
                 }
 
                 Type* type = malloc(sizeof(Type));
-                *type = parse_type(tokens, &index);
+                *type = parse_type(state, &index);
                 array_type_append(&procedure.arguments, type);
             }
 
-            consume(tokens, &index);
+            consume(state, &index);
 
-            if (peek(tokens, index) == Token_Colon) {
+            if (peek(state, index) == Token_Colon) {
                 index += 1;
 
                 bool looking_at_returns = true;
                 while (looking_at_returns) {
                     Type* type = malloc(sizeof(Type));
-                    *type = parse_type(tokens, &index);
+                    *type = parse_type(state, &index);
                     array_type_append(&procedure.returns, type);
 
-                    looking_at_returns = peek(tokens, index) == Token_Comma;
+                    looking_at_returns = peek(state, index) == Token_Comma;
                 }
             }
 
@@ -177,19 +177,19 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
             result.data.procedure = procedure;
         } else if (strcmp(keyword, "struct") == 0 || strcmp(keyword, "union") == 0) {
             bool is_struct = strcmp(keyword, "struct") == 0;
-            consume(tokens, &index);
+            consume(state, &index);
 
             Array_Declaration_Pointer items = array_declaration_pointer_new(4);
-            while (peek(tokens, index) != Token_RightCurlyBrace) {
-                if (peek(tokens, index) == Token_Comma) {
-                    consume(tokens, &index);
+            while (peek(state, index) != Token_RightCurlyBrace) {
+                if (peek(state, index) == Token_Comma) {
+                    consume(state, &index);
                     continue;
                 }
 
-                Location location = tokens->elements[index].location;
-                char* name = consume_identifier(tokens, &index);
-                consume_check(tokens, &index, Token_Colon);
-                Type type = parse_type(tokens, &index);
+                Location location = state->tokens->elements[index].location;
+                char* name = consume_identifier(state, &index);
+                consume_check(state, &index, Token_Colon);
+                Type type = parse_type(state, &index);
 
                 Declaration* declaration = malloc(sizeof(Declaration));
                 declaration->name = name;
@@ -197,7 +197,7 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
                 declaration->location = location;
                 array_declaration_pointer_append(&items, declaration);
             }
-            consume(tokens, &index);
+            consume(state, &index);
 
             if (is_struct) {
                 Struct_Type struct_type;
@@ -212,35 +212,35 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
             }
         } else if (strcmp(keyword, "enum") == 0) {
             Enum_Type enum_type;
-            consume(tokens, &index);
+            consume(state, &index);
 
             Array_String items = array_string_new(4);
-            while (peek(tokens, index) != Token_RightCurlyBrace) {
-                if (peek(tokens, index) == Token_Comma) {
-                    consume(tokens, &index);
+            while (peek(state, index) != Token_RightCurlyBrace) {
+                if (peek(state, index) == Token_Comma) {
+                    consume(state, &index);
                     continue;
                 }
 
-                char* name = consume_identifier(tokens, &index);
+                char* name = consume_identifier(state, &index);
                 array_string_append(&items, name);
             }
             enum_type.items = items;
-            consume(tokens, &index);
+            consume(state, &index);
 
             result.kind = Type_Enum;
             result.data.enum_ = enum_type;
         } else {
             assert(false);
         }
-    } else if (peek(tokens, index) == Token_Number) {
+    } else if (peek(state, index) == Token_Number) {
         Number_Type number_type;
-        char* value_string = consume_number(tokens, &index);
+        char* value_string = consume_number(state, &index);
         number_type.value = atoll(value_string);
 
         result.kind = Type_Number;
         result.data.number = number_type;
     } else {
-        char* name = consume_identifier(tokens, &index);
+        char* name = consume_identifier(state, &index);
         Internal_Type internal;
         bool found = false;
 
@@ -248,13 +248,13 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
             if (strcmp(name, "@typeof") == 0) {
                 TypeOf_Type type_of;
 
-                consume_check(tokens, &index, Token_LeftParenthesis);
+                consume_check(state, &index, Token_LeftParenthesis);
 
                 Expression_Node* expression = malloc(sizeof(Expression_Node));
-                *expression = parse_expression(tokens, &index);
+                *expression = parse_expression(state, &index);
                 type_of.expression = expression;
 
-                consume_check(tokens, &index, Token_RightParenthesis);
+                consume_check(state, &index, Token_RightParenthesis);
 
                 result.kind = Type_TypeOf;
                 result.data.type_of = type_of;
@@ -295,12 +295,12 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
 
             basic.data.single = name;
 
-            if (peek(tokens, index) == Token_DoubleColon) {
+            if (peek(state, index) == Token_DoubleColon) {
                 Array_String names = array_string_new(2);
                 array_string_append(&names, basic.data.single);
-                while (peek(tokens, index) == Token_DoubleColon) {
-                    consume(tokens, &index);
-                    array_string_append(&names, consume_identifier(tokens, &index));
+                while (peek(state, index) == Token_DoubleColon) {
+                    consume(state, &index);
+                    array_string_append(&names, consume_identifier(state, &index));
                 }
 
                 basic.kind = Type_Multi;
@@ -316,104 +316,159 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
-Array_Directive parse_directives(Tokens* tokens, size_t* index_in) {
-    Array_Directive directives = array_directive_new(1);
+void parse_directives(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
 
-    while (peek(tokens, index) == Token_Identifier && tokens->elements[index].data[0] == '#') {
+    while (peek(state, index) == Token_Identifier && state->tokens->elements[index].data[0] == '#') {
         Directive_Node directive;
-        char* directive_string = consume_identifier(tokens, &index);
+        char* directive_string = consume_identifier(state, &index);
 
         if (strcmp(directive_string, "#if") == 0) {
             Directive_If_Node if_node;
-            consume_check(tokens, &index, Token_LeftParenthesis);
+            consume_check(state, &index, Token_LeftParenthesis);
 
             Expression_Node* expression = malloc(sizeof(Expression_Node));
-            *expression = parse_expression(tokens, &index);
+            *expression = parse_expression(state, &index);
             if_node.expression = expression;
 
-            consume_check(tokens, &index, Token_RightParenthesis);
+            consume_check(state, &index, Token_RightParenthesis);
 
             directive.kind = Directive_If;
             directive.data.if_ = if_node;
+        } else if (strcmp(directive_string, "#is_generic") == 0) {
+            Directive_IsGeneric_Node generic_node = { .types = array_string_new(1), .implementations = array_array_type_new(1) };
+            consume_check(state, &index, Token_LeftParenthesis);
+
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
+                    consume(state, &index);
+                    continue;
+                }
+
+                char* identifier = consume_identifier(state, &index);
+                array_string_append(&generic_node.types, identifier);
+            }
+
+            consume_check(state, &index, Token_RightParenthesis);
+
+            directive.kind = Directive_IsGeneric;
+            directive.data.is_generic = generic_node;
+        } else if (strcmp(directive_string, "#generic") == 0) {
+            Directive_Generic_Node generic_node;
+            consume_check(state, &index, Token_LeftParenthesis);
+
+            generic_node.types = array_type_new(1);
+
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
+                    consume(state, &index);
+                    continue;
+                }
+
+                Type* type = malloc(sizeof(Type));
+                *type = parse_type(state, &index);
+                array_type_append(&generic_node.types, type);
+            }
+
+            consume_check(state, &index, Token_RightParenthesis);
+
+            directive.kind = Directive_Generic;
+            directive.data.generic = generic_node;
         }
 
-        array_directive_append(&directives, directive);
+        array_directive_append(&state->directives, directive);
     }
 
     *index_in = index;
-    return directives;
 }
 
-Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
+void filter_add_directive(Parser_State* state, Array_Directive* directives, Directive_Kind kind) {
+    size_t i = 0;
+    while (i < state->directives.count) {
+        if (state->directives.elements[i].kind == kind) {
+            array_directive_append(directives, state->directives.elements[i]);
+            size_t j = i + 1;
+            while (j < state->directives.count) {
+                state->directives.elements[j - 1] = state->directives.elements[j];
+                j++;
+            }
+            state->directives.count--;
+        } else {
+            i++;
+        }
+    }
+}
+
+Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
-    Statement_Node result = {};
+    Statement_Node result = { .directives = array_directive_new(1) };
 
-    result.directives = parse_directives(tokens, &index);
+    parse_directives(state, &index);
+    filter_add_directive(state, &result.directives, Directive_If);
 
-    Token_Kind token = peek(tokens, index);
-    if (token == Token_Keyword && strcmp(tokens->elements[index].data, "var") == 0) {
+    Token_Kind token = peek(state, index);
+    if (token == Token_Keyword && strcmp(state->tokens->elements[index].data, "var") == 0) {
         Statement_Declare_Node node = {};
 
-        consume(tokens, &index);
+        consume(state, &index);
 
         Array_Declaration declarations = array_declaration_new(8);
-        while (peek(tokens, index) != Token_Equals && peek(tokens, index) != Token_Semicolon) {
-            if (peek(tokens, index) == Token_Comma) {
-                consume(tokens, &index);
+        while (peek(state, index) != Token_Equals && peek(state, index) != Token_Semicolon) {
+            if (peek(state, index) == Token_Comma) {
+                consume(state, &index);
                 continue;
             }
             Declaration declaration;
-            declaration.location = tokens->elements[index].location;
-            declaration.name = consume_identifier(tokens, &index);
-            consume_check(tokens, &index, Token_Colon);
-            declaration.type = parse_type(tokens, &index);
+            declaration.location = state->tokens->elements[index].location;
+            declaration.name = consume_identifier(state, &index);
+            consume_check(state, &index, Token_Colon);
+            declaration.type = parse_type(state, &index);
             array_declaration_append(&declarations, declaration);
         }
         node.declarations = declarations;
 
-        Token_Kind next = consume(tokens, &index);
+        Token_Kind next = consume(state, &index);
         if (next == Token_Equals) {
-            Expression_Node expression = parse_expression(tokens, &index);
+            Expression_Node expression = parse_expression(state, &index);
             Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
             *expression_allocated = expression;
             node.expression = expression_allocated;
 
-            consume_check(tokens, &index, Token_Semicolon);
+            consume_check(state, &index, Token_Semicolon);
         } else if (next == Token_Semicolon) {
         } else {
             printf("Error: Unexpected token ");
-            print_token(&tokens->elements[index - 1], false);
+            print_token(&state->tokens->elements[index - 1], false);
             printf("\n");
             exit(1);
         }
 
         result.kind = Statement_Declare;
         result.data.declare = node;
-    } else if (token == Token_Keyword && strcmp(tokens->elements[index].data, "return") == 0) {
+    } else if (token == Token_Keyword && strcmp(state->tokens->elements[index].data, "return") == 0) {
         Statement_Return_Node node;
-        node.location = tokens->elements[index].location;
+        node.location = state->tokens->elements[index].location;
 
-        consume(tokens, &index);
+        consume(state, &index);
 
-        Expression_Node expression = parse_expression(tokens, &index);
+        Expression_Node expression = parse_expression(state, &index);
         Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
         *expression_allocated = expression;
         node.expression = expression_allocated;
 
-        consume_check(tokens, &index, Token_Semicolon);
+        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Statement_Return;
         result.data.return_ = node;
     } else {
         Statement_Expression_Node node;
 
-        Expression_Node expression = parse_expression(tokens, &index);
+        Expression_Node expression = parse_expression(state, &index);
         Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
         *expression_allocated = expression;
         node.expression = expression_allocated;
 
-        Token_Kind token = consume(tokens, &index);
+        Token_Kind token = consume(state, &index);
         switch (token) {
             case Token_Equals: {
                 Statement_Assign_Node assign = {};
@@ -421,22 +476,19 @@ Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
 
                 if (expression.kind == Expression_Retrieve) {
                     Statement_Assign_Part assign_part;
-                    assign_part.location = expression.data.retrieve.location;
-                    assign_part.kind = expression.data.retrieve.kind;
-                    assign_part.data = expression.data.retrieve.data;
+                    assign_part = expression.data.retrieve;
                     array_statement_assign_part_append(&assign.parts, assign_part);
                 } else if (expression.kind == Expression_Multi) {
                     Multi_Expression_Node* multi = &expression.data.multi;
                     for (size_t i = 0; i < multi->expressions.count; i++) {
                         Expression_Node* expression = multi->expressions.elements[i];
                         Statement_Assign_Part assign_part;
-                        assign_part.kind = expression->data.retrieve.kind;
-                        assign_part.data = expression->data.retrieve.data;
+                        assign_part = expression->data.retrieve;
                         array_statement_assign_part_append(&assign.parts, assign_part);
                     }
                 }
 
-                Expression_Node expression = parse_expression(tokens, &index);
+                Expression_Node expression = parse_expression(state, &index);
                 Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
                 *expression_allocated = expression;
                 assign.expression = expression_allocated;
@@ -444,7 +496,7 @@ Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
                 result.kind = Statement_Assign;
                 result.data.assign = assign;
 
-                consume_check(tokens, &index, Token_Semicolon);
+                consume_check(state, &index, Token_Semicolon);
                 break;
             }
             case Token_Semicolon: {
@@ -454,7 +506,7 @@ Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
             }
             default: {
                 printf("Error: Unexpected token ");
-                print_token(&tokens->elements[index - 1], false);
+                print_token(&state->tokens->elements[index - 1], false);
                 printf("\n");
                 exit(1);
                 break;
@@ -466,24 +518,26 @@ Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
-Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
+Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
-    Expression_Node result;
+    Expression_Node result = { .directives = array_directive_new(1) };
 
-    switch (peek(tokens, index)) {
+    parse_directives(state, &index);
+
+    switch (peek(state, index)) {
         case Token_LeftCurlyBrace: {
             Block_Node node;
-            consume(tokens, &index);
+            consume(state, &index);
 
             Array_Statement_Node statements = array_statement_node_new(32);
 
-            while (peek(tokens, index) != Token_RightCurlyBrace) {
+            while (peek(state, index) != Token_RightCurlyBrace) {
                 Statement_Node* statement = malloc(sizeof(Statement_Node));
-                *statement = parse_statement(tokens, &index);
+                *statement = parse_statement(state, &index);
                 array_statement_node_append(&statements, statement);
             }
             node.statements = statements;
-            consume(tokens, &index);
+            consume(state, &index);
 
             result.kind = Expression_Block;
             result.data.block = node;
@@ -492,7 +546,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         case Token_Number: {
             Number_Node node;
 
-            char* string_value = consume_number(tokens, &index);
+            char* string_value = consume_number(state, &index);
 
             if (string_contains(string_value, '.')) {
                 double value = strtod(string_value, NULL);
@@ -511,7 +565,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         case Token_String: {
             String_Node node;
 
-            node.value = consume_string(tokens, &index);
+            node.value = consume_string(state, &index);
 
             result.kind = Expression_String;
             result.data.string = node;
@@ -520,36 +574,36 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         case Token_Boolean: {
             Boolean_Node node;
 
-            node.value = strcmp(consume_boolean(tokens, &index), "true") == 0;
+            node.value = strcmp(consume_boolean(state, &index), "true") == 0;
 
             result.kind = Expression_Boolean;
             result.data.boolean = node;
             break;
         }
         case Token_Identifier: {
-            Location location = tokens->elements[index].location;
-            char* name = consume_identifier(tokens, &index);
+            Location location = state->tokens->elements[index].location;
+            char* name = consume_identifier(state, &index);
             if (strcmp(name, "@sizeof") == 0) {
                 SizeOf_Node node;
 
-                consume_check(tokens, &index, Token_LeftParenthesis);
+                consume_check(state, &index, Token_LeftParenthesis);
 
-                Type type = parse_type(tokens, &index);
+                Type type = parse_type(state, &index);
                 node.type = type;
 
-                consume_check(tokens, &index, Token_RightParenthesis);
+                consume_check(state, &index, Token_RightParenthesis);
 
                 result.kind = Expression_SizeOf;
                 result.data.size_of = node;
             } else if (strcmp(name, "@lengthof") == 0) {
                 LengthOf_Node node;
 
-                consume_check(tokens, &index, Token_LeftParenthesis);
+                consume_check(state, &index, Token_LeftParenthesis);
 
-                Type type = parse_type(tokens, &index);
+                Type type = parse_type(state, &index);
                 node.type = type;
 
-                consume_check(tokens, &index, Token_RightParenthesis);
+                consume_check(state, &index, Token_RightParenthesis);
 
                 result.kind = Expression_LengthOf;
                 result.data.length_of = node;
@@ -557,14 +611,14 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 Cast_Node node;
                 node.location = location;
 
-                consume_check(tokens, &index, Token_LeftParenthesis);
+                consume_check(state, &index, Token_LeftParenthesis);
 
-                Type type = parse_type(tokens, &index);
+                Type type = parse_type(state, &index);
                 node.type = type;
 
-                consume_check(tokens, &index, Token_RightParenthesis);
+                consume_check(state, &index, Token_RightParenthesis);
 
-                Expression_Node inner = parse_expression(tokens, &index);
+                Expression_Node inner = parse_expression(state, &index);
                 Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
                 *inner_allocated = inner;
                 node.expression = inner_allocated;
@@ -573,6 +627,8 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 result.data.cast = node;
                 break;
             } else {
+                filter_add_directive(state, &result.directives, Directive_Generic);
+
                 Retrieve_Node node = {};
                 node.location = location;
                 node.kind = Retrieve_Assign_Identifier;
@@ -580,14 +636,14 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 identifier.kind = Identifier_Single;
                 identifier.data.single = name;
 
-                if (peek(tokens, index) == Token_DoubleColon) {
+                if (peek(state, index) == Token_DoubleColon) {
                     identifier.kind = Identifier_Multi;
                     Array_String names = array_string_new(2);
                     array_string_append(&names, name);
-                    while (peek(tokens, index) == Token_DoubleColon) {
-                        consume(tokens, &index);
+                    while (peek(state, index) == Token_DoubleColon) {
+                        consume(state, &index);
 
-                        array_string_append(&names, consume_identifier(tokens, &index));
+                        array_string_append(&names, consume_identifier(state, &index));
                     }
                     identifier.data.multi = names;
                 }
@@ -601,17 +657,17 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         }
         case Token_DoubleColon: {
             Retrieve_Node node = {};
-            node.location = tokens->elements[index].location;
+            node.location = state->tokens->elements[index].location;
             node.kind = Retrieve_Assign_Identifier;
             Identifier identifier = {};
 
             identifier.kind = Identifier_Multi;
             Array_String names = array_string_new(2);
             array_string_append(&names, "");
-            while (peek(tokens, index) == Token_DoubleColon) {
-                consume(tokens, &index);
+            while (peek(state, index) == Token_DoubleColon) {
+                consume(state, &index);
 
-                array_string_append(&names, consume_identifier(tokens, &index));
+                array_string_append(&names, consume_identifier(state, &index));
             }
             identifier.data.multi = names;
 
@@ -622,37 +678,37 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             break;
         }
         case Token_Keyword: {
-            char* name = consume_keyword(tokens, &index);
+            char* name = consume_keyword(state, &index);
 
             if (strcmp(name, "if") == 0) {
                 If_Node node = {};
 
-                Expression_Node condition = parse_expression(tokens, &index);
+                Expression_Node condition = parse_expression(state, &index);
                 Expression_Node* condition_allocated = malloc(sizeof(Expression_Node));
                 *condition_allocated = condition;
                 node.condition = condition_allocated;
 
-                Expression_Node inside = parse_expression(tokens, &index);
+                Expression_Node inside = parse_expression(state, &index);
                 Expression_Node* inside_allocated = malloc(sizeof(Expression_Node));
                 *inside_allocated = inside;
                 node.inside = inside_allocated;
 
                 If_Node* current = &node;
-                while (tokens->elements[index].kind == Token_Keyword && strcmp(tokens->elements[index].data, "else") == 0) {
+                while (state->tokens->elements[index].kind == Token_Keyword && strcmp(state->tokens->elements[index].data, "else") == 0) {
                     If_Node next_node = {};
-                    consume(tokens, &index);
+                    consume(state, &index);
 
-                    Token next = tokens->elements[index];
+                    Token next = state->tokens->elements[index];
                     if (next.kind == Token_Keyword && strcmp(next.data, "if") == 0) {
-                        consume(tokens, &index);
+                        consume(state, &index);
 
-                        Expression_Node condition = parse_expression(tokens, &index);
+                        Expression_Node condition = parse_expression(state, &index);
                         Expression_Node* condition_allocated = malloc(sizeof(Expression_Node));
                         *condition_allocated = condition;
                         next_node.condition = condition_allocated;
                     }
 
-                    Expression_Node inside = parse_expression(tokens, &index);
+                    Expression_Node inside = parse_expression(state, &index);
                     Expression_Node* inside_allocated = malloc(sizeof(Expression_Node));
                     *inside_allocated = inside;
                     next_node.inside = inside_allocated;
@@ -668,12 +724,12 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             } else if (strcmp(name, "while") == 0) {
                 While_Node node;
 
-                Expression_Node condition = parse_expression(tokens, &index);
+                Expression_Node condition = parse_expression(state, &index);
                 Expression_Node* condition_allocated = malloc(sizeof(Expression_Node));
                 *condition_allocated = condition;
                 node.condition = condition_allocated;
 
-                Expression_Node inside = parse_expression(tokens, &index);
+                Expression_Node inside = parse_expression(state, &index);
                 Expression_Node* inside_allocated = malloc(sizeof(Expression_Node));
                 *inside_allocated = inside;
                 node.inside = inside_allocated;
@@ -682,7 +738,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 result.data.while_ = node;
             } else {
                 printf("Error: Unexpected token ");
-                print_token(&tokens->elements[index - 1], false);
+                print_token(&state->tokens->elements[index - 1], false);
                 printf("\n");
                 exit(1);
             }
@@ -691,9 +747,9 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
         case Token_Ampersand: {
             Reference_Node node;
 
-            consume(tokens, &index);
+            consume(state, &index);
             
-            Expression_Node inner = parse_expression(tokens, &index);
+            Expression_Node inner = parse_expression(state, &index);
             Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
             *inner_allocated = inner;
             node.inner = inner_allocated;
@@ -703,16 +759,16 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             break;
         }
         case Token_LeftParenthesis: {
-            consume(tokens, &index);
+            consume(state, &index);
 
-            result = parse_expression(tokens, &index);
+            result = parse_expression(state, &index);
 
-            consume_check(tokens, &index, Token_RightParenthesis);
+            consume_check(state, &index, Token_RightParenthesis);
             break;
         }
         default: {
             printf("Error: Unexpected token ");
-            print_token(&tokens->elements[index], false);
+            print_token(&state->tokens->elements[index], false);
             printf("\n");
             exit(1);
         }
@@ -721,22 +777,22 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
     bool running = true;
     while (running) {
         running = false;
-        if (peek(tokens, index) == Token_Period) {
+        if (peek(state, index) == Token_Period) {
             running = true;
             Retrieve_Node node;
             node.kind = Retrieve_Assign_Parent;
 
-            consume(tokens, &index);
+            consume(state, &index);
 
             Expression_Node* previous_result = malloc(sizeof(Expression_Node));
             *previous_result = result;
             node.data.parent.expression = previous_result;
 
-            if (peek(tokens, index) == Token_Asterisk) {
-                consume(tokens, &index);
+            if (peek(state, index) == Token_Asterisk) {
+                consume(state, &index);
                 node.data.parent.name = "*";
             } else {
-                node.data.parent.name = consume_identifier(tokens, &index);
+                node.data.parent.name = consume_identifier(state, &index);
             }
 
             result.kind = Expression_Retrieve;
@@ -744,45 +800,45 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             continue;
         }
 
-        if (peek(tokens, index) == Token_LeftBracket) {
+        if (peek(state, index) == Token_LeftBracket) {
             running = true;
             Retrieve_Node node;
             node.kind = Retrieve_Assign_Array;
-            node.location = tokens->elements[index].location;
+            node.location = state->tokens->elements[index].location;
 
             Expression_Node* previous_result = malloc(sizeof(Expression_Node));
             *previous_result = result;
             node.data.array.expression_outer = previous_result;
 
-            consume(tokens, &index);
+            consume(state, &index);
 
-            Expression_Node inner = parse_expression(tokens, &index);
+            Expression_Node inner = parse_expression(state, &index);
             Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
             *inner_allocated = inner;
             node.data.array.expression_inner = inner_allocated;
 
-            consume_check(tokens, &index, Token_RightBracket);
+            consume_check(state, &index, Token_RightBracket);
 
             result.kind = Expression_Retrieve;
             result.data.retrieve = node;
             continue;
         }
 
-        if (peek(tokens, index) == Token_LeftParenthesis) {
+        if (peek(state, index) == Token_LeftParenthesis) {
             running = true;
             Invoke_Node node;
-            node.location = tokens->elements[index].location;
+            node.location = state->tokens->elements[index].location;
             node.kind = Invoke_Standard;
 
             Expression_Node* previous_result = malloc(sizeof(Expression_Node));
             *previous_result = result;
             node.data.procedure = previous_result;
-            consume(tokens, &index);
+            consume(state, &index);
 
             Array_Expression_Node arguments = array_expression_node_new(32);
 
-            if (peek(tokens, index) != Token_RightParenthesis) {
-                Expression_Node expression = parse_expression(tokens, &index);
+            if (peek(state, index) != Token_RightParenthesis) {
+                Expression_Node expression = parse_expression(state, &index);
                 Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
                 *expression_allocated = expression;
                 if (expression_allocated->kind == Expression_Multi) {
@@ -794,31 +850,31 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
 
             node.arguments = arguments;
 
-            consume(tokens, &index);
+            consume(state, &index);
 
             result.kind = Expression_Invoke;
             result.data.invoke = node;
             continue;
         }
 
-        if (peek(tokens, index) == Token_Plus ||
-                peek(tokens, index) == Token_Minus ||
-                peek(tokens, index) == Token_Asterisk ||
-                peek(tokens, index) == Token_Slash ||
-                peek(tokens, index) == Token_Percent ||
-                peek(tokens, index) == Token_DoubleEquals ||
-                peek(tokens, index) == Token_ExclamationEquals ||
-                peek(tokens, index) == Token_GreaterThan ||
-                peek(tokens, index) == Token_LessThan ||
-                peek(tokens, index) == Token_LessThanEqual ||
-                peek(tokens, index) == Token_GreaterThanEqual) {
+        if (peek(state, index) == Token_Plus ||
+                peek(state, index) == Token_Minus ||
+                peek(state, index) == Token_Asterisk ||
+                peek(state, index) == Token_Slash ||
+                peek(state, index) == Token_Percent ||
+                peek(state, index) == Token_DoubleEquals ||
+                peek(state, index) == Token_ExclamationEquals ||
+                peek(state, index) == Token_GreaterThan ||
+                peek(state, index) == Token_LessThan ||
+                peek(state, index) == Token_LessThanEqual ||
+                peek(state, index) == Token_GreaterThanEqual) {
             running = true;
             Invoke_Node node;
             node.kind = Invoke_Operator;
-            node.location = tokens->elements[index].location;
+            node.location = state->tokens->elements[index].location;
 
             Operator operator;
-            switch (consume(tokens, &index)) {
+            switch (consume(state, &index)) {
                 case Token_Plus:
                     operator = Operator_Add;
                     break;
@@ -862,7 +918,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             *left_side = result;
 
             Expression_Node* right_side = malloc(sizeof(Expression_Node));
-            *right_side = parse_expression(tokens, &index);
+            *right_side = parse_expression(state, &index);
 
             Array_Expression_Node arguments = array_expression_node_new(32);
             array_expression_node_append(&arguments, left_side);
@@ -874,10 +930,10 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
             continue;
         }
 
-        if (peek(tokens, index) == Token_Comma) {
-            consume(tokens, &index);
+        if (peek(state, index) == Token_Comma) {
+            consume(state, &index);
             if (result.kind == Expression_Multi) {
-                Expression_Node next = parse_expression(tokens, &index);
+                Expression_Node next = parse_expression(state, &index);
                 Expression_Node* next_allocated = malloc(sizeof(Expression_Node));
                 *next_allocated = next;
                 array_expression_node_append(&result.data.multi.expressions, next_allocated);
@@ -889,7 +945,7 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
                 *previous_result = result;
                 array_expression_node_append(&node.expressions, previous_result);
 
-                Expression_Node next = parse_expression(tokens, &index);
+                Expression_Node next = parse_expression(state, &index);
                 Expression_Node* next_allocated = malloc(sizeof(Expression_Node));
                 *next_allocated = next;
                 if (next_allocated->kind == Expression_Multi) {
@@ -915,65 +971,67 @@ Expression_Node parse_expression(Tokens* tokens, size_t* index_in) {
 
 static size_t module_id;
 
-Item_Node parse_item(Tokens* tokens, size_t* index_in) {
+Item_Node parse_item(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
-    Item_Node result;
+    Item_Node result = { .directives = array_directive_new(1) };
 
-    result.directives = parse_directives(tokens, &index);
+    parse_directives(state, &index);
+    filter_add_directive(state, &result.directives, Directive_If);
+    filter_add_directive(state, &result.directives, Directive_IsGeneric);
 
-    char* keyword = consume_keyword(tokens, &index);
+    char* keyword = consume_keyword(state, &index);
     if (strcmp(keyword, "proc") == 0) {
-        char* name = consume_identifier(tokens, &index);
+        char* name = consume_identifier(state, &index);
         result.name = name;
 
-        consume_check(tokens, &index, Token_Colon);
+        consume_check(state, &index, Token_Colon);
 
         Procedure_Node node;
-        switch (consume(tokens, &index)) {
+        switch (consume(state, &index)) {
             case Token_LeftParenthesis: {
                 Procedure_Literal_Node literal_node;
 
                 Array_Declaration arguments = array_declaration_new(4);
-                while (peek(tokens, index) != Token_RightParenthesis) {
-                    if (peek(tokens, index) == Token_Comma) {
+                while (peek(state, index) != Token_RightParenthesis) {
+                    if (peek(state, index) == Token_Comma) {
                         index += 1;
                         continue;
                     }
 
-                    Location location = tokens->elements[index].location;
-                    char* name = consume_identifier(tokens, &index);
-                    consume_check(tokens, &index, Token_Colon);
-                    Type type = parse_type(tokens, &index);
+                    Location location = state->tokens->elements[index].location;
+                    char* name = consume_identifier(state, &index);
+                    consume_check(state, &index, Token_Colon);
+                    Type type = parse_type(state, &index);
                     array_declaration_append(&arguments, (Declaration) { name, type, location });
                 }
                 literal_node.arguments = arguments;
-                consume_check(tokens, &index, Token_RightParenthesis);
+                consume_check(state, &index, Token_RightParenthesis);
 
                 literal_node.returns = array_type_new(1);
-                if (peek(tokens, index) == Token_Colon) {
-                    consume(tokens, &index);
+                if (peek(state, index) == Token_Colon) {
+                    consume(state, &index);
 
                     bool running = true;
                     while (running) {
-                        Type type = parse_type(tokens, &index);
+                        Type type = parse_type(state, &index);
                         Type* type_allocated = malloc(sizeof(Type));
                         *type_allocated = type;
 
                         array_type_append(&literal_node.returns, type_allocated);
                         running = false;
-                        if (peek(tokens, index) == Token_Comma) {
+                        if (peek(state, index) == Token_Comma) {
                             running = true;
-                            consume(tokens, &index);
+                            consume(state, &index);
                         }
                     }
                 }
 
-                Expression_Node body = parse_expression(tokens, &index);
+                Expression_Node body = parse_expression(state, &index);
                 Expression_Node* body_allocated = malloc(sizeof(Expression_Node));
                 *body_allocated = body;
                 literal_node.body = body_allocated;
 
-                consume_check(tokens, &index, Token_Semicolon);
+                consume_check(state, &index, Token_Semicolon);
 
                 node.kind = Procedure_Literal;
                 node.data.literal = literal_node;
@@ -981,7 +1039,7 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
             }
             default:
                 printf("Error: Unexpected token ");
-                print_token(&tokens->elements[index - 1], false);
+                print_token(&state->tokens->elements[index - 1], false);
                 printf("\n");
                 exit(1);
                 break;
@@ -992,14 +1050,14 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
     } else if (strcmp(keyword, "type") == 0) {
         Type_Node node;
 
-        char* name = consume_identifier(tokens, &index);
+        char* name = consume_identifier(state, &index);
         result.name = name;
 
-        consume_check(tokens, &index, Token_Colon);
+        consume_check(state, &index, Token_Colon);
 
-        node.type = parse_type(tokens, &index);
+        node.type = parse_type(state, &index);
 
-        consume_check(tokens, &index, Token_Semicolon);
+        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Type;
         result.data.type = node;
@@ -1009,38 +1067,38 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
         node.id = module_id;
         module_id++;
         
-        result.name = consume_identifier(tokens, &index);
-        consume_check(tokens, &index, Token_Colon);
-        consume_check(tokens, &index, Token_LeftCurlyBrace);
+        result.name = consume_identifier(state, &index);
+        consume_check(state, &index, Token_Colon);
+        consume_check(state, &index, Token_LeftCurlyBrace);
 
-        while (peek(tokens, index) != Token_RightCurlyBrace) {
-            Item_Node item = parse_item(tokens, &index);
+        while (peek(state, index) != Token_RightCurlyBrace) {
+            Item_Node item = parse_item(state, &index);
             Item_Node* item_allocated = malloc(sizeof(Item_Node));
             *item_allocated = item;
             array_item_node_append(&node.items, item);
         }
 
-        consume(tokens, &index);
-        consume_check(tokens, &index, Token_Semicolon);
+        consume(state, &index);
+        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Module;
         result.data.module = node;
     } else if (strcmp(keyword, "global") == 0) {
         Global_Node node;
 
-        result.name = consume_identifier(tokens, &index);
-        consume_check(tokens, &index, Token_Colon);
+        result.name = consume_identifier(state, &index);
+        consume_check(state, &index, Token_Colon);
 
-        node.type = parse_type(tokens, &index);
+        node.type = parse_type(state, &index);
 
-        consume_check(tokens, &index, Token_Semicolon);
+        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Global;
         result.data.global = node;
     } else if (strcmp(keyword, "use") == 0) {
         Use_Node node = {};
 
-        char* path = consume_string(tokens, &index);
+        char* path = consume_string(state, &index);
         if (string_contains(path, ':')) {
             int index = string_index(path, ':');
             node.package = string_substring(path, 0, index);
@@ -1051,13 +1109,13 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
 
         result.name = "";
 
-        consume_check(tokens, &index, Token_Semicolon);
+        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Use;
         result.data.use = node;
     } else {
         printf("Error: Unexpected token ");
-        print_token(&tokens->elements[index - 1], false);
+        print_token(&state->tokens->elements[index - 1], false);
         printf("\n");
         exit(1);
     }
@@ -1073,10 +1131,12 @@ File_Node parse(char* path, Tokens* tokens) {
     result.path = path;
     result.id = file_id++;
 
+    Parser_State state = { .tokens = tokens, .directives = array_directive_new(4) };
+
     Array_Item_Node array = array_item_node_new(32);
     size_t index = 0;
     while (index < tokens->count) {
-        Item_Node node = parse_item(tokens, &index);
+        Item_Node node = parse_item(&state, &index);
         array_item_node_append(&array, node);
     }
 
