@@ -198,6 +198,13 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
 }
 
 void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State* state) {
+    if (has_directive(&statement->directives, Directive_If)) {
+        Directive_If_Node* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
+        if (!if_node->result) {
+            return;
+        }
+    }
+
     switch (statement->kind) {
         case Statement_Expression: {
             Statement_Expression_Node* statement_expression = &statement->data.expression;
@@ -1626,7 +1633,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
     if (has_directive(&item->directives, Directive_If)) {
         Directive_If_Node* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
-        if (!evaluate_if_directive(if_node)) {
+        if (!if_node->result) {
             return;
         }
     }

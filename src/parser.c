@@ -316,9 +316,40 @@ Type parse_type(Tokens* tokens, size_t* index_in) {
     return result;
 }
 
+Array_Directive parse_directives(Tokens* tokens, size_t* index_in) {
+    Array_Directive directives = array_directive_new(1);
+    size_t index = *index_in;
+
+    while (peek(tokens, index) == Token_Identifier && tokens->elements[index].data[0] == '#') {
+        Directive_Node directive;
+        char* directive_string = consume_identifier(tokens, &index);
+
+        if (strcmp(directive_string, "#if") == 0) {
+            Directive_If_Node if_node;
+            consume_check(tokens, &index, Token_LeftParenthesis);
+
+            Expression_Node* expression = malloc(sizeof(Expression_Node));
+            *expression = parse_expression(tokens, &index);
+            if_node.expression = expression;
+
+            consume_check(tokens, &index, Token_RightParenthesis);
+
+            directive.kind = Directive_If;
+            directive.data.if_ = if_node;
+        }
+
+        array_directive_append(&directives, directive);
+    }
+
+    *index_in = index;
+    return directives;
+}
+
 Statement_Node parse_statement(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
     Statement_Node result = {};
+
+    result.directives = parse_directives(tokens, &index);
 
     Token_Kind token = peek(tokens, index);
     if (token == Token_Keyword && strcmp(tokens->elements[index].data, "var") == 0) {
@@ -888,30 +919,7 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
     Item_Node result;
 
-    Array_Directive directives = array_directive_new(1);
-
-    while (peek(tokens, index) == Token_Identifier && tokens->elements[index].data[0] == '#') {
-        Directive_Node directive;
-        char* directive_string = consume_identifier(tokens, &index);
-
-        if (strcmp(directive_string, "#if") == 0) {
-            Directive_If_Node if_node;
-            consume_check(tokens, &index, Token_LeftParenthesis);
-
-            Expression_Node* expression = malloc(sizeof(Expression_Node));
-            *expression = parse_expression(tokens, &index);
-            if_node.expression = expression;
-
-            consume_check(tokens, &index, Token_RightParenthesis);
-
-            directive.kind = Directive_If;
-            directive.data.if_ = if_node;
-        }
-
-        array_directive_append(&directives, directive);
-    }
-
-    result.directives = directives;
+    result.directives = parse_directives(tokens, &index);
 
     char* keyword = consume_keyword(tokens, &index);
     if (strcmp(keyword, "proc") == 0) {

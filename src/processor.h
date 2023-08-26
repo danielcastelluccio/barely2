@@ -41,15 +41,4 @@ Identifier basic_type_to_identifier(Basic_Type type);
 bool has_directive(Array_Directive* directives, Directive_Kind kind);
 Directive_Node* get_directive(Array_Directive* directives, Directive_Kind kind);
 
-typedef struct {
-    enum {
-        Evaluation_Boolean,
-    } kind;
-    union {
-        bool boolean;
-    } data;
-} Evaluation_Value;
-
-bool evaluate_if_directive(Directive_If_Node* if_node);
-
 #endif

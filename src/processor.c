@@ -509,7 +509,87 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
     return result;
 }
 
+typedef enum {
+    Operating_System_Linux,
+    Operating_System_Windows,
+} Operating_System;
+
+typedef struct {
+    enum {
+        Evaluation_Boolean,
+        Evaluation_Operating_System,
+    } kind;
+    union {
+        bool boolean;
+        Operating_System operating_system;
+    } data;
+} Evaluation_Value;
+
+Evaluation_Value _evaluate_if_directive(Expression_Node* expression) {
+    switch (expression->kind) {
+        case Expression_Retrieve: {
+            if (expression->data.retrieve.kind == Retrieve_Assign_Identifier && expression->data.retrieve.data.identifier.kind == Identifier_Single) {
+                char* identifier = expression->data.retrieve.data.identifier.data.single;
+
+                if (strcmp(identifier, "@os")) {
+                    return (Evaluation_Value) { .kind = Evaluation_Operating_System, .data = { .operating_system = Operating_System_Linux } };
+                } else if (strcmp(identifier, "@linux")) {
+                    return (Evaluation_Value) { .kind = Evaluation_Operating_System, .data = { .operating_system = Operating_System_Linux } };
+                }
+            }
+            break;
+        }
+        case Expression_Invoke: {
+            if (expression->data.invoke.kind == Invoke_Operator) {
+                Operator* operator = &expression->data.invoke.data.operator_.operator_;
+                Evaluation_Value left = _evaluate_if_directive(expression->data.invoke.arguments.elements[0]);
+                Evaluation_Value right = _evaluate_if_directive(expression->data.invoke.arguments.elements[1]);
+
+                switch (*operator) {
+                    case Operator_Equal: {
+                        if (left.kind == Evaluation_Operating_System && right.kind == Evaluation_Operating_System) {
+                            bool result = left.data.operating_system == right.data.operating_system;
+                            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = result } };
+                        }
+                        break;
+                    }
+                    case Operator_NotEqual: {
+                        if (left.kind == Evaluation_Operating_System && right.kind == Evaluation_Operating_System) {
+                            bool result = left.data.operating_system != right.data.operating_system;
+                            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = result } };
+                        }
+                        break;
+                    }
+                    default:
+                        assert(false);
+                }
+            }
+            break;
+        }
+        case Expression_Boolean: {
+            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = expression->data.boolean.value } };
+        }
+        default:
+            break;
+    }
+    assert(false);
+}
+
+bool evaluate_if_directive(Directive_If_Node* if_node) {
+    Evaluation_Value value = _evaluate_if_directive(if_node->expression);
+    assert(value.kind == Evaluation_Boolean);
+    return value.data.boolean;
+}
+
 void process_statement(Statement_Node* statement, Process_State* state) {
+    if (has_directive(&statement->directives, Directive_If)) {
+        Directive_If_Node* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
+        if_node->result = evaluate_if_directive(if_node);
+        if (!if_node->result) {
+            return;
+        }
+    }
+
     switch (statement->kind) {
         case Statement_Expression: {
             Statement_Expression_Node* statement_expression = &statement->data.expression;
@@ -1511,26 +1591,11 @@ Directive_Node* get_directive(Array_Directive* directives, Directive_Kind kind) 
     return false;
 }
 
-Evaluation_Value _evaluate_if_directive(Expression_Node* expression) {
-    switch (expression->kind) {
-        case Expression_Boolean: {
-            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = expression->data.boolean.value } };
-        }
-        default:
-            assert(false);
-    }
-}
-
-bool evaluate_if_directive(Directive_If_Node* if_node) {
-    Evaluation_Value value = _evaluate_if_directive(if_node->expression);
-    assert(value.kind == Evaluation_Boolean);
-    return value.data.boolean;
-}
-
 void process_item(Item_Node* item, Process_State* state) {
     if (has_directive(&item->directives, Directive_If)) {
         Directive_If_Node* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
-        if (!evaluate_if_directive(if_node)) {
+        if_node->result = evaluate_if_directive(if_node);
+        if (!if_node->result) {
             return;
         }
     }

@@ -16,6 +16,7 @@ typedef struct Expression_Node Expression_Node;
 
 typedef struct {
     Expression_Node* expression;
+    bool result;
 } Directive_If_Node;
 
 typedef enum {
@@ -324,6 +325,7 @@ typedef struct {
 } Statement_Return_Node;
 
 struct Statement_Node {
+    Array_Directive directives;
     enum {
         Statement_Expression,
         Statement_Declare,
