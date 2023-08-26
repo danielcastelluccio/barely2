@@ -1493,7 +1493,48 @@ void process_expression(Expression_Node* expression, Process_State* state) {
     }
 }
 
+bool has_directive(Array_Directive* directives, Directive_Kind kind) {
+    for (size_t i = 0; i < directives->count; i++) {
+        if (directives->elements[i].kind == kind) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Directive_Node* get_directive(Array_Directive* directives, Directive_Kind kind) {
+    for (size_t i = 0; i < directives->count; i++) {
+        if (directives->elements[i].kind == kind) {
+            return &directives->elements[i];
+        }
+    }
+    return false;
+}
+
+Evaluation_Value _evaluate_if_directive(Expression_Node* expression) {
+    switch (expression->kind) {
+        case Expression_Boolean: {
+            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = expression->data.boolean.value } };
+        }
+        default:
+            assert(false);
+    }
+}
+
+bool evaluate_if_directive(Directive_If_Node* if_node) {
+    Evaluation_Value value = _evaluate_if_directive(if_node->expression);
+    assert(value.kind == Evaluation_Boolean);
+    return value.data.boolean;
+}
+
 void process_item(Item_Node* item, Process_State* state) {
+    if (has_directive(&item->directives, Directive_If)) {
+        Directive_If_Node* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
+        if (!evaluate_if_directive(if_node)) {
+            return;
+        }
+    }
+
     switch (item->kind) {
         case Item_Procedure: {
             Procedure_Node* procedure = &item->data.procedure;

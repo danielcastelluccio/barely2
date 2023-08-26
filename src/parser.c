@@ -888,6 +888,31 @@ Item_Node parse_item(Tokens* tokens, size_t* index_in) {
     size_t index = *index_in;
     Item_Node result;
 
+    Array_Directive directives = array_directive_new(1);
+
+    while (peek(tokens, index) == Token_Identifier && tokens->elements[index].data[0] == '#') {
+        Directive_Node directive;
+        char* directive_string = consume_identifier(tokens, &index);
+
+        if (strcmp(directive_string, "#if") == 0) {
+            Directive_If_Node if_node;
+            consume_check(tokens, &index, Token_LeftParenthesis);
+
+            Expression_Node* expression = malloc(sizeof(Expression_Node));
+            *expression = parse_expression(tokens, &index);
+            if_node.expression = expression;
+
+            consume_check(tokens, &index, Token_RightParenthesis);
+
+            directive.kind = Directive_If;
+            directive.data.if_ = if_node;
+        }
+
+        array_directive_append(&directives, directive);
+    }
+
+    result.directives = directives;
+
     char* keyword = consume_keyword(tokens, &index);
     if (strcmp(keyword, "proc") == 0) {
         char* name = consume_identifier(tokens, &index);

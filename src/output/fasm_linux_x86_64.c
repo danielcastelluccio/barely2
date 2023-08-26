@@ -1624,6 +1624,13 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 }
 
 void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
+    if (has_directive(&item->directives, Directive_If)) {
+        Directive_If_Node* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
+        if (!evaluate_if_directive(if_node)) {
+            return;
+        }
+    }
+
     switch (item->kind) {
         case Item_Procedure: {
             Procedure_Node* procedure = &item->data.procedure;

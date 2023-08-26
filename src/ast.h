@@ -14,6 +14,23 @@ Dynamic_Array_Def(Type*, Array_Type, array_type_)
 struct Expression_Node;
 typedef struct Expression_Node Expression_Node;
 
+typedef struct {
+    Expression_Node* expression;
+} Directive_If_Node;
+
+typedef enum {
+    Directive_If,
+} Directive_Kind;
+
+typedef struct {
+    Directive_Kind kind;
+    union {
+        Directive_If_Node if_;
+    } data;
+} Directive_Node;
+
+Dynamic_Array_Def(Directive_Node, Array_Directive, array_directive_)
+
 typedef enum {
     Type_USize,
     Type_U8,
@@ -361,6 +378,7 @@ typedef struct {
 
 struct Item_Node {
     char* name;
+    Array_Directive directives;
     enum {
         Item_Procedure,
         Item_Type,
