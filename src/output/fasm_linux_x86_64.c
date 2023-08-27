@@ -1367,6 +1367,27 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             case Item_Procedure: {
                                 char buffer[128] = {};
                                 sprintf(buffer + strlen(buffer), "  push %s.", item->name);
+                                if (has_directive(&item->directives, Directive_IsGeneric)) {
+                                    size_t implementation_index = -1;
+                                    Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
+                                    Directive_Generic_Node* generic = &get_directive(&expression->directives, Directive_Generic)->data.generic;
+                                    for (size_t i = 0; i < isgeneric->implementations.count; i++) {
+                                        Array_Type* implementation = &isgeneric->implementations.elements[i];
+                                        bool matches = true;
+                                        for (size_t j = 0; j < implementation->count; j++) {
+                                            if (!is_type(generic->types.elements[j], implementation->elements[j])) {
+                                                matches = false;
+                                            }
+                                        }
+
+                                        if (matches) {
+                                            implementation_index = i;
+                                            break;
+                                        }
+                                    }
+
+                                    sprintf(buffer + strlen(buffer), "%zu.", implementation_index);
+                                }
                                 if (resolved.parent_module != NULL) {
                                     sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
                                 }
@@ -1686,41 +1707,61 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
         case Item_Procedure: {
             Procedure_Node* procedure = &item->data.procedure;
             // TODO: use some sort of annotation to specify entry procedure
-            if (strcmp(item->name, "main") == 0) {
-                stringbuffer_appendstring(&state->instructions, "main:\n");
-            } else {
-                char buffer[128] = {};
-                sprintf(buffer + strlen(buffer), "%s.", item->name);
-
-                if (state->current_module != NULL) {
-                    sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
-                }
-
-                sprintf(buffer + strlen(buffer), "%zu:\n", state->generic.current_file->id);
-                stringbuffer_appendstring(&state->instructions, buffer);
-            }
 
             state->current_declares = array_declaration_new(4);
             state->current_procedure = item;
             state->current_generics_implementation = NULL;
 
-            stringbuffer_appendstring(&state->instructions, "  push rbp\n");
-            stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
-
             if (has_directive(&item->directives, Directive_IsGeneric)) {
                 Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
-                for (int i = 0; i < (int) isgeneric->implementations.count; i++) {
+                for (size_t i = 0; i < isgeneric->implementations.count; i++) {
+                    char buffer[128] = {};
+                    sprintf(buffer + strlen(buffer), "%s.", item->name);
+
+                    sprintf(buffer + strlen(buffer), "%zu.", i);
+
+                    if (state->current_module != NULL) {
+                        sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
+                    }
+
+                    sprintf(buffer + strlen(buffer), "%zu:\n", state->generic.current_file->id);
+                    stringbuffer_appendstring(&state->instructions, buffer);
+
                     state->current_generics_implementation = &isgeneric->implementations.elements[i];
+
+                    stringbuffer_appendstring(&state->instructions, "  push rbp\n");
+                    stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
 
                     size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
 
-                    char buffer[128] = {};
+                    memset(buffer, 0, 128);
                     sprintf(buffer, "  sub rsp, %zu\n", locals_size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
                     output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
+
+                    stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
+                    stringbuffer_appendstring(&state->instructions, "  pop rbp\n");
+                    stringbuffer_appendstring(&state->instructions, "  ret\n");
                 }
             } else {
+                if (strcmp(item->name, "main") == 0) {
+                    stringbuffer_appendstring(&state->instructions, "main:\n");
+                } else {
+                    char buffer[128] = {};
+                    sprintf(buffer + strlen(buffer), "%s.", item->name);
+
+                    if (state->current_module != NULL) {
+                        sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
+                    }
+
+                    sprintf(buffer + strlen(buffer), "%zu:\n", state->generic.current_file->id);
+                    stringbuffer_appendstring(&state->instructions, buffer);
+                }
+
+                stringbuffer_appendstring(&state->instructions, "  push rbp\n");
+                stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
+
                 size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
 
                 char buffer[128] = {};
@@ -1728,11 +1769,11 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
                 stringbuffer_appendstring(&state->instructions, buffer);
 
                 output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
-            }
 
-            stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
-            stringbuffer_appendstring(&state->instructions, "  pop rbp\n");
-            stringbuffer_appendstring(&state->instructions, "  ret\n");
+                stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
+                stringbuffer_appendstring(&state->instructions, "  pop rbp\n");
+                stringbuffer_appendstring(&state->instructions, "  ret\n");
+            }
             break;
         }
         case Item_Global: {
