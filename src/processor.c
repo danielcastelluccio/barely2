@@ -147,7 +147,7 @@ Resolved resolve(Generic_State* state, Identifier data) {
 }
 
 Type create_basic_single_type(char* name) {
-    Type type;
+    Type type = { .directives = array_directive_new(1) };
     Basic_Type basic;
 
     basic.kind = Type_Single;
@@ -160,7 +160,7 @@ Type create_basic_single_type(char* name) {
 }
 
 Type create_internal_type(Internal_Type internal_type) {
-    Type type;
+    Type type = { .directives = array_directive_new(1) };
 
     type.kind = Type_Internal;
     type.data.internal = internal_type;
@@ -169,7 +169,7 @@ Type create_internal_type(Internal_Type internal_type) {
 }
 
 Type create_array_type(Type child) {
-    Type type;
+    Type type = { .directives = array_directive_new(1) };
     BArray_Type array = {};
 
     Type* child_allocated = malloc(sizeof(Type));
@@ -183,7 +183,7 @@ Type create_array_type(Type child) {
 }
 
 Type create_pointer_type(Type child) {
-    Type type;
+    Type type = { .directives = array_directive_new(1) };
     Pointer_Type pointer;
 
     Type* child_allocated = malloc(sizeof(Type));
@@ -941,6 +941,20 @@ void process_type_expression(Type* type, Process_State* state) {
 
 Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in) {
     Type result = type_in;
+    if (has_directive(&result.directives, Directive_Generic)) {
+        Directive_Node* directive = get_directive(&result.directives, Directive_Generic);
+        Directive_Generic_Node generic = { .types = array_type_new(1) };
+
+        for (size_t i = 0; i < directive->data.generic.types.count; i++) {
+            Type* type = malloc(sizeof(Type));
+            *type = apply_generics(parameters, inputs, *directive->data.generic.types.elements[i]);
+            array_type_append(&generic.types, type);
+        }
+
+        directive->kind = Directive_Generic;
+        directive->data.generic = generic;
+    }
+
     switch (type_in.kind) {
         case Type_Procedure: {
             Procedure_Type* procedure_in = &type_in.data.procedure;
@@ -1366,7 +1380,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier && retrieve->data.identifier.kind == Identifier_Single) {
-                Type type;
+                Type type = { .directives = array_directive_new(1) };
                 for (size_t i = 0; i < state->current_arguments.count; i++) {
                     Declaration* declaration = &state->current_arguments.elements[state->current_arguments.count - i - 1];
                     if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
@@ -1455,7 +1469,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             case Item_Procedure: {
                                 Procedure_Literal_Node* procedure = &item->data.procedure.data.literal;
 
-                                Type type;
+                                Type type = { .directives = array_directive_new(1) };
                                 Procedure_Type procedure_type;
                                 procedure_type.arguments = array_type_new(4);
                                 procedure_type.returns = array_type_new(4);

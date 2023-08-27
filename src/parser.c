@@ -189,7 +189,6 @@ Type parse_type(Parser_State* state, size_t* index_in) {
     Type result = { .directives = array_directive_new(1) };
 
     parse_directives(state, &index);
-    filter_add_directive(state, &result.directives, Directive_Generic);
 
     if (peek(state, index) == Token_Asterisk) {
         Pointer_Type pointer;
@@ -378,6 +377,8 @@ Type parse_type(Parser_State* state, size_t* index_in) {
         }
 
         if (!found) {
+            filter_add_directive(state, &result.directives, Directive_Generic);
+
             Basic_Type basic;
             basic.kind = Type_Single;
 
