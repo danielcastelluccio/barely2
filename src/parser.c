@@ -99,9 +99,97 @@ char* consume_identifier(Parser_State* state, size_t* index) {
     return current->data;
 }
 
+Type parse_type(Parser_State* state, size_t* index_in);
+
+void parse_directives(Parser_State* state, size_t* index_in) {
+    size_t index = *index_in;
+
+    while (peek(state, index) == Token_Identifier && state->tokens->elements[index].data[0] == '#') {
+        Directive_Node directive;
+        char* directive_string = consume_identifier(state, &index);
+
+        if (strcmp(directive_string, "#if") == 0) {
+            Directive_If_Node if_node;
+            consume_check(state, &index, Token_LeftParenthesis);
+
+            Expression_Node* expression = malloc(sizeof(Expression_Node));
+            *expression = parse_expression(state, &index);
+            if_node.expression = expression;
+
+            consume_check(state, &index, Token_RightParenthesis);
+
+            directive.kind = Directive_If;
+            directive.data.if_ = if_node;
+        } else if (strcmp(directive_string, "#is_generic") == 0) {
+            Directive_IsGeneric_Node generic_node = { .types = array_string_new(1), .implementations = array_array_type_new(1) };
+            consume_check(state, &index, Token_LeftParenthesis);
+
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
+                    consume(state, &index);
+                    continue;
+                }
+
+                char* identifier = consume_identifier(state, &index);
+                array_string_append(&generic_node.types, identifier);
+            }
+
+            consume_check(state, &index, Token_RightParenthesis);
+
+            directive.kind = Directive_IsGeneric;
+            directive.data.is_generic = generic_node;
+        } else if (strcmp(directive_string, "#generic") == 0) {
+            Directive_Generic_Node generic_node;
+            consume_check(state, &index, Token_LeftParenthesis);
+
+            generic_node.types = array_type_new(1);
+
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
+                    consume(state, &index);
+                    continue;
+                }
+
+                Type* type = malloc(sizeof(Type));
+                *type = parse_type(state, &index);
+                array_type_append(&generic_node.types, type);
+            }
+
+            consume_check(state, &index, Token_RightParenthesis);
+
+            directive.kind = Directive_Generic;
+            directive.data.generic = generic_node;
+        }
+
+        array_directive_append(&state->directives, directive);
+    }
+
+    *index_in = index;
+}
+
+void filter_add_directive(Parser_State* state, Array_Directive* directives, Directive_Kind kind) {
+    size_t i = 0;
+    while (i < state->directives.count) {
+        if (state->directives.elements[i].kind == kind) {
+            array_directive_append(directives, state->directives.elements[i]);
+            size_t j = i + 1;
+            while (j < state->directives.count) {
+                state->directives.elements[j - 1] = state->directives.elements[j];
+                j++;
+            }
+            state->directives.count--;
+        } else {
+            i++;
+        }
+    }
+}
+
 Type parse_type(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
-    Type result;
+    Type result = { .directives = array_directive_new(1) };
+
+    parse_directives(state, &index);
+    filter_add_directive(state, &result.directives, Directive_Generic);
 
     if (peek(state, index) == Token_Asterisk) {
         Pointer_Type pointer;
@@ -314,89 +402,6 @@ Type parse_type(Parser_State* state, size_t* index_in) {
 
     *index_in = index;
     return result;
-}
-
-void parse_directives(Parser_State* state, size_t* index_in) {
-    size_t index = *index_in;
-
-    while (peek(state, index) == Token_Identifier && state->tokens->elements[index].data[0] == '#') {
-        Directive_Node directive;
-        char* directive_string = consume_identifier(state, &index);
-
-        if (strcmp(directive_string, "#if") == 0) {
-            Directive_If_Node if_node;
-            consume_check(state, &index, Token_LeftParenthesis);
-
-            Expression_Node* expression = malloc(sizeof(Expression_Node));
-            *expression = parse_expression(state, &index);
-            if_node.expression = expression;
-
-            consume_check(state, &index, Token_RightParenthesis);
-
-            directive.kind = Directive_If;
-            directive.data.if_ = if_node;
-        } else if (strcmp(directive_string, "#is_generic") == 0) {
-            Directive_IsGeneric_Node generic_node = { .types = array_string_new(1), .implementations = array_array_type_new(1) };
-            consume_check(state, &index, Token_LeftParenthesis);
-
-            while (peek(state, index) != Token_RightParenthesis) {
-                if (peek(state, index) == Token_Comma) {
-                    consume(state, &index);
-                    continue;
-                }
-
-                char* identifier = consume_identifier(state, &index);
-                array_string_append(&generic_node.types, identifier);
-            }
-
-            consume_check(state, &index, Token_RightParenthesis);
-
-            directive.kind = Directive_IsGeneric;
-            directive.data.is_generic = generic_node;
-        } else if (strcmp(directive_string, "#generic") == 0) {
-            Directive_Generic_Node generic_node;
-            consume_check(state, &index, Token_LeftParenthesis);
-
-            generic_node.types = array_type_new(1);
-
-            while (peek(state, index) != Token_RightParenthesis) {
-                if (peek(state, index) == Token_Comma) {
-                    consume(state, &index);
-                    continue;
-                }
-
-                Type* type = malloc(sizeof(Type));
-                *type = parse_type(state, &index);
-                array_type_append(&generic_node.types, type);
-            }
-
-            consume_check(state, &index, Token_RightParenthesis);
-
-            directive.kind = Directive_Generic;
-            directive.data.generic = generic_node;
-        }
-
-        array_directive_append(&state->directives, directive);
-    }
-
-    *index_in = index;
-}
-
-void filter_add_directive(Parser_State* state, Array_Directive* directives, Directive_Kind kind) {
-    size_t i = 0;
-    while (i < state->directives.count) {
-        if (state->directives.elements[i].kind == kind) {
-            array_directive_append(directives, state->directives.elements[i]);
-            size_t j = i + 1;
-            while (j < state->directives.count) {
-                state->directives.elements[j - 1] = state->directives.elements[j];
-                j++;
-            }
-            state->directives.count--;
-        } else {
-            i++;
-        }
-    }
 }
 
 Statement_Node parse_statement(Parser_State* state, size_t* index_in) {

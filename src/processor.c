@@ -473,7 +473,13 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
                 case Resolved_Item: {
                     Item_Node* item = resolved.data.item;
                     assert(item->kind == Item_Type);
-                    return get_parent_item_type(&item->data.type.type, item_name, state);
+                    Type* result = malloc(sizeof(Type));
+                    *result = *get_parent_item_type(&item->data.type.type, item_name, state);
+                    if (has_directive(&parent_type->directives, Directive_Generic)) {
+                        Array_Type* generic_values = &get_directive(&parent_type->directives, Directive_Generic)->data.generic.types;
+                        *result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result);
+                    }
+                    return result;
                 }
                 case Resolved_Enum_Variant: {
                     assert(false);
@@ -727,6 +733,9 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                         found = true;
                     } else {
                         Type* resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
+                        //printf("k: ");
+                        //print_type_inline(resolved);
+                        //printf("\n");
                         if (resolved != NULL) {
                             *wanted_type = *resolved;
                             found = true;
@@ -930,7 +939,7 @@ void process_type_expression(Type* type, Process_State* state) {
     }
 }
 
-Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, bool* uses_generics) {
+Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in) {
     Type result = type_in;
     switch (type_in.kind) {
         case Type_Procedure: {
@@ -938,13 +947,13 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, 
             Procedure_Type procedure_out = { .arguments = array_type_new(procedure_in->arguments.count), .returns = array_type_new(procedure_in->returns.count) };
             for (size_t i = 0; i < procedure_in->arguments.count; i++) {
                 Type* result = malloc(sizeof(Type));
-                *result = apply_generics(parameters, inputs, *procedure_in->arguments.elements[i], uses_generics);
+                *result = apply_generics(parameters, inputs, *procedure_in->arguments.elements[i]);
                 array_type_append(&procedure_out.arguments, result);
             }
 
             for (size_t i = 0; i < procedure_in->returns.count; i++) {
                 Type* result = malloc(sizeof(Type));
-                *result = apply_generics(parameters, inputs, *procedure_in->returns.elements[i], uses_generics);
+                *result = apply_generics(parameters, inputs, *procedure_in->returns.elements[i]);
                 array_type_append(&procedure_out.returns, result);
             }
 
@@ -957,7 +966,6 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, 
             if (basic->kind == Type_Single) {
                 for (size_t i = 0; i < parameters->count; i++) {
                     if (strcmp(basic->data.single, parameters->elements[i]) == 0) {
-                        *uses_generics = true;
                         if (inputs != NULL) {
                             result = *inputs->elements[i];
                         }
@@ -966,6 +974,30 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, 
             } else {
                 assert(false);
             }
+            break;
+        }
+        case Type_Struct: {
+            Struct_Type* struct_in = &type_in.data.struct_;
+            Struct_Type struct_out = { .items = array_declaration_pointer_new(struct_in->items.count) };
+            for (size_t i = 0; i < struct_in->items.count; i++) {
+                Declaration* result = malloc(sizeof(Declaration));
+                *result = *struct_in->items.elements[i];
+                result->type = apply_generics(parameters, inputs, result->type);
+                array_declaration_pointer_append(&struct_out.items, result);
+            }
+
+            result.kind = Type_Struct;
+            result.data.struct_ = struct_out;
+            break;
+        }
+        case Type_Pointer: {
+            Pointer_Type* pointer = &type_in.data.pointer;
+            Pointer_Type pointer_new = { .child = malloc(sizeof(Type)) };
+
+            *pointer_new.child = apply_generics(parameters, inputs, *pointer->child);
+
+            result.kind = Type_Pointer;
+            result.data.pointer = pointer_new;
             break;
         }
         case Type_Internal: {
@@ -1439,8 +1471,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                 type.kind = Type_Procedure;
                                 type.data.procedure = procedure_type;
                                 if (expression_generic) {
-                                    bool _temp = false;
-                                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &get_directive(&expression->directives, Directive_Generic)->data.generic.types, type, &_temp);
+                                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &get_directive(&expression->directives, Directive_Generic)->data.generic.types, type);
                                 }
                                 stack_type_push(&state->stack, create_pointer_type(type));
                                 break;
@@ -1713,7 +1744,9 @@ void process_generics_statement(Statement_Node* statement, Generic_State* state,
             break;
         }
         case Statement_Declare: {
-            process_generics_expression(statement->data.declare.expression, state, current_procedure_generics, current_procedure_values);
+            if (statement->data.declare.expression != NULL) {
+                process_generics_expression(statement->data.declare.expression, state, current_procedure_generics, current_procedure_values);
+            }
             break;
         }
         case Statement_Assign: {
@@ -1757,9 +1790,8 @@ void process_generics_expression(Expression_Node* expression, Generic_State* sta
                 Array_Type replaced = array_type_new(generic->types.count);
                 for (size_t i = 0; i < generic->types.count; i++) {
                     Type* type = malloc(sizeof(Type));
-                    bool uses_generics = false;
-                    *type = apply_generics(current_procedure_generics, current_procedure_values, *generic->types.elements[i], &uses_generics);
-                    if (uses_generics && current_procedure_values == NULL) {
+                    *type = apply_generics(current_procedure_generics, current_procedure_values, *generic->types.elements[i]);
+                    if (!is_type(type, generic->types.elements[i]) && current_procedure_values == NULL) {
                         skip_process = true;
                     }
                     array_type_append(&replaced, type);

@@ -21,25 +21,44 @@ typedef struct {
     bool in_reference;
 } Output_State;
 
-size_t get_size(Type* type_in, Output_State* state) {
-    bool _temp = false;
-    Type type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type_in, &_temp);
-    switch (type.kind) {
+size_t get_size(Type* type, Output_State* state) {
+    switch (type->kind) {
         case Type_Basic: {
-            Basic_Type* basic = &type.data.basic;
+            if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
+                Type type_new = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type);
+
+                if (type_new.kind != Type_Basic) {
+                    return get_size(&type_new, state);
+                }
+            }
+
+            Basic_Type* basic = &type->data.basic;
             Identifier identifier = basic_type_to_identifier(*basic);
             Resolved resolved = resolve(&state->generic, identifier);
             if (resolved.kind == Resolved_Item) {
                 Item_Node* item = resolved.data.item;
                 assert(item->kind == Item_Type);
-                Type_Node* type = &item->data.type;
-                return get_size(&type->type, state);
+                Type_Node* type_node = &item->data.type;
+                Type type_result = type_node->type;
+
+                if (has_directive(&item->directives, Directive_IsGeneric)) {
+                    Directive_Generic_Node* generic = &get_directive(&type->directives, Directive_Generic)->data.generic;
+                    Array_Type updated = array_type_new(generic->types.count);
+                    for (size_t i = 0; i< generic->types.count; i++) {
+                        Type* type = malloc(sizeof(Type));
+                        *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic->types.elements[i]);
+                        array_type_append(&updated, type);
+                    }
+
+                    type_result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type_result);
+                }
+
+                return get_size(&type_result, state);
             }
-            printf("basic fallthrough\n");
             break;
         }
         case Type_Array: {
-            BArray_Type* array = &type.data.array;
+            BArray_Type* array = &type->data.array;
 
             if (array->has_size) {
                 assert(array->size_type->kind == Type_Number);
@@ -49,7 +68,7 @@ size_t get_size(Type* type_in, Output_State* state) {
             break;
         }
         case Type_Internal: {
-            Internal_Type* internal = &type.data.internal;
+            Internal_Type* internal = &type->data.internal;
 
             switch (*internal) {
                 case Type_USize:
@@ -70,7 +89,7 @@ size_t get_size(Type* type_in, Output_State* state) {
         }
         case Type_Struct: {
             size_t size = 0;
-            Struct_Type* struct_ = &type.data.struct_;
+            Struct_Type* struct_ = &type->data.struct_;
             for (size_t i = 0; i < struct_->items.count; i++) {
                 size += get_size(&struct_->items.elements[i]->type, state);
             }
@@ -78,7 +97,7 @@ size_t get_size(Type* type_in, Output_State* state) {
         }
         case Type_Union: {
             size_t size = 0;
-            Union_Type* union_ = &type.data.union_;
+            Union_Type* union_ = &type->data.union_;
             for (size_t i = 0; i < union_->items.count; i++) {
                 size_t size_temp = get_size(&union_->items.elements[i]->type, state);
                 if (size_temp > size) {
@@ -91,7 +110,7 @@ size_t get_size(Type* type_in, Output_State* state) {
             return 8;
         }
         case Type_TypeOf: {
-            return get_size(type.data.type_of.computed_result_type, state);
+            return get_size(type->data.type_of.computed_result_type, state);
         }
         default:
             assert(false);
@@ -110,7 +129,8 @@ size_t collect_statement_locals_size(Statement_Node* statement, Output_State* st
         case Statement_Declare: {
             size_t size = 0;
             for (size_t i = 0; i < statement->data.declare.declarations.count; i++) {
-                size += get_size(&statement->data.declare.declarations.elements[i].type, state);
+                Type type = statement->data.declare.declarations.elements[i].type;
+                size += get_size(&type, state);
             }
             return size;
         } 
@@ -164,7 +184,24 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
 
             Item_Node* item = resolved.data.item;
             assert(item->kind == Item_Type);
-            return get_parent_item_location_size(&item->data.type.type, item_name, state);
+            Type type = item->data.type.type;
+
+            if (has_directive(&item->directives, Directive_IsGeneric)) {
+                Directive_Generic_Node* generic = &get_directive(&parent_type->directives, Directive_Generic)->data.generic;
+                Array_Type updated = array_type_new(1);
+                for (size_t i = 0; i< generic->types.count; i++) {
+                    Type* type = malloc(sizeof(Type));
+                    *type = *generic->types.elements[i];
+                    if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
+                        *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type);
+                    }
+                    array_type_append(&updated, type);
+                }
+
+                type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type);
+            }
+
+            return get_parent_item_location_size(&type, item_name, state);
         }
         case Type_Struct: {
             Struct_Type* struct_type = &parent_type->data.struct_;
@@ -1663,26 +1700,33 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
                 stringbuffer_appendstring(&state->instructions, buffer);
             }
 
-            stringbuffer_appendstring(&state->instructions, "  push rbp\n");
-            stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
-
-            size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
-
-            char buffer[128] = {};
-            sprintf(buffer, "  sub rsp, %zu\n", locals_size);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
             state->current_declares = array_declaration_new(4);
             state->current_procedure = item;
             state->current_generics_implementation = NULL;
+
+            stringbuffer_appendstring(&state->instructions, "  push rbp\n");
+            stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
 
             if (has_directive(&item->directives, Directive_IsGeneric)) {
                 Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
                 for (int i = 0; i < (int) isgeneric->implementations.count; i++) {
                     state->current_generics_implementation = &isgeneric->implementations.elements[i];
+
+                    size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
+
+                    char buffer[128] = {};
+                    sprintf(buffer, "  sub rsp, %zu\n", locals_size);
+                    stringbuffer_appendstring(&state->instructions, buffer);
+
                     output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
                 }
             } else {
+                size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
+
+                char buffer[128] = {};
+                sprintf(buffer, "  sub rsp, %zu\n", locals_size);
+                stringbuffer_appendstring(&state->instructions, buffer);
+
                 output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
             }
 

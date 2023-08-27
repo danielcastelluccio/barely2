@@ -109,6 +109,7 @@ typedef struct {
 } TypeOf_Type;
 
 struct Type {
+    Array_Directive directives;
     enum {
         Type_None,
         Type_Basic,
