@@ -149,7 +149,8 @@ size_t collect_expression_locals_size(Expression_Node* expression, Output_State*
             return size;
         }
         case Expression_If: {
-            return collect_expression_locals_size(expression->data.if_.inside, state);
+            // TODO: isn't actually correct
+            return collect_expression_locals_size(expression->data.if_.if_expression, state);
         }
         case Expression_While: {
             return collect_expression_locals_size(expression->data.while_.inside, state);
@@ -1488,45 +1489,41 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_If: {
-            size_t main_end = state->flow_index;
-            state->flow_index++;
-
-            size_t individual_start = state->flow_index;
-            state->flow_index++;
-
             If_Node* node = &expression->data.if_;
-            while (node != NULL) {
-                char buffer[128] = {};
-                sprintf(buffer, "  __%zu:\n", individual_start);
-                stringbuffer_appendstring(&state->instructions, buffer);
 
-                individual_start = state->flow_index;
-                state->flow_index++;
-                
-                if (node->condition != NULL) {
-                    output_expression_fasm_linux_x86_64(node->condition, state);
+            size_t end = state->flow_index;
+            state->flow_index++;
 
-                    stringbuffer_appendstring(&state->instructions, "  mov rbx, 1\n");
-                    stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
-                    stringbuffer_appendstring(&state->instructions, "  mov al, [rsp]\n");
-                    stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
-                    stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
-                    char buffer[128] = {};
-                    sprintf(buffer, "  jne __%zu\n", node->next != NULL ? individual_start : main_end);
-                    stringbuffer_appendstring(&state->instructions, buffer);
-                }
+            size_t else_ = state->flow_index;
+            state->flow_index++;
 
-                output_expression_fasm_linux_x86_64(node->inside, state);
+            output_expression_fasm_linux_x86_64(node->condition, state);
 
-                memset(buffer, 0, 128);
-                sprintf(buffer, "  jmp __%zu\n", main_end);
-                stringbuffer_appendstring(&state->instructions, buffer);
+            stringbuffer_appendstring(&state->instructions, "  mov rbx, 1\n");
+            stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
+            stringbuffer_appendstring(&state->instructions, "  mov al, [rsp]\n");
+            stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
+            stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+            char buffer[128] = {};
+            sprintf(buffer, "  jne __%zu\n", else_);
+            stringbuffer_appendstring(&state->instructions, buffer);
 
-                node = node->next;
+            output_expression_fasm_linux_x86_64(node->if_expression, state);
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  jmp __%zu\n", end);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  __%zu:\n", else_);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            if (node->else_expression != NULL) {
+                output_expression_fasm_linux_x86_64(node->else_expression, state);
             }
 
-            char buffer[128] = {};
-            sprintf(buffer, "  __%zu:\n", main_end);
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  __%zu:\n", end);
             stringbuffer_appendstring(&state->instructions, buffer);
             break;
         }

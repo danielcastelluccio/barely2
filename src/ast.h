@@ -175,15 +175,12 @@ typedef struct {
     bool value;
 } Boolean_Node;
 
-struct If_Node;
-typedef struct If_Node If_Node;
-
-struct If_Node {
+typedef struct {
     Expression_Node* condition;
-    Expression_Node* inside;
-    If_Node* next;
+    Expression_Node* if_expression;
+    Expression_Node* else_expression;
     Location location;
-};
+} If_Node;
 
 typedef struct {
     Expression_Node* condition;

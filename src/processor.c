@@ -1540,30 +1540,28 @@ void process_expression(Expression_Node* expression, Process_State* state) {
         }
         case Expression_If: {
             If_Node* node = &expression->data.if_;
-            while (node != NULL) {
-                if (node->condition != NULL) {
-                    process_expression(node->condition, state);
+            process_expression(node->condition, state);
 
-                    if (state->stack.count == 0) {
-                        print_error_stub(&node->location);
-                        printf("Ran out of values for if\n");
-                        exit(1);
-                    }
+            if (state->stack.count == 0) {
+                print_error_stub(&node->location);
+                printf("Ran out of values for if\n");
+                exit(1);
+            }
 
-                    Type given = stack_type_pop(&state->stack);
-                    Type bool_type = create_basic_single_type("bool");
-                    if (!is_type(&bool_type, &given)) {
-                        print_error_stub(&node->location);
-                        printf("Type '");
-                        print_type_inline(&given);
-                        printf("' is not a boolean\n");
-                        exit(1);
-                    }
-                }
+            Type given = stack_type_pop(&state->stack);
+            Type bool_type = create_basic_single_type("bool");
+            if (!is_type(&bool_type, &given)) {
+                print_error_stub(&node->location);
+                printf("Type '");
+                print_type_inline(&given);
+                printf("' is not a boolean\n");
+                exit(1);
+            }
 
-                process_expression(node->inside, state);
+            process_expression(node->if_expression, state);
 
-                node = node->next;
+            if (node->else_expression != NULL) {
+                process_expression(node->else_expression, state);
             }
             break;
         }

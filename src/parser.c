@@ -694,35 +694,15 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                 *condition_allocated = condition;
                 node.condition = condition_allocated;
 
-                Expression_Node inside = parse_expression(state, &index);
-                Expression_Node* inside_allocated = malloc(sizeof(Expression_Node));
-                *inside_allocated = inside;
-                node.inside = inside_allocated;
+                Expression_Node* expression = malloc(sizeof(Expression_Node));
+                *expression = parse_expression(state, &index);
+                node.if_expression = expression;
 
-                If_Node* current = &node;
-                while (state->tokens->elements[index].kind == Token_Keyword && strcmp(state->tokens->elements[index].data, "else") == 0) {
-                    If_Node next_node = {};
+                if (state->tokens->elements[index].kind == Token_Keyword && strcmp(state->tokens->elements[index].data, "else") == 0) {
                     consume(state, &index);
-
-                    Token next = state->tokens->elements[index];
-                    if (next.kind == Token_Keyword && strcmp(next.data, "if") == 0) {
-                        consume(state, &index);
-
-                        Expression_Node condition = parse_expression(state, &index);
-                        Expression_Node* condition_allocated = malloc(sizeof(Expression_Node));
-                        *condition_allocated = condition;
-                        next_node.condition = condition_allocated;
-                    }
-
-                    Expression_Node inside = parse_expression(state, &index);
-                    Expression_Node* inside_allocated = malloc(sizeof(Expression_Node));
-                    *inside_allocated = inside;
-                    next_node.inside = inside_allocated;
-
-                    If_Node* next_node_allocated = malloc(sizeof(If_Node));
-                    *next_node_allocated = next_node;
-                    current->next = next_node_allocated;
-                    current = next_node_allocated;
+                    Expression_Node* expression = malloc(sizeof(Expression_Node));
+                    *expression = parse_expression(state, &index);
+                    node.else_expression = expression;
                 }
 
                 result.kind = Expression_If;
