@@ -405,6 +405,47 @@ Type parse_type(Parser_State* state, size_t* index_in) {
     return result;
 }
 
+Expression_Node parse_multi_expression(Parser_State* state, size_t* index_in) {
+    size_t index = *index_in;
+
+    Expression_Node result = parse_expression(state, &index);
+
+    if (peek(state, index) == Token_Comma) {
+        consume(state, &index);
+        if (result.kind == Expression_Multi) {
+            Expression_Node* next = malloc(sizeof(Expression_Node));
+            *next = parse_expression(state, &index);
+            array_expression_node_append(&result.data.multi.expressions, next);
+        } else {
+            Multi_Expression_Node node;
+            node.expressions = array_expression_node_new(2);
+
+            Expression_Node* previous_expression = malloc(sizeof(Expression_Node));
+            *previous_expression = result;
+            array_expression_node_append(&node.expressions, previous_expression);
+
+            Expression_Node next = parse_expression(state, &index);
+            Expression_Node* next_allocated = malloc(sizeof(Expression_Node));
+            *next_allocated = next;
+            if (next_allocated->kind == Expression_Multi) {
+                for (size_t i = 0; i < next_allocated->data.multi.expressions.count; i++) {
+                    array_expression_node_append(&node.expressions, next_allocated->data.multi.expressions.elements[i]);
+                }
+            } else {
+                array_expression_node_append(&node.expressions, next_allocated);
+            }
+
+            result.kind = Expression_Multi;
+            result.data.multi = node;
+        }
+    }
+
+
+    *index_in = index;
+
+    return result;
+};
+
 Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
     Statement_Node result = { .directives = array_directive_new(1) };
@@ -435,10 +476,9 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
 
         Token_Kind next = consume(state, &index);
         if (next == Token_Equals) {
-            Expression_Node expression = parse_expression(state, &index);
-            Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
-            *expression_allocated = expression;
-            node.expression = expression_allocated;
+            Expression_Node* expression = malloc(sizeof(Expression_Node));
+            *expression = parse_multi_expression(state, &index);
+            node.expression = expression;
 
             consume_check(state, &index, Token_Semicolon);
         } else if (next == Token_Semicolon) {
@@ -469,10 +509,9 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
     } else {
         Statement_Expression_Node node;
 
-        Expression_Node expression = parse_expression(state, &index);
-        Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
-        *expression_allocated = expression;
-        node.expression = expression_allocated;
+        Expression_Node* expression = malloc(sizeof(Expression_Node));
+        *expression = parse_multi_expression(state, &index);
+        node.expression = expression;
 
         Token_Kind token = consume(state, &index);
         switch (token) {
@@ -480,12 +519,12 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
                 Statement_Assign_Node assign = {};
                 assign.parts = array_statement_assign_part_new(2);
 
-                if (expression.kind == Expression_Retrieve) {
+                if (expression->kind == Expression_Retrieve) {
                     Statement_Assign_Part assign_part;
-                    assign_part = expression.data.retrieve;
+                    assign_part = expression->data.retrieve;
                     array_statement_assign_part_append(&assign.parts, assign_part);
-                } else if (expression.kind == Expression_Multi) {
-                    Multi_Expression_Node* multi = &expression.data.multi;
+                } else if (expression->kind == Expression_Multi) {
+                    Multi_Expression_Node* multi = &expression->data.multi;
                     for (size_t i = 0; i < multi->expressions.count; i++) {
                         Expression_Node* expression = multi->expressions.elements[i];
                         Statement_Assign_Part assign_part;
@@ -494,10 +533,9 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
                     }
                 }
 
-                Expression_Node expression = parse_expression(state, &index);
-                Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
-                *expression_allocated = expression;
-                assign.expression = expression_allocated;
+                Expression_Node* expression = malloc(sizeof(Expression_Node));
+                *expression = parse_multi_expression(state, &index);
+                assign.expression = expression;
 
                 result.kind = Statement_Assign;
                 result.data.assign = assign;
@@ -825,15 +863,16 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
 
             Array_Expression_Node arguments = array_expression_node_new(32);
 
-            if (peek(state, index) != Token_RightParenthesis) {
-                Expression_Node expression = parse_expression(state, &index);
-                Expression_Node* expression_allocated = malloc(sizeof(Expression_Node));
-                *expression_allocated = expression;
-                if (expression_allocated->kind == Expression_Multi) {
-                    arguments = expression_allocated->data.multi.expressions;
-                } else {
-                    array_expression_node_append(&arguments, expression_allocated);
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
+                    index++;
+                    continue;
                 }
+
+                Expression_Node* expression = malloc(sizeof(Expression_Node));
+                *expression = parse_expression(state, &index);
+
+                array_expression_node_append(&arguments, expression);
             }
 
             node.arguments = arguments;
@@ -915,40 +954,6 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
 
             result.kind = Expression_Invoke;
             result.data.invoke = node;
-            continue;
-        }
-
-        if (peek(state, index) == Token_Comma) {
-            consume(state, &index);
-            if (result.kind == Expression_Multi) {
-                Expression_Node next = parse_expression(state, &index);
-                Expression_Node* next_allocated = malloc(sizeof(Expression_Node));
-                *next_allocated = next;
-                array_expression_node_append(&result.data.multi.expressions, next_allocated);
-            } else {
-                Multi_Expression_Node node;
-                node.expressions = array_expression_node_new(2);
-
-                Expression_Node* previous_result = malloc(sizeof(Expression_Node));
-                *previous_result = result;
-                array_expression_node_append(&node.expressions, previous_result);
-
-                Expression_Node next = parse_expression(state, &index);
-                Expression_Node* next_allocated = malloc(sizeof(Expression_Node));
-                *next_allocated = next;
-                if (next_allocated->kind == Expression_Multi) {
-                    for (size_t i = 0; i < next_allocated->data.multi.expressions.count; i++) {
-                        array_expression_node_append(&node.expressions, next_allocated->data.multi.expressions.elements[i]);
-                    }
-                } else {
-                    array_expression_node_append(&node.expressions, next_allocated);
-                }
-
-                result.kind = Expression_Multi;
-                result.data.multi = node;
-            }
-
-            running = true;
             continue;
         }
     }
