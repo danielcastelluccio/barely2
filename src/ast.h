@@ -281,6 +281,14 @@ typedef struct {
     Location location;
 } LengthOf_Node;
 
+typedef struct {
+    Expression_Node* expression;
+    Type type;
+    Expression_Node* procedure;
+    Type computed_expr_type;
+    Location location;
+} GenericIfCall_Node;
+
 struct Expression_Node {
     Array_Directive directives;
     enum {
@@ -297,6 +305,7 @@ struct Expression_Node {
         Expression_Cast,
         Expression_SizeOf,
         Expression_LengthOf,
+        Expression_GenericIfCall,
     } kind;
     union {
         Block_Node block;
@@ -312,6 +321,7 @@ struct Expression_Node {
         Cast_Node cast;
         SizeOf_Node size_of;
         LengthOf_Node length_of;
+        GenericIfCall_Node generic_if_call;
     } data;
 };
 

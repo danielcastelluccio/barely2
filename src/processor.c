@@ -1004,6 +1004,18 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in) 
             result.data.struct_ = struct_out;
             break;
         }
+        case Type_Array: {
+            BArray_Type* array_in = &type_in.data.array;
+            BArray_Type array_out = { .has_size = array_in->has_size, .size_type = array_in->size_type };
+
+            Type* element_type = malloc(sizeof(Type));
+            *element_type = apply_generics(parameters, inputs, *array_in->element_type);
+            array_out.element_type = element_type;
+
+            result.kind = Type_Array;
+            result.data.array = array_out;
+            break;
+        }
         case Type_Pointer: {
             Pointer_Type* pointer = &type_in.data.pointer;
             Pointer_Type pointer_new = { .child = malloc(sizeof(Type)) };
@@ -1676,6 +1688,23 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
             length_of->computed_result_type = *wanted_type;
             stack_type_append(&state->stack, *wanted_type);
+            break;
+        }
+        case Expression_GenericIfCall: {
+            GenericIfCall_Node* generic_if_call = &expression->data.generic_if_call;
+            process_expression(generic_if_call->expression, state);
+
+            // TODO: assert that type is generic
+            generic_if_call->computed_expr_type = stack_type_pop(&state->stack);
+
+            process_expression(generic_if_call->procedure, state);
+
+            Type type = stack_type_pop(&state->stack);
+            Procedure_Type proc_type = type.data.pointer.child->data.procedure;
+
+            assert(proc_type.arguments.count == 1);
+            assert(is_type(proc_type.arguments.elements[0], &generic_if_call->type));
+
             break;
         }
         default:
