@@ -622,12 +622,14 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                 Type type = parse_type(state, &index);
                 node.type = type;
 
-                consume_check(state, &index, Token_RightParenthesis);
+                consume_check(state, &index, Token_Comma);
 
                 Expression_Node inner = parse_expression(state, &index);
                 Expression_Node* inner_allocated = malloc(sizeof(Expression_Node));
                 *inner_allocated = inner;
                 node.expression = inner_allocated;
+
+                consume_check(state, &index, Token_RightParenthesis);
 
                 result.kind = Expression_Cast;
                 result.data.cast = node;
