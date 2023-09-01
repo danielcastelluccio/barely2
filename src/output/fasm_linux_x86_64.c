@@ -1094,6 +1094,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Array) {
+                    found = true;
                     Type array_type = retrieve->data.array.computed_array_type;
 
                     bool in_reference = consume_in_reference_output(state);
