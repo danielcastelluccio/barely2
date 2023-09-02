@@ -27,7 +27,7 @@ size_t get_size(Type* type, Output_State* state) {
             if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
                 Type type_new = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type);
 
-                if (type_new.kind != Type_Basic) {
+                if (!is_type(&type_new, type)) {
                     return get_size(&type_new, state);
                 }
             }

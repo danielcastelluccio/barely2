@@ -286,6 +286,18 @@ bool is_internal_type(Internal_Type wanted, Type* given) {
 }
 
 void print_type_inline(Type* type) {
+    if (has_directive(&type->directives, Directive_Generic)) {
+        Directive_Generic_Node* generic = &get_directive(&type->directives, Directive_Generic)->data.generic;
+        printf("#generic(");
+        for (size_t i = 0; i < generic->types.count; i++) {
+            print_type_inline(generic->types.elements[i]);
+            if (i < generic->types.count - 1) {
+                printf(", ");
+            }
+        }
+        printf(") ");
+    }
+
     switch (type->kind) {
         case Type_Basic: {
             Basic_Type* basic = &type->data.basic;
