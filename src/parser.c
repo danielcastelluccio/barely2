@@ -368,6 +368,9 @@ Type parse_type(Parser_State* state, size_t* index_in) {
             } else if (strcmp(name, "f8") == 0) {
                 internal = Type_F8;
                 found = true;
+            } else if (strcmp(name, "ptr") == 0) {
+                internal = Type_Ptr;
+                found = true;
             }
 
             if (found) {
@@ -544,6 +547,7 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
                 break;
             }
             case Token_Semicolon: {
+                result.statement_end_location = state->tokens->elements[index - 1].location;
                 result.kind = Statement_Expression;
                 result.data.expression = node;
                 break;

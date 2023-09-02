@@ -74,6 +74,7 @@ size_t get_size(Type* type, Output_State* state) {
                 case Type_USize:
                 case Type_U8:
                 case Type_F8:
+                case Type_Ptr:
                     return 8;
                 case Type_U4:
                     return 4;
@@ -1630,9 +1631,12 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             output_expression_fasm_linux_x86_64(cast->expression, state);
 
+            Type input = cast->computed_input_type;
+            Type output = cast->type;
+
             if (cast->type.kind == Type_Internal && cast->computed_input_type.kind == Type_Internal) {
-                Internal_Type output_internal = cast->type.data.internal;
-                Internal_Type input_internal = cast->computed_input_type.data.internal;
+                Internal_Type output_internal = output.data.internal;
+                Internal_Type input_internal = input.data.internal;
 
                 if ((input_internal == Type_USize || input_internal == Type_U8 || input_internal == Type_U4 || input_internal == Type_U2 || input_internal == Type_U1) && 
                         (output_internal == Type_USize || output_internal == Type_U8 || output_internal == Type_U4 || output_internal == Type_U2 || output_internal == Type_U1)) {
@@ -1672,6 +1676,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 } else {
                     assert(false);
                 }
+            } else if (input.kind == Type_Internal && input.data.internal == Type_Ptr && output.kind == Type_Pointer) {
+            } else {
+                assert(false);
             }
 
             break;

@@ -54,6 +54,7 @@ typedef enum {
     Type_U2,
     Type_U1,
     Type_F8,
+    Type_Ptr,
 } Internal_Type;
 
 typedef struct {
@@ -352,6 +353,7 @@ struct Statement_Node {
         Statement_Assign_Node assign;
         Statement_Return_Node return_;
     } data;
+    Location statement_end_location;
 };
 
 typedef struct {

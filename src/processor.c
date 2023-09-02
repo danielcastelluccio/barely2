@@ -203,7 +203,7 @@ bool is_type(Type* wanted, Type* given) {
         if (given->kind == Type_RegisterSize) to_check = wanted;
 
         if (to_check->kind == Type_Pointer) return true;
-        if (to_check->kind == Type_Internal && to_check->data.internal == Type_USize) return true;
+        if (to_check->kind == Type_Internal && (to_check->data.internal == Type_USize || to_check->data.internal == Type_Ptr)) return true;
 
         return false;
     }
@@ -361,6 +361,9 @@ void print_type_inline(Type* type) {
                     break;
                 case Type_F8:
                     printf("f8");
+                    break;
+                case Type_Ptr:
+                    printf("ptr");
                     break;
             }
             break;
@@ -895,6 +898,12 @@ void process_statement(Statement_Node* statement, Process_State* state) {
             printf("Unhandled statement type %i!\n", statement->kind);
             exit(1);
     }
+
+    if (state->stack.count > 0) {
+        print_error_stub(&statement->statement_end_location);
+        printf("Extra values at the end of statement\n");
+        exit(1);
+    }
 }
 
 bool is_register_sized(Type* type) {
@@ -1033,6 +1042,18 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in) 
             assert(false);
     }
     return result;
+}
+
+bool can_operate_together(Type* first, Type* second) {
+    if (is_type(first, second)) {
+        return true;
+    }
+
+    if (first->kind == Type_Internal && first->data.internal == Type_USize && second->kind == Type_Internal && second->data.internal == Type_Ptr) {
+        return true;
+    }
+
+    return false;
 }
 
 void process_expression(Expression_Node* expression, Process_State* state) {
@@ -1301,7 +1322,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     Type first = stack_type_pop(&state->stack);
                     Type second = stack_type_pop(&state->stack);
 
-                    if (!is_type(&first, &second)) {
+                    if (!can_operate_together(&first, &second)) {
                         print_error_stub(&invoke->location);
                         printf("Type '");
                         print_type_inline(&second);
@@ -1424,6 +1445,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 Type item_type;
                 if (strcmp(retrieve->data.parent.name, "*") == 0) {
                     item_type = *parent_type_raw;
+                    found = true;
                 } else {
                     Type* result_type = get_parent_item_type(parent_type_raw, retrieve->data.parent.name, &state->generic);
                     if (result_type != NULL) {
@@ -1649,11 +1671,15 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 }
             }
 
+            if (input.kind == Type_Internal && input.data.internal == Type_Ptr && cast->type.kind == Type_Pointer) {
+                is_valid = true;
+            }
+
             if (!is_valid) {
                 print_error_stub(&cast->location);
                 printf("Type '");
                 print_type_inline(&input);
-                printf("' cast to type '");
+                printf("' cannot be cast to type '");
                 print_type_inline(&cast->type);
                 printf("'\n");
                 exit(1);
