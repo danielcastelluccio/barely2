@@ -672,32 +672,6 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                 result.kind = Expression_Cast;
                 result.data.cast = node;
                 break;
-            } else if (strcmp(name, "@generic_if_call") == 0) {
-                GenericIfCall_Node node;
-                node.location = location;
-
-                consume_check(state, &index, Token_LeftParenthesis);
-
-                Expression_Node* expression = malloc(sizeof(Expression_Node));
-                *expression = parse_expression(state, &index);
-                node.expression = expression;
-
-                consume_check(state, &index, Token_Comma);
-
-                Type type = parse_type(state, &index);
-                node.type = type;
-
-                consume_check(state, &index, Token_Comma);
-
-                Expression_Node* procedure = malloc(sizeof(Expression_Node));
-                *procedure = parse_expression(state, &index);
-                node.procedure = procedure;
-
-                consume_check(state, &index, Token_RightParenthesis);
-
-                result.kind = Expression_GenericIfCall;
-                result.data.generic_if_call = node;
-                break;
             } else {
                 filter_add_directive(state, &result.directives, Directive_Generic);
 

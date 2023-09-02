@@ -1690,23 +1690,6 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             stack_type_append(&state->stack, *wanted_type);
             break;
         }
-        case Expression_GenericIfCall: {
-            GenericIfCall_Node* generic_if_call = &expression->data.generic_if_call;
-            process_expression(generic_if_call->expression, state);
-
-            // TODO: assert that type is generic
-            generic_if_call->computed_expr_type = stack_type_pop(&state->stack);
-
-            process_expression(generic_if_call->procedure, state);
-
-            Type type = stack_type_pop(&state->stack);
-            Procedure_Type proc_type = type.data.pointer.child->data.procedure;
-
-            assert(proc_type.arguments.count == 1);
-            assert(is_type(proc_type.arguments.elements[0], &generic_if_call->type));
-
-            break;
-        }
         default:
             assert(false);
     }

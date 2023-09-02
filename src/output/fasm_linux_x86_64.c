@@ -1688,20 +1688,6 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             output_unsigned_integer(length_of->computed_result_type.data.internal, get_length(&length_of->type), state);
             break;
         }
-        case Expression_GenericIfCall: {
-            GenericIfCall_Node* generic_if_call = &expression->data.generic_if_call;
-            Type type_new = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, generic_if_call->computed_expr_type);
-
-            if (is_type(&type_new, &generic_if_call->type)) {
-                output_expression_fasm_linux_x86_64(generic_if_call->expression, state);
-
-                output_expression_fasm_linux_x86_64(generic_if_call->procedure, state);
-
-                stringbuffer_appendstring(&state->instructions, "  pop rax\n");
-                stringbuffer_appendstring(&state->instructions, "  call rax\n");
-            }
-            break;
-        }
         default:
             assert(false);
     }
