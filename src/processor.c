@@ -5,6 +5,7 @@
 #include "processor.h"
 
 Dynamic_Array_Impl(Type, Stack_Type, stack_type_)
+Dynamic_Array_Impl(size_t, Array_Size, array_size_)
 
 void stack_type_push(Stack_Type* stack, Type type) {
     stack_type_append(stack, type);
@@ -15,8 +16,6 @@ Type stack_type_pop(Stack_Type* stack) {
     stack->count--;
     return result;
 }
-
-Dynamic_Array_Impl(size_t, Array_Size, array_size_)
 
 typedef struct {
     Generic_State generic;
@@ -547,7 +546,7 @@ typedef struct {
     } data;
 } Evaluation_Value;
 
-Evaluation_Value _evaluate_if_directive(Expression_Node* expression) {
+Evaluation_Value evaluate_if_directive_expression(Expression_Node* expression) {
     switch (expression->kind) {
         case Expression_Retrieve: {
             if (expression->data.retrieve.kind == Retrieve_Assign_Identifier && expression->data.retrieve.data.identifier.kind == Identifier_Single) {
@@ -564,8 +563,8 @@ Evaluation_Value _evaluate_if_directive(Expression_Node* expression) {
         case Expression_Invoke: {
             if (expression->data.invoke.kind == Invoke_Operator) {
                 Operator* operator = &expression->data.invoke.data.operator_.operator_;
-                Evaluation_Value left = _evaluate_if_directive(expression->data.invoke.arguments.elements[0]);
-                Evaluation_Value right = _evaluate_if_directive(expression->data.invoke.arguments.elements[1]);
+                Evaluation_Value left = evaluate_if_directive_expression(expression->data.invoke.arguments.elements[0]);
+                Evaluation_Value right = evaluate_if_directive_expression(expression->data.invoke.arguments.elements[1]);
 
                 switch (*operator) {
                     case Operator_Equal: {
@@ -598,9 +597,207 @@ Evaluation_Value _evaluate_if_directive(Expression_Node* expression) {
 }
 
 bool evaluate_if_directive(Directive_If_Node* if_node) {
-    Evaluation_Value value = _evaluate_if_directive(if_node->expression);
+    Evaluation_Value value = evaluate_if_directive_expression(if_node->expression);
     assert(value.kind == Evaluation_Boolean);
     return value.data.boolean;
+}
+
+void process_assign(Statement_Assign_Node* assign, Process_State* state) {
+    Array_Type wanted_types = array_type_new(1);
+    for (size_t i = 0; i < assign->parts.count; i++) {
+        Statement_Assign_Part* assign_part = &assign->parts.elements[i];
+        Type* wanted_type = malloc(sizeof(Type));
+        bool found = false;
+
+        if (assign_part->kind == Retrieve_Assign_Array) {
+            process_expression(assign_part->data.array.expression_outer, state);
+            Type array_type = stack_type_pop(&state->stack);
+
+            Type* array_type_raw;
+            if (array_type.kind == Type_Pointer) {
+                array_type_raw = array_type.data.pointer.child;
+            } else {
+                array_type_raw = &array_type;
+            }
+
+            if (array_type_raw->kind != Type_Array) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(array_type_raw);
+                printf("' is not an array\n");
+                exit(1);
+            }
+
+            wanted_type = array_type_raw->data.array.element_type;
+            found = true;
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
+            char* name = assign_part->data.identifier.data.single;
+
+            Type* type = malloc(sizeof(Type));
+            for (size_t j = 0; j < state->current_declares.count; j++) {
+                if (strcmp(state->current_declares.elements[j].name, name) == 0) {
+                    *type = state->current_declares.elements[j].type;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
+                if (resolved.kind == Resolved_Item) {
+                    if (resolved.data.item->kind == Item_Global) {
+                        *type = resolved.data.item->data.global.type;
+                        found = true;
+                    }
+                }
+            }
+
+            wanted_type = type;
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Identifier) {
+            Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
+            if (resolved.kind == Resolved_Item) {
+                if (resolved.data.item->kind == Item_Global) {
+                    *wanted_type = resolved.data.item->data.global.type;
+                    found = true;
+                }
+            }
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Parent) {
+            process_expression(assign_part->data.parent.expression, state);
+            Type parent_type = stack_type_pop(&state->stack);
+
+            assign_part->data.parent.computed_parent_type = parent_type;
+
+            Type* parent_type_raw;
+            if (parent_type.kind == Type_Pointer) {
+                parent_type_raw = parent_type.data.pointer.child;
+            } else {
+                parent_type_raw = &parent_type;
+            }
+
+            if (strcmp(assign_part->data.parent.name, "*") == 0) {
+                *wanted_type = *parent_type_raw;
+                found = true;
+            } else {
+                Type* resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
+                if (resolved != NULL) {
+                    *wanted_type = *resolved;
+                    found = true;
+                }
+            }
+        }
+
+        if (!found) {
+            print_error_stub(&assign_part->location);
+            printf("Assign not found\n");
+            exit(1);
+        }
+
+        array_type_append(&wanted_types, wanted_type);
+    }
+
+    if (assign->expression->kind == Expression_Multi) {
+        size_t assign_index = 0;
+        for (size_t i = 0; i < assign->expression->data.multi.expressions.count; i++) {
+            size_t stack_start = state->stack.count;
+            state->wanted_type = wanted_types.elements[assign_index];
+            process_expression(assign->expression->data.multi.expressions.elements[i], state);
+            assign_index += state->stack.count - stack_start;
+        }
+    } else {
+        state->wanted_type = wanted_types.elements[wanted_types.count - 1];
+        process_expression(assign->expression, state);
+    }
+
+    for (int i = assign->parts.count - 1; i >= 0; i--) {
+        Statement_Assign_Part* assign_part = &assign->parts.elements[i];
+
+        if (assign_part->kind == Retrieve_Assign_Array) {
+            process_expression(assign_part->data.array.expression_outer, state);
+            Type array_type = stack_type_pop(&state->stack);
+
+            Type* element_type = wanted_types.elements[assign->parts.count - i - 1];
+
+            assign_part->data.array.computed_array_type = array_type;
+
+            state->wanted_type = usize_type();
+
+            process_expression(assign_part->data.array.expression_inner, state);
+
+            Type array_index_type = stack_type_pop(&state->stack);
+            if (!is_internal_type(Type_USize, &array_index_type)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&array_index_type);
+                printf("' cannot be used to access array\n");
+                exit(1);
+            }
+
+            if (state->stack.count == 0) {
+                print_error_stub(&assign_part->location);
+                printf("Ran out of values for assignment\n");
+                exit(1);
+            }
+
+            Type right_side_given_type = stack_type_pop(&state->stack);
+            if (!is_type(element_type, &right_side_given_type)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&right_side_given_type);
+                printf("' is not assignable to index of array of type '");
+                print_type_inline(element_type);
+                printf("'\n");
+                exit(1);
+            }
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
+            Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
+
+            if (state->stack.count == 0) {
+                print_error_stub(&assign_part->location);
+                printf("Ran out of values for declaration assignment\n");
+                exit(1);
+            }
+
+            Type popped = stack_type_pop(&state->stack);
+            if (!is_type(variable_type, &popped)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&popped);
+                printf("' is not assignable to variable of type '");
+                print_type_inline(variable_type);
+                printf("'\n");
+                exit(1);
+            }
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Parent) {
+            Type* item_type = wanted_types.elements[assign->parts.count - i - 1];
+
+            if (state->stack.count == 0) {
+                print_error_stub(&assign_part->location);
+                printf("Ran out of values for item assignment\n");
+                exit(1);
+            }
+
+            Type right_side_given_type = stack_type_pop(&state->stack);
+            if (!is_type(item_type, &right_side_given_type)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&right_side_given_type);
+                printf("' is not assignable to item of type '");
+                print_type_inline(item_type);
+                printf("'\n");
+                exit(1);
+            }
+        }
+    }
 }
 
 void process_statement(Statement_Node* statement, Process_State* state) {
@@ -664,207 +861,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
             break;
         }
         case Statement_Assign: {
-            Statement_Assign_Node* assign = &statement->data.assign;
-
-            Array_Type wanted_types = array_type_new(1);
-            for (size_t i = 0; i < assign->parts.count; i++) {
-                Statement_Assign_Part* assign_part = &assign->parts.elements[i];
-                Type* wanted_type = malloc(sizeof(Type));
-                bool found = false;
-
-                if (assign_part->kind == Retrieve_Assign_Array) {
-                    process_expression(assign_part->data.array.expression_outer, state);
-                    Type array_type = stack_type_pop(&state->stack);
-
-                    Type* array_type_raw;
-                    if (array_type.kind == Type_Pointer) {
-                        array_type_raw = array_type.data.pointer.child;
-                    } else {
-                        array_type_raw = &array_type;
-                    }
-
-                    if (array_type_raw->kind != Type_Array) {
-                        print_error_stub(&assign_part->location);
-                        printf("Type '");
-                        print_type_inline(array_type_raw);
-                        printf("' is not an array\n");
-                        exit(1);
-                    }
-
-                    wanted_type = array_type_raw->data.array.element_type;
-                    found = true;
-                }
-
-                if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
-                    char* name = assign_part->data.identifier.data.single;
-
-                    Type* type = malloc(sizeof(Type));
-                    for (size_t j = 0; j < state->current_declares.count; j++) {
-                        if (strcmp(state->current_declares.elements[j].name, name) == 0) {
-                            *type = state->current_declares.elements[j].type;
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (!found) {
-                        Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
-                        if (resolved.kind == Resolved_Item) {
-                            if (resolved.data.item->kind == Item_Global) {
-                                *type = resolved.data.item->data.global.type;
-                                found = true;
-                            }
-                        }
-                    }
-
-                    wanted_type = type;
-                }
-
-                if (assign_part->kind == Retrieve_Assign_Identifier) {
-                    Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
-                    if (resolved.kind == Resolved_Item) {
-                        if (resolved.data.item->kind == Item_Global) {
-                            *wanted_type = resolved.data.item->data.global.type;
-                            found = true;
-                        }
-                    }
-                }
-
-                if (assign_part->kind == Retrieve_Assign_Parent) {
-                    process_expression(assign_part->data.parent.expression, state);
-                    Type parent_type = stack_type_pop(&state->stack);
-
-                    assign_part->data.parent.computed_parent_type = parent_type;
-
-                    Type* parent_type_raw;
-                    if (parent_type.kind == Type_Pointer) {
-                        parent_type_raw = parent_type.data.pointer.child;
-                    } else {
-                        parent_type_raw = &parent_type;
-                    }
-
-                    if (strcmp(assign_part->data.parent.name, "*") == 0) {
-                        *wanted_type = *parent_type_raw;
-                        found = true;
-                    } else {
-                        Type* resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
-                        //printf("k: ");
-                        //print_type_inline(resolved);
-                        //printf("\n");
-                        if (resolved != NULL) {
-                            *wanted_type = *resolved;
-                            found = true;
-                        }
-                    }
-                }
-
-                if (!found) {
-                    print_error_stub(&assign_part->location);
-                    printf("Assign not found\n");
-                    exit(1);
-                }
-
-                array_type_append(&wanted_types, wanted_type);
-            }
-
-            if (assign->expression->kind == Expression_Multi) {
-                size_t assign_index = 0;
-                for (size_t i = 0; i < assign->expression->data.multi.expressions.count; i++) {
-                    size_t stack_start = state->stack.count;
-                    state->wanted_type = wanted_types.elements[assign_index];
-                    process_expression(assign->expression->data.multi.expressions.elements[i], state);
-                    assign_index += state->stack.count - stack_start;
-                }
-            } else {
-                state->wanted_type = wanted_types.elements[wanted_types.count - 1];
-                process_expression(assign->expression, state);
-            }
-
-            for (int i = assign->parts.count - 1; i >= 0; i--) {
-                Statement_Assign_Part* assign_part = &assign->parts.elements[i];
-
-                if (assign_part->kind == Retrieve_Assign_Array) {
-                    process_expression(assign_part->data.array.expression_outer, state);
-                    Type array_type = stack_type_pop(&state->stack);
-
-                    Type* element_type = wanted_types.elements[assign->parts.count - i - 1];
-
-                    assign_part->data.array.computed_array_type = array_type;
-
-                    state->wanted_type = usize_type();
-
-                    process_expression(assign_part->data.array.expression_inner, state);
-
-                    Type array_index_type = stack_type_pop(&state->stack);
-                    if (!is_internal_type(Type_USize, &array_index_type)) {
-                        print_error_stub(&assign_part->location);
-                        printf("Type '");
-                        print_type_inline(&array_index_type);
-                        printf("' cannot be used to access array\n");
-                        exit(1);
-                    }
-
-                    if (state->stack.count == 0) {
-                        print_error_stub(&assign_part->location);
-                        printf("Ran out of values for assignment\n");
-                        exit(1);
-                    }
-
-                    Type right_side_given_type = stack_type_pop(&state->stack);
-                    if (!is_type(element_type, &right_side_given_type)) {
-                        print_error_stub(&assign_part->location);
-                        printf("Type '");
-                        print_type_inline(&right_side_given_type);
-                        printf("' is not assignable to index of array of type '");
-                        print_type_inline(element_type);
-                        printf("'\n");
-                        exit(1);
-                    }
-                }
-
-                if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
-                    Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
-
-                    if (state->stack.count == 0) {
-                        print_error_stub(&assign_part->location);
-                        printf("Ran out of values for declaration assignment\n");
-                        exit(1);
-                    }
-
-                    Type popped = stack_type_pop(&state->stack);
-                    if (!is_type(variable_type, &popped)) {
-                        print_error_stub(&assign_part->location);
-                        printf("Type '");
-                        print_type_inline(&popped);
-                        printf("' is not assignable to variable of type '");
-                        print_type_inline(variable_type);
-                        printf("'\n");
-                        exit(1);
-                    }
-                }
-
-                if (assign_part->kind == Retrieve_Assign_Parent) {
-                    Type* item_type = wanted_types.elements[assign->parts.count - i - 1];
-
-                    if (state->stack.count == 0) {
-                        print_error_stub(&assign_part->location);
-                        printf("Ran out of values for item assignment\n");
-                        exit(1);
-                    }
-
-                    Type right_side_given_type = stack_type_pop(&state->stack);
-                    if (!is_type(item_type, &right_side_given_type)) {
-                        print_error_stub(&assign_part->location);
-                        printf("Type '");
-                        print_type_inline(&right_side_given_type);
-                        printf("' is not assignable to item of type '");
-                        print_type_inline(item_type);
-                        printf("'\n");
-                        exit(1);
-                    }
-                }
-            }
-
+            process_assign(&statement->data.assign, state);
             break;
         }
         case Statement_Return: {
@@ -886,7 +883,6 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                 Type* return_type = state->current_returns.elements[i];
 
                 if (state->stack.count == 0) {
-                    // TODO: location
                     print_error_stub(&return_->location);
                     printf("Ran out of values for return\n");
                     exit(1);
@@ -894,7 +890,6 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 
                 Type given_type = stack_type_pop(&state->stack);
                 if (!is_type(return_type, &given_type)) {
-                    // TODO: location
                     print_error_stub(&return_->location);
                     printf("Type '");
                     print_type_inline(&given_type);
@@ -1112,128 +1107,9 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                             process_expression(invoke->arguments.elements[i], state);
                         }
 
-                        if (strcmp(name, "@syscall6") == 0) {
-                            size_t count = 7;
-                            if (state->stack.count < count) {
-                                print_error_stub(&invoke->location);
-                                printf("Ran out of values for %s, needed %zu\n", name, count);
-                                exit(1);
-                            }
+                        if (strncmp(name, "@syscall", 8) == 0) {
+                            size_t count = strtoul(name + 8, NULL, 0) + 1;
 
-                            for (size_t i = 0; i < count; i++) {
-                                Type type = stack_type_pop(&state->stack);
-                                if (!is_register_sized(&type)) {
-                                    print_error_stub(&invoke->location);
-                                    printf("Type '");
-                                    print_type_inline(&type);
-                                    printf("' cannot be passed to a syscall\n");
-                                    exit(1);
-                                }
-                            }
-
-                            stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "@syscall5") == 0) {
-                            size_t count = 6;
-                            if (state->stack.count < count) {
-                                print_error_stub(&invoke->location);
-                                printf("Ran out of values for %s, needed %zu\n", name, count);
-                                exit(1);
-                            }
-
-                            for (size_t i = 0; i < count; i++) {
-                                Type type = stack_type_pop(&state->stack);
-                                if (!is_register_sized(&type)) {
-                                    print_error_stub(&invoke->location);
-                                    printf("Type '");
-                                    print_type_inline(&type);
-                                    printf("' cannot be passed to a syscall\n");
-                                    exit(1);
-                                }
-                            }
-
-                            stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "@syscall4") == 0) {
-                            size_t count = 5;
-                            if (state->stack.count < count) {
-                                print_error_stub(&invoke->location);
-                                printf("Ran out of values for %s, needed %zu\n", name, count);
-                                exit(1);
-                            }
-
-                            for (size_t i = 0; i < count; i++) {
-                                Type type = stack_type_pop(&state->stack);
-                                if (!is_register_sized(&type)) {
-                                    print_error_stub(&invoke->location);
-                                    printf("Type '");
-                                    print_type_inline(&type);
-                                    printf("' cannot be passed to a syscall\n");
-                                    exit(1);
-                                }
-                            }
-
-                            stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "@syscall3") == 0) {
-                            size_t count = 4;
-                            if (state->stack.count < count) {
-                                print_error_stub(&invoke->location);
-                                printf("Ran out of values for %s, needed %zu\n", name, count);
-                                exit(1);
-                            }
-
-                            for (size_t i = 0; i < count; i++) {
-                                Type type = stack_type_pop(&state->stack);
-                                if (!is_register_sized(&type)) {
-                                    print_error_stub(&invoke->location);
-                                    printf("Type '");
-                                    print_type_inline(&type);
-                                    printf("' cannot be passed to a syscall\n");
-                                    exit(1);
-                                }
-                            }
-
-                            stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "@syscall2") == 0) {
-                            size_t count = 3;
-                            if (state->stack.count < count) {
-                                print_error_stub(&invoke->location);
-                                printf("Ran out of values for %s, needed %zu\n", name, count);
-                                exit(1);
-                            }
-
-                            for (size_t i = 0; i < count; i++) {
-                                Type type = stack_type_pop(&state->stack);
-                                if (!is_register_sized(&type)) {
-                                    print_error_stub(&invoke->location);
-                                    printf("Type '");
-                                    print_type_inline(&type);
-                                    printf("' cannot be passed to a syscall\n");
-                                    exit(1);
-                                }
-                            }
-
-                            stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "@syscall1") == 0) {
-                            size_t count = 2;
-                            if (state->stack.count < count) {
-                                print_error_stub(&invoke->location);
-                                printf("Ran out of values for %s, needed %zu\n", name, count);
-                                exit(1);
-                            }
-
-                            for (size_t i = 0; i < count; i++) {
-                                Type type = stack_type_pop(&state->stack);
-                                if (!is_register_sized(&type)) {
-                                    print_error_stub(&invoke->location);
-                                    printf("Type '");
-                                    print_type_inline(&type);
-                                    printf("' cannot be passed to a syscall\n");
-                                    exit(1);
-                                }
-                            }
-
-                            stack_type_push(&state->stack, (Type) { .kind = Type_RegisterSize, .data = {} });
-                        } else if (strcmp(name, "@syscall0") == 0) {
-                            size_t count = 1;
                             if (state->stack.count < count) {
                                 print_error_stub(&invoke->location);
                                 printf("Ran out of values for %s, needed %zu\n", name, count);
