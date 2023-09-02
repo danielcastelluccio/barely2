@@ -52,7 +52,10 @@ def run(compiler, directory):
     print(" - " + str(tests_passed) + "/" + str(tests_count) + " tests passed")
 
 args = sys.argv
-assert(len(args) == 4)
+if len(args) < 4:
+    print("Usage: test.py [compiler] [test_directory] [command]")
+    exit(1)
+
 compiler = args[1]
 directory = args[2]
 command = args[3]

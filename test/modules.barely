@@ -2,7 +2,7 @@
 
 mod A : {
     proc baz : () {
-        @syscall3(1, 1, "abcdefgh", 4);
+        var _: usize = @syscall3(1, 1, "abcdefgh", 4);
     };
 };
 

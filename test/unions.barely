@@ -1,8 +1,8 @@
 //@out: abcdeabcde
 
 type A : union {
-    a: usize;
-    b: usize;
+    a: usize,
+    b: usize
 };
 
 proc main : () {
@@ -10,6 +10,6 @@ proc main : () {
     a.a = 4;
     a.b = 5;
 
-    @syscall3(1, 1, "abcdefh", a.a);
-    @syscall3(1, 1, "abcdefh", a.b);
+    var _: usize = @syscall3(1, 1, "abcdefh", a.a);
+    var _: usize = @syscall3(1, 1, "abcdefh", a.b);
 };

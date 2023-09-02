@@ -4,5 +4,5 @@ global a : usize;
 
 proc main : () {
     a = 4;
-    @syscall3(1, 1, "abcdefgh", a);
+    var _: usize = @syscall3(1, 1, "abcdefgh", a);
 };

@@ -1,16 +1,16 @@
 //@out: a
 
 type A : enum {
-    A;
-    B;
+    A,
+    B
 };
 
 proc main : () {
     var a: A = A::A;
     if a == A::A {
-        @syscall3(1, 1, "a", 1);
+        var _: usize = @syscall3(1, 1, "a", 1);
     };
     if a == A::B {
-        @syscall3(1, 1, "a", 1);
+        var _: usize = @syscall3(1, 1, "a", 1);
     };
 };

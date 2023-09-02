@@ -227,7 +227,6 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                     result.size = item_size;
                     break;
                 }
-                result.location += item_size;
             }
             break;
         }
