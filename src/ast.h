@@ -390,6 +390,10 @@ typedef struct {
 } Global_Node;
 
 typedef struct {
+    Number_Node expression;
+} Constant_Node;
+
+typedef struct {
     char* package;
     char* path;
 } Use_Node;
@@ -402,6 +406,7 @@ struct Item_Node {
         Item_Type,
         Item_Module,
         Item_Global,
+        Item_Constant,
         Item_Use,
     } kind;
     union {
@@ -409,6 +414,7 @@ struct Item_Node {
         Type_Node type;
         Module_Node module;
         Global_Node global;
+        Constant_Node constant;
         Use_Node use;
     } data;
 };

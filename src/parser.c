@@ -592,7 +592,7 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
             break;
         }
         case Token_Number: {
-            Number_Node node;
+            Number_Node node = {};
 
             char* string_value = consume_number(state, &index);
 
@@ -1092,6 +1092,21 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
 
         result.kind = Item_Global;
         result.data.global = node;
+    } else if (strcmp(keyword, "const") == 0) {
+        Constant_Node node;
+
+        result.name = consume_identifier(state, &index);
+        consume_check(state, &index, Token_Colon);
+
+        Expression_Node expression = parse_expression(state, &index);
+        assert(expression.kind == Expression_Number);
+
+        node.expression = expression.data.number;
+
+        consume_check(state, &index, Token_Semicolon);
+
+        result.kind = Item_Constant;
+        result.data.constant = node;
     } else if (strcmp(keyword, "use") == 0) {
         Use_Node node = {};
 

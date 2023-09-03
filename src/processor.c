@@ -1422,6 +1422,17 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                                 }
                                 break;
                             }
+                            case Item_Constant: {
+                                Type* wanted_type = state->wanted_type;
+                                if (wanted_type == NULL || !is_number_type(wanted_type)) {
+                                    wanted_type = usize_type();
+                                }
+
+                                retrieve->computed_result_type = *wanted_type;
+
+                                stack_type_push(&state->stack, *wanted_type);
+                                break;
+                            }
                             default:
                                 assert(false);
                         }
@@ -1660,11 +1671,12 @@ void process_item(Item_Node* item, Process_State* state) {
             break;
         case Item_Global:
             break;
+        case Item_Constant:
+            break;
         case Item_Use:
             break;
         default:
-            printf("Unhandled item type!\n");
-            exit(1);
+            assert(false);
     }
 }
 

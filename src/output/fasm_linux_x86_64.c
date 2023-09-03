@@ -1342,23 +1342,6 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 }
             }
 
-            //if (!found) {
-            //    if (retrieve->kind == Retrieve_Assign_Identifier) {
-            //        if (retrieve->data.identifier.kind == Identifier_Multi && strcmp(retrieve->data.identifier.data.multi.elements[0], "") == 0) {
-            //            char* enum_variant = retrieve->data.identifier.data.multi.elements[1];
-
-            //            Enum_Type* enum_type = &retrieve->computed_result_type.data.enum_;
-            //            for (size_t i = 0; i < enum_type->items.count; i++) {
-            //                if (strcmp(enum_variant, enum_type->items.elements[i]) == 0) {
-            //                    //retrieve->computed_result_type = *state->wanted_type;
-            //                    //stack_type_push(&state->stack, *state->wanted_type);
-            //                    //found = true;
-            //                }
-            //            }
-            //        }
-            //    }
-            //}
-
             if (!found) {
                 Resolved resolved = resolve(&state->generic, retrieve->data.identifier);
                 switch (resolved.kind) {
@@ -1453,9 +1436,16 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 }
                                 break;
                             }
+                            case Item_Constant: {
+                                Constant_Node* constant = &item->data.constant;
+                                Number_Node number = constant->expression;
+                                number.type = &retrieve->computed_result_type;
+                                Expression_Node expression_temp = { .kind = Expression_Number, .data = { .number = number } };
+                                output_expression_fasm_linux_x86_64(&expression_temp, state);
+                                break;
+                            }
                             default:
-                                printf("Unhandled item retrieve!\n");
-                                exit(1);
+                                assert(false);
                         }
                         break;
                     }
@@ -1565,6 +1555,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         }
         case Expression_Number: {
             Number_Node* number = &expression->data.number;
+
+            assert(number->type != NULL);
             Internal_Type type = number->type->data.internal;
             if (type == Type_F8) {
                 double value;
@@ -1804,13 +1796,14 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             }
             break;
         }
+        case Item_Constant:
+            break;
         case Item_Type:
             break;
         case Item_Use:
             break;
         default:
-            printf("Unhandled item type!\n");
-            exit(1);
+            assert(false);
     }
 }
 
