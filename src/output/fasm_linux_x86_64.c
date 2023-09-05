@@ -1559,19 +1559,21 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             assert(number->type != NULL);
             Internal_Type type = number->type->data.internal;
             if (type == Type_F8) {
-                double value;
+                union { double d; size_t s; } value;
                 switch (number->kind) {
                     case Number_Integer:
-                        value = (double) number->value.integer;
+                        value.s = (double) number->value.integer;
                         break;
                     case Number_Decimal:
-                        value = number->value.decimal;
+                        value.d = number->value.decimal;
                         break;
+                    default:
+                        assert(false);
                 }
 
                 stringbuffer_appendstring(&state->instructions, "  sub rsp, 8\n");
                 char buffer[128] = {};
-                sprintf(buffer, "  mov rax, %zu\n", *(size_t*) &value);
+                sprintf(buffer, "  mov rax, %zu\n", value.s);
                 stringbuffer_appendstring(&state->instructions, buffer);
                 stringbuffer_appendstring(&state->instructions, "  mov [rsp], rax\n");
             } else {
@@ -1583,6 +1585,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Number_Decimal:
                         value = (size_t) number->value.decimal;
                         break;
+                    default:
+                        assert(false);
                 }
                 output_unsigned_integer(type, value, state);
             }

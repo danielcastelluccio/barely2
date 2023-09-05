@@ -981,8 +981,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         char* name = consume_identifier(state, &index);
         result.name = name;
 
-        consume_check(state, &index, Token_Colon);
-
         Procedure_Node node;
         switch (consume(state, &index)) {
             case Token_LeftParenthesis: {
@@ -1065,7 +1063,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         module_id++;
         
         result.name = consume_identifier(state, &index);
-        consume_check(state, &index, Token_Colon);
         consume_check(state, &index, Token_LeftCurlyBrace);
 
         while (peek(state, index) != Token_RightCurlyBrace) {

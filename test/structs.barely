@@ -5,7 +5,7 @@ type A : struct {
     b: usize
 };
 
-proc main : () {
+proc main() {
     var a: A;
     a.a = 4;
     a.b = 5;

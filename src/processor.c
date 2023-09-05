@@ -45,7 +45,7 @@ bool is_number_type(Type* type) {
 bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
     char* checked_path = checked->path;
     size_t checked_path_len = strlen(checked_path);
-    size_t last_slash;
+    size_t last_slash = 0;
     for (size_t i = 0; i < checked_path_len; i++) {
         if (checked_path[i] == '/') {
             last_slash = i;
@@ -88,7 +88,7 @@ bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
 }
 
 Resolved resolve(Generic_State* state, Identifier data) {
-    Identifier initial_search;
+    Identifier initial_search = {};
     if (data.kind == Identifier_Single) {
         initial_search = data;
     } else if (data.kind == Identifier_Multi) {

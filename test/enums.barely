@@ -5,7 +5,7 @@ type A : enum {
     B
 };
 
-proc main : () {
+proc main() {
     var a: A = A::A;
     if a == A::A {
         var _: usize = @syscall3(1, 1, "a", 1);

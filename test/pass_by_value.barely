@@ -5,7 +5,7 @@ type A : struct {
     b: usize
 };
 
-proc main : () {
+proc main() {
     var a: A;
     a.a = 4;
     a.b = 5;
@@ -13,7 +13,7 @@ proc main : () {
     c(a);
 };
 
-proc c : (a: A) {
+proc c(a: A) {
     var b: A = a;
 
     var _: usize = @syscall3(1, 1, "abcdefh", b.a);
