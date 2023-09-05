@@ -1310,34 +1310,41 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     }
 
                     if (found) {
-                        char buffer[128] = {};
-                        sprintf(buffer, "  sub rsp, %zu\n", size);
-                        stringbuffer_appendstring(&state->instructions, buffer);
-                            
-                        size_t i = 0;
-                        while (i < size) {
-                            if (size - i >= 8) {
-                                char buffer[128] = {};
-                                sprintf(buffer, "  mov rax, [rbp+%zu]\n", location + i + 8);
-                                stringbuffer_appendstring(&state->instructions, buffer);
+                        if (consume_in_reference_output(state)) {
+                            char buffer[128] = {};
+                            sprintf(buffer, "  lea rax, [rbp+%zu]\n", location + 8);
+                            stringbuffer_appendstring(&state->instructions, buffer);
+                            stringbuffer_appendstring(&state->instructions, "  push rax\n");
+                        } else {
+                            char buffer[128] = {};
+                            sprintf(buffer, "  sub rsp, %zu\n", size);
+                            stringbuffer_appendstring(&state->instructions, buffer);
 
-                                memset(buffer, 0, 128);
+                            size_t i = 0;
+                            while (i < size) {
+                                if (size - i >= 8) {
+                                    char buffer[128] = {};
+                                    sprintf(buffer, "  mov rax, [rbp+%zu]\n", location + i + 8);
+                                    stringbuffer_appendstring(&state->instructions, buffer);
 
-                                sprintf(buffer, "  mov [rsp+%zu], rax\n", i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
+                                    memset(buffer, 0, 128);
 
-                                i += 8;
-                            } else if (size - i >= 1) {
-                                char buffer[128] = {};
-                                sprintf(buffer, "  mov al, [rbp+%zu]\n", location + i + 8);
-                                stringbuffer_appendstring(&state->instructions, buffer);
+                                    sprintf(buffer, "  mov [rsp+%zu], rax\n", i);
+                                    stringbuffer_appendstring(&state->instructions, buffer);
 
-                                memset(buffer, 0, 128);
+                                    i += 8;
+                                } else if (size - i >= 1) {
+                                    char buffer[128] = {};
+                                    sprintf(buffer, "  mov al, [rbp+%zu]\n", location + i + 8);
+                                    stringbuffer_appendstring(&state->instructions, buffer);
 
-                                sprintf(buffer, "  mov [rsp+%zu], al\n", i);
-                                stringbuffer_appendstring(&state->instructions, buffer);
+                                    memset(buffer, 0, 128);
 
-                                i += 1;
+                                    sprintf(buffer, "  mov [rsp+%zu], al\n", i);
+                                    stringbuffer_appendstring(&state->instructions, buffer);
+
+                                    i += 1;
+                                }
                             }
                         }
                     }
