@@ -376,6 +376,9 @@ void print_type_inline(Type* type) {
                 case Type_Ptr:
                     printf("ptr");
                     break;
+                case Type_Bool:
+                    printf("bool");
+                    break;
             }
             break;
         }
@@ -1252,7 +1255,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                     invoke->data.operator_.computed_operand_type = first;
 
-                    stack_type_push(&state->stack, create_basic_single_type("bool"));
+                    stack_type_push(&state->stack, create_internal_type(Type_Bool));
                 }
             }
             break;
@@ -1489,7 +1492,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             Type given = stack_type_pop(&state->stack);
-            Type bool_type = create_basic_single_type("bool");
+            Type bool_type = create_internal_type(Type_Bool);
             if (!is_type(&bool_type, &given)) {
                 print_error_stub(&node->location);
                 printf("Type '");
@@ -1516,7 +1519,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             }
 
             Type given = stack_type_pop(&state->stack);
-            Type bool_type = create_basic_single_type("bool");
+            Type bool_type = create_internal_type(Type_Bool);
             if (!is_type(&bool_type, &given)) {
                 print_error_stub(&node->location);
                 printf("Type '");
@@ -1544,7 +1547,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             break;
         }
         case Expression_Boolean: {
-            stack_type_push(&state->stack, create_basic_single_type("bool"));
+            stack_type_push(&state->stack, create_internal_type(Type_Bool));
             break;
         }
         case Expression_String: {

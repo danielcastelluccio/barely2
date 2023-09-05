@@ -82,6 +82,8 @@ size_t get_size(Type* type, Output_State* state) {
                     return 2;
                 case Type_U1:
                     return 1;
+                case Type_Bool:
+                    return 1;
             }
             break;
         }

@@ -371,6 +371,9 @@ Type parse_type(Parser_State* state, size_t* index_in) {
             } else if (strcmp(name, "ptr") == 0) {
                 internal = Type_Ptr;
                 found = true;
+            } else if (strcmp(name, "bool") == 0) {
+                internal = Type_Bool;
+                found = true;
             }
 
             if (found) {

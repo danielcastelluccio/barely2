@@ -55,6 +55,7 @@ typedef enum {
     Type_U1,
     Type_F8,
     Type_Ptr,
+    Type_Bool,
 } Internal_Type;
 
 typedef struct {
