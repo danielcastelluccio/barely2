@@ -753,7 +753,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_Modulus: {
                         Type operator_type = invoke->data.operator_.computed_operand_type;
 
-                        if (is_internal_type(Type_U8, &operator_type) || is_internal_type(Type_USize, &operator_type)) {
+                        if (is_internal_type(Type_U8, &operator_type) || is_internal_type(Type_USize, &operator_type)|| is_internal_type(Type_Ptr, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
                             stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                             switch (invoke->data.operator_.operator_) {
@@ -1075,6 +1075,19 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             assert(false);
                         }
                         
+                        break;
+                    }
+                    case Operator_Not: {
+                        stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
+                        stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
+                        stringbuffer_appendstring(&state->instructions, "  xor rbx, rbx\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
+                        stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
+                        stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+                        stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
+                        stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
                         break;
                     }
                 }

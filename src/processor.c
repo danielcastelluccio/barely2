@@ -1066,7 +1066,7 @@ bool can_operate_together(Type* first, Type* second) {
         return true;
     }
 
-    if (first->kind == Type_Internal && first->data.internal == Type_USize && second->kind == Type_Internal && second->data.internal == Type_Ptr) {
+    if (first->kind == Type_Internal && first->data.internal == Type_Ptr && second->kind == Type_Internal && second->data.internal == Type_USize) {
         return true;
     }
 
@@ -1210,6 +1210,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     state->wanted_type = wanted_allocated;
 
                     process_expression(invoke->arguments.elements[reversed ? 0 : 1], state);
+                } else if (operator == Operator_Not) {
+                    process_expression(invoke->arguments.elements[0], state);
+                } else {
+                    assert(false);
                 }
 
                 if (operator == Operator_Add ||
@@ -1217,8 +1221,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         operator == Operator_Multiply ||
                         operator == Operator_Divide ||
                         operator == Operator_Modulus) {
-                    Type first = stack_type_pop(&state->stack);
                     Type second = stack_type_pop(&state->stack);
+                    Type first = stack_type_pop(&state->stack);
 
                     if (!can_operate_together(&first, &second)) {
                         print_error_stub(&invoke->location);
@@ -1232,9 +1236,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                     invoke->data.operator_.computed_operand_type = first;
                     stack_type_push(&state->stack, first);
-                }
-
-                if (operator == Operator_Equal ||
+                } else if (operator == Operator_Equal ||
                         operator == Operator_NotEqual ||
                         operator == Operator_Greater ||
                         operator == Operator_GreaterEqual ||
@@ -1256,6 +1258,21 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     invoke->data.operator_.computed_operand_type = first;
 
                     stack_type_push(&state->stack, create_internal_type(Type_Bool));
+                } else if (operator == Operator_Not) {
+                    Type input = stack_type_pop(&state->stack);
+
+                    Type bool_type = create_internal_type(Type_Bool);
+                    if (!is_type(&bool_type, &input)) {
+                        print_error_stub(&invoke->location);
+                        printf("Type '");
+                        print_type_inline(&input);
+                        printf("' is not a boolean\n");
+                        exit(1);
+                    }
+
+                    stack_type_push(&state->stack, create_internal_type(Type_Bool));
+                } else {
+                    assert(false);
                 }
             }
             break;

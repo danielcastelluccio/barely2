@@ -202,6 +202,7 @@ typedef enum {
     Operator_GreaterEqual,
     Operator_Less,
     Operator_LessEqual,
+    Operator_Not,
 } Operator;
 
 typedef struct {

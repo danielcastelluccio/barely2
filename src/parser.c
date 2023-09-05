@@ -730,6 +730,23 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
             result.data.retrieve = node;
             break;
         }
+        case Token_Exclamation: {
+            Invoke_Node node = { .arguments = array_expression_node_new(1) };
+            node.kind = Invoke_Operator;
+            node.location = state->tokens->elements[index].location;
+
+            node.data.operator_.operator_ = Operator_Not;
+
+            consume(state, &index);
+
+            Expression_Node* expression = malloc(sizeof(Expression_Node));
+            *expression = parse_expression(state, &index);
+            array_expression_node_append(&node.arguments, expression);
+
+            result.kind = Expression_Invoke;
+            result.data.invoke = node;
+            break;
+        }
         case Token_Keyword: {
             char* name = consume_keyword(state, &index);
 
