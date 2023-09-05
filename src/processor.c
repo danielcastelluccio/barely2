@@ -957,18 +957,25 @@ void process_type_expression(Type* type, Process_State* state) {
 
 Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in) {
     Type result = type_in;
-    if (has_directive(&result.directives, Directive_Generic)) {
-        Directive_Node* directive = get_directive(&result.directives, Directive_Generic);
-        Directive_Generic_Node generic = { .types = array_type_new(1) };
+    result.directives = array_directive_new(type_in.directives.count);
+    for (size_t i = 0; i < type_in.directives.count; i++) {
+        Directive_Node* directive = &type_in.directives.elements[i];
+        Directive_Node directive_new = *directive;
 
-        for (size_t i = 0; i < directive->data.generic.types.count; i++) {
-            Type* type = malloc(sizeof(Type));
-            *type = apply_generics(parameters, inputs, *directive->data.generic.types.elements[i]);
-            array_type_append(&generic.types, type);
+        if (directive->kind == Directive_Generic) {
+            Directive_Generic_Node generic = { .types = array_type_new(1) };
+
+            for (size_t i = 0; i < directive->data.generic.types.count; i++) {
+                Type* type = malloc(sizeof(Type));
+                *type = apply_generics(parameters, inputs, *directive->data.generic.types.elements[i]);
+                array_type_append(&generic.types, type);
+            }
+
+            directive_new.kind = Directive_Generic;
+            directive_new.data.generic = generic;
         }
 
-        directive->kind = Directive_Generic;
-        directive->data.generic = generic;
+        array_directive_append(&result.directives, directive_new);
     }
 
     switch (type_in.kind) {

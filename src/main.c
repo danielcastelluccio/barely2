@@ -50,5 +50,5 @@ int main(int argc, char** argv) {
     }
 
     process(&program, &package_names, &package_paths);
-    output_fasm_linux_x86_64(&program, "output.asm", &package_names, &package_paths);
+    output_fasm_linux_x86_64(&program, "output", &package_names, &package_paths);
 }

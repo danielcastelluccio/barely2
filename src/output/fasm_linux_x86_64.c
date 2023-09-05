@@ -1843,7 +1843,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         }
     }
 
-    FILE* file = fopen(output_file, "w");
+    FILE* file = fopen("temp.fasm", "w");
 
     fprintf(file, "format ELF64 executable\n");
     fprintf(file, "segment readable executable\n");
@@ -1867,7 +1867,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
     int result = fork();
     if (result == 0) {
         close(1);
-        char* args[] = {"fasm", "output.asm", NULL};
+        char* args[] = {"fasm", "temp.fasm", output_file, NULL};
         char* env[] = {NULL};
 
         execve("/bin/fasm", args, env);
@@ -1875,4 +1875,6 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
     }
 
     waitpid(result, NULL, 0);
+
+    remove("temp.fasm");
 }
