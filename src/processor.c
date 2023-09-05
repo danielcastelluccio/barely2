@@ -1763,6 +1763,13 @@ void process_generics_expression(Expression_Node* expression, Generic_State* sta
             }
             break;
         }
+        case Expression_If: {
+            If_Node* if_ = &expression->data.if_;
+            process_generics_expression(if_->if_expression, state, current_procedure_generics, current_procedure_values);
+            if (if_->else_expression != NULL) {
+                process_generics_expression(if_->else_expression, state, current_procedure_generics, current_procedure_values);
+            }
+        }
         default:
             break;
     }
@@ -1789,7 +1796,7 @@ void process_generics(Generic_State* state) {
 
         for (size_t i = 0; i < file_node->items.count; i++) {
             Item_Node* item = &file_node->items.elements[i];
-            if (item->kind == Item_Procedure) {
+            if (item->kind == Item_Procedure && !has_directive(&item->directives, Directive_IsGeneric)) {
                 process_generics_procedure(item, state, NULL);
             }
         }

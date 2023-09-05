@@ -1362,7 +1362,13 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                         Array_Type* implementation = &isgeneric->implementations.elements[i];
                                         bool matches = true;
                                         for (size_t j = 0; j < implementation->count; j++) {
-                                            if (!is_type(generic->types.elements[j], implementation->elements[j])) {
+                                            Type* generic_type = generic->types.elements[j];
+                                            Type applied_generic_type = *generic_type;
+                                            if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
+                                                applied_generic_type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic_type);
+                                            }
+
+                                            if (!is_type(&applied_generic_type, implementation->elements[j])) {
                                                 matches = false;
                                             }
                                         }
