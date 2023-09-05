@@ -606,18 +606,9 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
             }
 
-            stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
-
-
-            if ((int) returns_size - (int) arguments_size + 16 < 0) {
-                char buffer[128];
-                sprintf(buffer, "  sub rsp, %zu\n", -(returns_size - arguments_size + 16));
-                stringbuffer_appendstring(&state->instructions, buffer);
-            } else if ((int) returns_size - (int) arguments_size + 16 > 0) {
-                char buffer[128];
-                sprintf(buffer, "  add rsp, %zu\n", arguments_size - returns_size + 16);
-                stringbuffer_appendstring(&state->instructions, buffer);
-            }
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  add rsp, %zu\n", 16 + arguments_size + locals_size);
+            stringbuffer_appendstring(&state->instructions, buffer);
 
             stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
             stringbuffer_appendstring(&state->instructions, "  push rdx\n");
