@@ -1416,7 +1416,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         found = true;
                         switch (item->kind) {
                             case Item_Procedure: {
-                                Procedure_Literal_Node* procedure = &item->data.procedure.data.literal;
+                                Procedure_Node* procedure = &item->data.procedure;
 
                                 Type type = { .directives = array_directive_new(1) };
                                 Procedure_Type procedure_type;
@@ -1679,11 +1679,11 @@ void process_item(Item_Node* item, Process_State* state) {
             state->current_procedure = item;
             Procedure_Node* procedure = &item->data.procedure;
             state->current_declares = array_declaration_new(4);
-            state->current_arguments = procedure->data.literal.arguments;
-            state->current_returns = procedure->data.literal.returns;
-            state->current_body = procedure->data.literal.body;
+            state->current_arguments = procedure->arguments;
+            state->current_returns = procedure->returns;
+            state->current_body = procedure->body;
 
-            process_expression(procedure->data.literal.body, state);
+            process_expression(procedure->body, state);
             break;
         }
         case Item_Module: {
@@ -1803,7 +1803,7 @@ void process_generics_procedure(Item_Node* item, Generic_State* state, Array_Typ
     if (has_directive(&item->directives, Directive_IsGeneric)) {
         isgeneric_types = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types;
     }
-    process_generics_expression(procedure->data.literal.body, state, isgeneric_types, generic_values);
+    process_generics_expression(procedure->body, state, isgeneric_types, generic_values);
 }
 
 void process_generics(Generic_State* state) {

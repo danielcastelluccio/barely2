@@ -21,12 +21,17 @@ int main(int argc, char** argv) {
                 char* name_path = argv[i + 1];
                 size_t colon_index = string_index(name_path, ':');
                 char* name = string_substring(name_path, 0, colon_index);
-                char* path = string_substring(name_path, colon_index + 1, strlen(name_path));
+                if (name_path[strlen(name_path) - 1] != '/') {
+                    printf("Package path must end in '/'\n");
+                    exit(1);
+                }
 
-                current_package_path = realpath(path, NULL);
+                char* path = string_substring(name_path, colon_index + 1, strlen(name_path) - 1);
+
+                current_package_path = path;
 
                 array_string_append(&package_names, name);
-                array_string_append(&package_paths, current_package_path);
+                array_string_append(&package_paths, path);
 
                 i += 2;
             }

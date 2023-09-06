@@ -5,6 +5,10 @@
 #include "parser.h"
 #include "tokenizer.h"
 
+void print_token_error_stub(Token* token) {
+    printf("%s:%zu:%zu: ", token->location.file, token->location.row, token->location.col);
+}
+
 Token_Kind peek(Parser_State* state, size_t index) {
     Token* current = &state->tokens->elements[index];
     return current->kind;
@@ -29,7 +33,8 @@ void consume_check(Parser_State* state, size_t* index, Token_Kind wanted_kind) {
             },
         };
 
-        printf("Error: Expected ");
+        print_token_error_stub(current);
+        printf("Expected ");
         print_token(&temp, false);
         printf(", got ");
         print_token(current, false);
@@ -78,7 +83,8 @@ char* consume_number(Parser_State* state, size_t* index) {
 char* consume_keyword(Parser_State* state, size_t* index) {
     Token* current = &state->tokens->elements[*index];
     if (current->kind != Token_Keyword) {
-        printf("Error: Expected Keyword, got ");
+        print_token_error_stub(current);
+        printf("Expected Keyword, got ");
         print_token(current, false);
         printf("\n");
         exit(1);
@@ -1002,63 +1008,47 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         result.name = name;
 
         Procedure_Node node;
-        switch (consume(state, &index)) {
-            case Token_LeftParenthesis: {
-                Procedure_Literal_Node literal_node;
+        consume_check(state, &index, Token_LeftParenthesis);
 
-                Array_Declaration arguments = array_declaration_new(4);
-                while (peek(state, index) != Token_RightParenthesis) {
-                    if (peek(state, index) == Token_Comma) {
-                        index += 1;
-                        continue;
-                    }
-
-                    Location location = state->tokens->elements[index].location;
-                    char* name = consume_identifier(state, &index);
-                    consume_check(state, &index, Token_Colon);
-                    Type type = parse_type(state, &index);
-                    array_declaration_append(&arguments, (Declaration) { name, type, location });
-                }
-                literal_node.arguments = arguments;
-                consume_check(state, &index, Token_RightParenthesis);
-
-                literal_node.returns = array_type_new(1);
-                if (peek(state, index) == Token_Colon) {
-                    consume(state, &index);
-
-                    bool running = true;
-                    while (running) {
-                        Type type = parse_type(state, &index);
-                        Type* type_allocated = malloc(sizeof(Type));
-                        *type_allocated = type;
-
-                        array_type_append(&literal_node.returns, type_allocated);
-                        running = false;
-                        if (peek(state, index) == Token_Comma) {
-                            running = true;
-                            consume(state, &index);
-                        }
-                    }
-                }
-
-                Expression_Node body = parse_expression(state, &index);
-                Expression_Node* body_allocated = malloc(sizeof(Expression_Node));
-                *body_allocated = body;
-                literal_node.body = body_allocated;
-
-                consume_check(state, &index, Token_Semicolon);
-
-                node.kind = Procedure_Literal;
-                node.data.literal = literal_node;
-                break;
+        Array_Declaration arguments = array_declaration_new(4);
+        while (peek(state, index) != Token_RightParenthesis) {
+            if (peek(state, index) == Token_Comma) {
+                index += 1;
+                continue;
             }
-            default:
-                printf("Error: Unexpected token ");
-                print_token(&state->tokens->elements[index - 1], false);
-                printf("\n");
-                exit(1);
-                break;
+
+            Location location = state->tokens->elements[index].location;
+            char* name = consume_identifier(state, &index);
+            consume_check(state, &index, Token_Colon);
+            Type type = parse_type(state, &index);
+            array_declaration_append(&arguments, (Declaration) { name, type, location });
         }
+        node.arguments = arguments;
+        consume_check(state, &index, Token_RightParenthesis);
+
+        node.returns = array_type_new(1);
+        if (peek(state, index) == Token_Colon) {
+            consume(state, &index);
+
+            bool running = true;
+            while (running) {
+                Type type = parse_type(state, &index);
+                Type* type_allocated = malloc(sizeof(Type));
+                *type_allocated = type;
+
+                array_type_append(&node.returns, type_allocated);
+                running = false;
+                if (peek(state, index) == Token_Comma) {
+                    running = true;
+                    consume(state, &index);
+                }
+            }
+        }
+
+        Expression_Node body = parse_expression(state, &index);
+        Expression_Node* body_allocated = malloc(sizeof(Expression_Node));
+        *body_allocated = body;
+        node.body = body_allocated;
 
         result.kind = Item_Procedure;
         result.data.procedure = node;
@@ -1071,8 +1061,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         consume_check(state, &index, Token_Colon);
 
         node.type = parse_type(state, &index);
-
-        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Type;
         result.data.type = node;
@@ -1093,7 +1081,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         }
 
         consume(state, &index);
-        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Module;
         result.data.module = node;
@@ -1104,8 +1091,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         consume_check(state, &index, Token_Colon);
 
         node.type = parse_type(state, &index);
-
-        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Global;
         result.data.global = node;
@@ -1119,8 +1104,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         assert(expression.kind == Expression_Number);
 
         node.expression = expression.data.number;
-
-        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Constant;
         result.data.constant = node;
@@ -1137,8 +1120,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         }
 
         result.name = "";
-
-        consume_check(state, &index, Token_Semicolon);
 
         result.kind = Item_Use;
         result.data.use = node;

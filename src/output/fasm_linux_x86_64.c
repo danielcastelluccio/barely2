@@ -554,8 +554,8 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
             Statement_Return_Node* return_ = &statement->data.return_;
             output_expression_fasm_linux_x86_64(return_->expression, state);
 
-            Array_Declaration* current_arguments = &state->current_procedure->data.procedure.data.literal.arguments;
-            Array_Type* current_returns = &state->current_procedure->data.procedure.data.literal.returns;
+            Array_Declaration* current_arguments = &state->current_procedure->data.procedure.arguments;
+            Array_Type* current_returns = &state->current_procedure->data.procedure.returns;
 
             size_t arguments_size = 0;
             for (size_t i = 0; i < current_arguments->count; i++) {
@@ -567,7 +567,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 returns_size += get_size(current_returns->elements[i], state);
             }
 
-            size_t locals_size = 8 + collect_expression_locals_size(state->current_procedure->data.procedure.data.literal.body, state);
+            size_t locals_size = 8 + collect_expression_locals_size(state->current_procedure->data.procedure.body, state);
 
             // rdx = old rip
             char buffer[128] = {};
@@ -1298,7 +1298,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Identifier) {
-                    Array_Declaration* current_arguments = &state->current_procedure->data.procedure.data.literal.arguments;
+                    Array_Declaration* current_arguments = &state->current_procedure->data.procedure.arguments;
 
                     size_t location = 8;
                     size_t size = 0;
@@ -1751,17 +1751,17 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
                     stringbuffer_appendstring(&state->instructions, "  push rbp\n");
                     stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
 
-                    size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
+                    size_t locals_size = 8 + collect_expression_locals_size(procedure->body, state);
 
                     memset(buffer, 0, 128);
                     sprintf(buffer, "  sub rsp, %zu\n", locals_size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
-                    output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
+                    output_expression_fasm_linux_x86_64(procedure->body, state);
 
                     size_t arguments_size = 0;
-                    for (size_t i = 0; i < procedure->data.literal.arguments.count; i++) {
-                        arguments_size += get_size(&procedure->data.literal.arguments.elements[i].type, state);
+                    for (size_t i = 0; i < procedure->arguments.count; i++) {
+                        arguments_size += get_size(&procedure->arguments.elements[i].type, state);
                     }
 
                     stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
@@ -1792,13 +1792,13 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
                 stringbuffer_appendstring(&state->instructions, "  push rbp\n");
                 stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
 
-                size_t locals_size = 8 + collect_expression_locals_size(procedure->data.literal.body, state);
+                size_t locals_size = 8 + collect_expression_locals_size(procedure->body, state);
 
                 char buffer[128] = {};
                 sprintf(buffer, "  sub rsp, %zu\n", locals_size);
                 stringbuffer_appendstring(&state->instructions, buffer);
 
-                output_expression_fasm_linux_x86_64(procedure->data.literal.body, state);
+                output_expression_fasm_linux_x86_64(procedure->body, state);
 
                 stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
                 stringbuffer_appendstring(&state->instructions, "  pop rbp\n");

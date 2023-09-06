@@ -362,15 +362,6 @@ typedef struct {
     Array_Declaration arguments;
     Array_Type returns;
     Expression_Node* body;
-} Procedure_Literal_Node;
-
-typedef struct {
-    enum {
-        Procedure_Literal,
-    } kind;
-    union {
-        Procedure_Literal_Node literal;
-    } data;
 } Procedure_Node;
 
 typedef struct {

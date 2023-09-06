@@ -43,7 +43,6 @@ bool is_keyword(char* buffer) {
 }
 
 void print_token(Token* token, bool newline) {
-    printf("%s:%zu:%zu: ", token->location.file, token->location.row, token->location.col);
     switch (token->kind) {
         case Token_LeftParenthesis:
             printf("LeftParenthesis");
