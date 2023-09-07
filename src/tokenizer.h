@@ -34,6 +34,8 @@ typedef enum {
     Token_RightCurlyBrace,
     Token_LeftBracket,
     Token_RightBracket,
+    Token_QuestionMark,
+    Token_DoubleQuestionMark,
     Token_NewLine,
     Token_Space,
     Token_Identifier,

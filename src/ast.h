@@ -102,6 +102,10 @@ typedef struct {
 } Enum_Type;
 
 typedef struct {
+    Type* child;
+} Optional_Type;
+
+typedef struct {
     size_t value;
 } Number_Type;
 
@@ -122,6 +126,7 @@ struct Type {
         Type_Struct,
         Type_Union,
         Type_Enum,
+        Type_Optional,
         Type_Number,
         Type_TypeOf,
         Type_RegisterSize,
@@ -135,6 +140,7 @@ struct Type {
         Struct_Type struct_;
         Union_Type union_;
         Enum_Type enum_;
+        Optional_Type optional;
         Number_Type number;
         TypeOf_Type type_of;
     } data;
@@ -274,6 +280,12 @@ typedef struct {
 
 typedef struct {
     Type type;
+    Array_Expression_Node arguments;
+    Location location;
+} Init_Node;
+
+typedef struct {
+    Type type;
     Type computed_result_type;
     Location location;
 } SizeOf_Node;
@@ -298,6 +310,7 @@ struct Expression_Node {
         Expression_Reference,
         Expression_Boolean,
         Expression_Cast,
+        Expression_Init,
         Expression_SizeOf,
         Expression_LengthOf,
     } kind;
@@ -313,6 +326,7 @@ struct Expression_Node {
         Reference_Node reference;
         Boolean_Node boolean;
         Cast_Node cast;
+        Init_Node init;
         SizeOf_Node size_of;
         LengthOf_Node length_of;
     } data;

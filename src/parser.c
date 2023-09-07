@@ -96,7 +96,8 @@ char* consume_keyword(Parser_State* state, size_t* index) {
 char* consume_identifier(Parser_State* state, size_t* index) {
     Token* current = &state->tokens->elements[*index];
     if (current->kind != Token_Identifier) {
-        printf("Error: Expected Identifier, got ");
+        print_token_error_stub(current);
+        printf("Expected Identifier, got ");
         print_token(current, false);
         printf("\n");
         exit(1);
@@ -332,6 +333,18 @@ Type parse_type(Parser_State* state, size_t* index_in) {
 
         result.kind = Type_Number;
         result.data.number = number_type;
+    } else if (peek(state, index) == Token_QuestionMark) {
+        Optional_Type optional_type;
+
+        consume(state, &index);
+
+        Type* child = malloc(sizeof(Type));
+        *child = parse_type(state, &index);
+
+        optional_type.child = child;
+
+        result.kind = Type_Optional;
+        result.data.optional = optional_type;
     } else {
         char* name = consume_identifier(state, &index);
         Internal_Type internal;
@@ -495,7 +508,8 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
             consume_check(state, &index, Token_Semicolon);
         } else if (next == Token_Semicolon) {
         } else {
-            printf("Error: Unexpected token ");
+            print_token_error_stub(&state->tokens->elements[index - 1]);
+            printf("Unexpected token ");
             print_token(&state->tokens->elements[index - 1], false);
             printf("\n");
             exit(1);
@@ -562,7 +576,8 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
                 break;
             }
             default: {
-                printf("Error: Unexpected token ");
+                print_token_error_stub(&state->tokens->elements[index - 1]);
+                printf("Unexpected token ");
                 print_token(&state->tokens->elements[index - 1], false);
                 printf("\n");
                 exit(1);
@@ -685,6 +700,36 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                 result.kind = Expression_Cast;
                 result.data.cast = node;
                 break;
+            } else if (strcmp(name, "@init") == 0) {
+                Init_Node node;
+                node.location = location;
+
+                consume_check(state, &index, Token_LeftParenthesis);
+
+                Type type = parse_type(state, &index);
+                node.type = type;
+
+                Array_Expression_Node arguments = array_expression_node_new(32);
+
+                while (peek(state, index) != Token_RightParenthesis) {
+                    if (peek(state, index) == Token_Comma) {
+                        index++;
+                        continue;
+                    }
+
+                    Expression_Node* expression = malloc(sizeof(Expression_Node));
+                    *expression = parse_expression(state, &index);
+
+                    array_expression_node_append(&arguments, expression);
+                }
+
+                node.arguments = arguments;
+
+                consume_check(state, &index, Token_RightParenthesis);
+
+                result.kind = Expression_Init;
+                result.data.init = node;
+                break;
             } else {
                 filter_add_directive(state, &result.directives, Directive_Generic);
 
@@ -793,7 +838,8 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                 result.kind = Expression_While;
                 result.data.while_ = node;
             } else {
-                printf("Error: Unexpected token ");
+                print_token_error_stub(&state->tokens->elements[index - 1]);
+                printf("Unexpected token ");
                 print_token(&state->tokens->elements[index - 1], false);
                 printf("\n");
                 exit(1);
@@ -823,7 +869,8 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
             break;
         }
         default: {
-            printf("Error: Unexpected token ");
+            print_token_error_stub(&state->tokens->elements[index - 1]);
+            printf("Unexpected token ");
             print_token(&state->tokens->elements[index], false);
             printf("\n");
             exit(1);
@@ -847,6 +894,12 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
             if (peek(state, index) == Token_Asterisk) {
                 consume(state, &index);
                 node.data.parent.name = "*";
+            } else if (peek(state, index) == Token_QuestionMark) {
+                consume(state, &index);
+                node.data.parent.name = "?";
+            } else if (peek(state, index) == Token_DoubleQuestionMark) {
+                consume(state, &index);
+                node.data.parent.name = "??";
             } else {
                 node.data.parent.name = consume_identifier(state, &index);
             }
@@ -1124,7 +1177,8 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         result.kind = Item_Use;
         result.data.use = node;
     } else {
-        printf("Error: Unexpected token ");
+        print_token_error_stub(&state->tokens->elements[index - 1]);
+        printf("Unexpected token ");
         print_token(&state->tokens->elements[index - 1], false);
         printf("\n");
         exit(1);

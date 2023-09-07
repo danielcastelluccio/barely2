@@ -90,6 +90,10 @@ size_t get_size(Type* type, Output_State* state) {
         case Type_Pointer: {
             return 8;
         }
+        case Type_Optional: {
+            Optional_Type* optional = &type->data.optional;
+            return get_size(optional->child, state) + 1;
+        }
         case Type_Struct: {
             size_t size = 0;
             Struct_Type* struct_ = &type->data.struct_;
@@ -179,61 +183,76 @@ typedef struct {
 Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_name, Output_State* state) {
     Location_Size_Data result = {};
 
-    switch (parent_type->kind) {
-        case Type_Basic: {
-            Identifier identifier = basic_type_to_identifier(parent_type->data.basic);
-            Resolved resolved = resolve(&state->generic, identifier);
+    if (strcmp(item_name, "*") == 0) {
+        result.size = get_size(parent_type, state);
+    } else {
+        switch (parent_type->kind) {
+            case Type_Basic: {
+                Identifier identifier = basic_type_to_identifier(parent_type->data.basic);
+                Resolved resolved = resolve(&state->generic, identifier);
 
-            assert(resolved.kind == Resolved_Item);
+                assert(resolved.kind == Resolved_Item);
 
-            Item_Node* item = resolved.data.item;
-            assert(item->kind == Item_Type);
-            Type type = item->data.type.type;
+                Item_Node* item = resolved.data.item;
+                assert(item->kind == Item_Type);
+                Type type = item->data.type.type;
 
-            if (has_directive(&item->directives, Directive_IsGeneric)) {
-                Directive_Generic_Node* generic = &get_directive(&parent_type->directives, Directive_Generic)->data.generic;
-                Array_Type updated = array_type_new(1);
-                for (size_t i = 0; i< generic->types.count; i++) {
-                    Type* type = malloc(sizeof(Type));
-                    *type = *generic->types.elements[i];
-                    if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                        *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type);
+                if (has_directive(&item->directives, Directive_IsGeneric)) {
+                    Directive_Generic_Node* generic = &get_directive(&parent_type->directives, Directive_Generic)->data.generic;
+                    Array_Type updated = array_type_new(1);
+                    for (size_t i = 0; i< generic->types.count; i++) {
+                        Type* type = malloc(sizeof(Type));
+                        *type = *generic->types.elements[i];
+                        if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
+                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type);
+                        }
+                        array_type_append(&updated, type);
                     }
-                    array_type_append(&updated, type);
+
+                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type);
                 }
 
-                type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type);
+                return get_parent_item_location_size(&type, item_name, state);
             }
-
-            return get_parent_item_location_size(&type, item_name, state);
-        }
-        case Type_Struct: {
-            Struct_Type* struct_type = &parent_type->data.struct_;
-            for (size_t i = 0; i < struct_type->items.count; i++) {
-                Declaration* declaration = struct_type->items.elements[i];
-                size_t item_size = get_size(&declaration->type, state);
-                if (strcmp(declaration->name, item_name) == 0) {
-                    result.size = item_size;
-                    break;
+            case Type_Struct: {
+                Struct_Type* struct_type = &parent_type->data.struct_;
+                for (size_t i = 0; i < struct_type->items.count; i++) {
+                    Declaration* declaration = struct_type->items.elements[i];
+                    size_t item_size = get_size(&declaration->type, state);
+                    if (strcmp(declaration->name, item_name) == 0) {
+                        result.size = item_size;
+                        break;
+                    }
+                    result.location += item_size;
                 }
-                result.location += item_size;
+                break;
             }
-            break;
-        }
-        case Type_Union: {
-            Union_Type* union_type = &parent_type->data.union_;
-            for (size_t i = 0; i < union_type->items.count; i++) {
-                Declaration* declaration = union_type->items.elements[i];
-                size_t item_size = get_size(&declaration->type, state);
-                if (strcmp(declaration->name, item_name) == 0) {
-                    result.size = item_size;
-                    break;
+            case Type_Union: {
+                Union_Type* union_type = &parent_type->data.union_;
+                for (size_t i = 0; i < union_type->items.count; i++) {
+                    Declaration* declaration = union_type->items.elements[i];
+                    size_t item_size = get_size(&declaration->type, state);
+                    if (strcmp(declaration->name, item_name) == 0) {
+                        result.size = item_size;
+                        break;
+                    }
                 }
+                break;
             }
-            break;
+            case Type_Optional: {
+                if (strcmp(item_name, "?") == 0) {
+                    result.size = get_size(parent_type->data.optional.child, state);
+                } else if (strcmp(item_name, "??") == 0) {
+                    result.location = get_size(parent_type->data.optional.child, state);
+                    result.size = 1;
+                } else {
+                    assert(false);
+                }
+                break;
+            }
+            default:
+                assert(false);
         }
-        default:
-            assert(false);
     }
 
     return result;
@@ -389,17 +408,13 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     size_t location = 0;
                     size_t size = 0;
 
-                    if (strcmp(assign_part->data.parent.name, "*") == 0) {
-                        size = get_size(parent_type_raw, state);
-                    } else {
-                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, assign_part->data.parent.name, state);
-                        location = result.location;
-                        size = result.size;
-                    }
-
                     output_expression_fasm_linux_x86_64(assign_part->data.parent.expression, state);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
+
+                    Location_Size_Data result = get_parent_item_location_size(parent_type_raw, assign_part->data.parent.name, state);
+                    location = result.location;
+                    size = result.size;
                         
                     size_t i = 0;
                     while (i < size) {
@@ -644,6 +659,79 @@ void output_unsigned_integer(Internal_Type type, size_t value, Output_State* sta
         char buffer[128] = {};
         sprintf(buffer, "  mov byte [rsp], %zu\n", value);
         stringbuffer_appendstring(&state->instructions, buffer);
+    }
+}
+
+void output_boolean(bool value, Output_State* state) {
+    char buffer[128] = {};
+    sprintf(buffer, "  mov rax, %i\n", value);
+    stringbuffer_appendstring(&state->instructions, buffer);
+    stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+    stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
+}
+
+void output_zeroes(size_t count, Output_State* state) {
+    char buffer[128] = {};
+    sprintf(buffer, "  sub rsp, %zu\n", count);
+    stringbuffer_appendstring(&state->instructions, buffer);
+
+    size_t i = 0;
+    while (i < count) {
+        if (i + 8 < count) {
+            char buffer[128] = {};
+            sprintf(buffer, "  mov [rsp+%zu], qword 0\n", i);
+            stringbuffer_appendstring(&state->instructions, buffer);
+            i += 8;
+        } else {
+            char buffer[128] = {};
+            sprintf(buffer, "  mov [rsp+%zu], byte 0\n", i);
+            stringbuffer_appendstring(&state->instructions, buffer);
+            i++;
+        }
+    }
+}
+
+void output_init_type(Init_Node* init, Type* type, Output_State* state) {
+    switch (type->kind) {
+        case Type_Basic: {
+            Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
+            switch (resolved.kind) {
+                case Resolved_Item: {
+                    Item_Node* item = resolved.data.item;
+                    assert(item->kind == Item_Type);
+                    output_init_type(init, &item->data.type.type, state);
+                    break;
+                }
+                case Resolved_Enum_Variant: {
+                    assert(false);
+                }
+                case Unresolved:
+                    assert(false);
+            }
+            break;
+        }
+        case Type_Struct: {
+            Struct_Type* struct_ = &type->data.struct_;
+            if (init->arguments.count == 0) {
+                output_zeroes(get_size(type, state), state);
+            } else if (init->arguments.count == struct_->items.count) {
+                for (int i = init->arguments.count - 1; i >= 0; i--) {
+                    output_expression_fasm_linux_x86_64(init->arguments.elements[i], state);
+                }
+            }
+            break;
+        }
+        case Type_Optional:
+            if (init->arguments.count == 0) {
+                output_boolean(0, state);
+                output_zeroes(get_size(init->type.data.optional.child, state), state);
+            } else if (init->arguments.count == 1) {
+                output_boolean(1, state);
+                output_expression_fasm_linux_x86_64(init->arguments.elements[0], state);
+            }
+            break;
+        default:
+            assert(false);
     }
 }
 
@@ -1181,13 +1269,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
                     size_t location = 0;
                     size_t size = 0;
-                    if (strcmp(retrieve->data.parent.name, "*") == 0) {
-                        size = get_size(parent_type_raw, state);
-                    } else {
-                        Location_Size_Data result = get_parent_item_location_size(parent_type_raw, retrieve->data.parent.name, state);
-                        location = result.location;
-                        size = result.size;
-                    }
+                    Location_Size_Data result = get_parent_item_location_size(parent_type_raw, retrieve->data.parent.name, state);
+                    location = result.location;
+                    size = result.size;
 
                     output_expression_fasm_linux_x86_64(retrieve->data.parent.expression, state);
 
@@ -1613,11 +1697,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         }
         case Expression_Boolean: {
             Boolean_Node* boolean = &expression->data.boolean;
-            char buffer[128] = {};
-            sprintf(buffer, "  mov rax, %i\n", boolean->value);
-            stringbuffer_appendstring(&state->instructions, buffer);
-            stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
-            stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
+            output_boolean(boolean->value, state);
             break;
         }
         case Expression_String: {
@@ -1695,6 +1775,13 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 assert(false);
             }
 
+            break;
+        }
+        case Expression_Init: {
+            Init_Node* init = &expression->data.init;
+
+            Type* type = &init->type;
+            output_init_type(init, type, state);
             break;
         }
         case Expression_SizeOf: {

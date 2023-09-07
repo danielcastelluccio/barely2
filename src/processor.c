@@ -215,6 +215,10 @@ bool is_type(Type* wanted, Type* given) {
         return is_type(wanted->data.pointer.child, given->data.pointer.child);
     }
 
+    if (wanted->kind == Type_Optional) {
+        return is_type(wanted->data.optional.child, given->data.optional.child);
+    }
+
     if (wanted->kind == Type_Basic) {
         if (wanted->data.basic.kind == Type_Single && given->data.basic.kind == Type_Single) {
             return strcmp(wanted->data.basic.data.single, given->data.basic.data.single) == 0;
@@ -317,6 +321,12 @@ void print_type_inline(Type* type) {
             Pointer_Type* pointer = &type->data.pointer;
             printf("*");
             print_type_inline(pointer->child);
+            break;
+        }
+        case Type_Optional: {
+            Optional_Type* optional = &type->data.optional;
+            printf("?");
+            print_type_inline(optional->child);
             break;
         }
         case Type_Array: {
@@ -481,55 +491,73 @@ void process_expression(Expression_Node* expression, Process_State* state);
 Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* state) {
     Type* result = NULL;
 
-    switch (parent_type->kind) {
-        case Type_Basic: {
-            Identifier identifier = basic_type_to_identifier(parent_type->data.basic);
+    if (strcmp(item_name, "*") == 0) {
+        result = parent_type;
+    } else {
+        switch (parent_type->kind) {
+            case Type_Basic: {
+                Identifier identifier = basic_type_to_identifier(parent_type->data.basic);
 
-            Resolved resolved = resolve(state, identifier);
-            switch (resolved.kind) {
-                case Resolved_Item: {
-                    Item_Node* item = resolved.data.item;
-                    assert(item->kind == Item_Type);
-                    Type* result = malloc(sizeof(Type));
-                    *result = *get_parent_item_type(&item->data.type.type, item_name, state);
-                    if (has_directive(&parent_type->directives, Directive_Generic)) {
-                        Array_Type* generic_values = &get_directive(&parent_type->directives, Directive_Generic)->data.generic.types;
-                        *result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result);
+                Resolved resolved = resolve(state, identifier);
+                switch (resolved.kind) {
+                    case Resolved_Item: {
+                        Item_Node* item = resolved.data.item;
+                        assert(item->kind == Item_Type);
+                        Type* result = malloc(sizeof(Type));
+                        *result = *get_parent_item_type(&item->data.type.type, item_name, state);
+                        if (has_directive(&parent_type->directives, Directive_Generic)) {
+                            Array_Type* generic_values = &get_directive(&parent_type->directives, Directive_Generic)->data.generic.types;
+                            *result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result);
+                        }
+                        return result;
                     }
-                    return result;
+                    case Resolved_Enum_Variant: {
+                        assert(false);
+                    }
+                    case Unresolved:
+                        assert(false);
                 }
-                case Resolved_Enum_Variant: {
+                break;
+            }
+            case Type_Struct:
+            case Type_Union: {
+                Array_Declaration_Pointer* items;
+                if (parent_type->kind == Type_Struct) {
+                    Struct_Type* struct_ = &parent_type->data.struct_;
+                    items = &struct_->items;
+                } else if (parent_type->kind == Type_Union) {
+                    Union_Type* union_ = &parent_type->data.union_;
+                    items = &union_->items;
+                } else {
                     assert(false);
                 }
-                case Unresolved:
-                    assert(false);
-            }
-            break;
-        }
-        case Type_Struct:
-        case Type_Union: {
-            Array_Declaration_Pointer* items;
-            if (parent_type->kind == Type_Struct) {
-                Struct_Type* struct_ = &parent_type->data.struct_;
-                items = &struct_->items;
-            } else if (parent_type->kind == Type_Union) {
-                Union_Type* union_ = &parent_type->data.union_;
-                items = &union_->items;
-            } else {
-                assert(false);
-            }
 
-            for (size_t i = 0; i < items->count; i++) {
-                Declaration* declaration = items->elements[i];
-                if (strcmp(declaration->name, item_name) == 0) {
-                    result = &declaration->type;
+                for (size_t i = 0; i < items->count; i++) {
+                    Declaration* declaration = items->elements[i];
+                    if (strcmp(declaration->name, item_name) == 0) {
+                        result = &declaration->type;
+                    }
                 }
+                break;
             }
-            break;
+            case Type_Optional: {
+                result = malloc(sizeof(Type));
+                if (strcmp(item_name, "?") == 0) {
+                    assert(parent_type->kind == Type_Optional);
+                    *result = *parent_type->data.optional.child;
+                } else if (strcmp(item_name, "??") == 0) {
+                    assert(parent_type->kind == Type_Optional);
+                    *result = create_internal_type(Type_Bool);
+                } else {
+                    assert(false);
+                }
+                break;
+            }
+            default:
+                assert(false);
         }
-        default:
-            assert(false);
     }
+
     return result;
 }
 
@@ -683,15 +711,10 @@ void process_assign(Statement_Assign_Node* assign, Process_State* state) {
                 parent_type_raw = &parent_type;
             }
 
-            if (strcmp(assign_part->data.parent.name, "*") == 0) {
-                *wanted_type = *parent_type_raw;
+            Type* resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
+            if (resolved != NULL) {
+                *wanted_type = *resolved;
                 found = true;
-            } else {
-                Type* resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
-                if (resolved != NULL) {
-                    *wanted_type = *resolved;
-                    found = true;
-                }
             }
         }
 
@@ -1073,6 +1096,77 @@ bool can_operate_together(Type* first, Type* second) {
     return false;
 }
 
+void process_init_type(Init_Node* init, Type* type, Process_State* state) {
+    bool is_valid = true;
+    switch (type->kind) {
+        case Type_Basic: {
+            Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
+            switch (resolved.kind) {
+                case Resolved_Item: {
+                    Item_Node* item = resolved.data.item;
+                    assert(item->kind == Item_Type);
+                    process_init_type(init, &item->data.type.type, state);
+                    break;
+                }
+                case Resolved_Enum_Variant: {
+                    assert(false);
+                }
+                case Unresolved:
+                    assert(false);
+            }
+            break;
+        }
+        case Type_Struct: {
+            Struct_Type* struct_ = &type->data.struct_;
+            if (init->arguments.count == 0) {
+            } else if (init->arguments.count == struct_->items.count) {
+                for (int i = init->arguments.count - 1; i >= 0; i--) {
+                    process_expression(init->arguments.elements[i], state);
+                }
+
+                for (size_t i = 0; i < struct_->items.count; i++) {
+                    Type popped = stack_type_pop(&state->stack);
+                    if (!is_type(&struct_->items.elements[i]->type, &popped)) {
+                        is_valid = false;
+                    }
+                }
+            } else {
+                is_valid = false;
+            }
+
+            if (!is_valid) {
+                print_error_stub(&init->location);
+                printf("Initialization of struct must provide all item values of their respective types or no values\n");
+                exit(1);
+            }
+            break;
+        }
+        case Type_Optional:
+            if (init->arguments.count == 0) {
+            } else if (init->arguments.count == 1) {
+                process_expression(init->arguments.elements[0], state);
+
+                Type popped = stack_type_pop(&state->stack);
+
+                if (!is_type(type->data.optional.child, &popped)) {
+                    is_valid = false;
+                }
+            } else {
+                is_valid = false;
+            }
+
+            if (!is_valid) {
+                print_error_stub(&init->location);
+                printf("Initialization of optional must provide a single value of the optional type or no values\n");
+                exit(1);
+            }
+            break;
+        default:
+            assert(false);
+    }
+
+}
+
 void process_expression(Expression_Node* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
@@ -1358,15 +1452,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 }
 
                 Type item_type;
-                if (strcmp(retrieve->data.parent.name, "*") == 0) {
-                    item_type = *parent_type_raw;
+                Type* result_type = get_parent_item_type(parent_type_raw, retrieve->data.parent.name, &state->generic);
+                if (result_type != NULL) {
+                    item_type = *result_type;
                     found = true;
-                } else {
-                    Type* result_type = get_parent_item_type(parent_type_raw, retrieve->data.parent.name, &state->generic);
-                    if (result_type != NULL) {
-                        item_type = *result_type;
-                        found = true;
-                    }
                 }
 
                 if (in_reference) {
@@ -1614,6 +1703,15 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             cast->computed_input_type = input;
 
             stack_type_append(&state->stack, cast->type);
+            break;
+        }
+        case Expression_Init: {
+            Init_Node* init = &expression->data.init;
+
+            Type* type = &init->type;
+            process_init_type(init, type, state);
+
+            stack_type_append(&state->stack, *type);
             break;
         }
         case Expression_SizeOf: {
