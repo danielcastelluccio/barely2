@@ -675,16 +675,18 @@ void output_zeroes(size_t count, Output_State* state) {
     sprintf(buffer, "  sub rsp, %zu\n", count);
     stringbuffer_appendstring(&state->instructions, buffer);
 
+    stringbuffer_appendstring(&state->instructions, "  mov rax, 0\n");
+
     size_t i = 0;
     while (i < count) {
         if (i + 8 < count) {
             char buffer[128] = {};
-            sprintf(buffer, "  mov [rsp+%zu], qword 0\n", i);
+            sprintf(buffer, "  mov [rsp+%zu], rax\n", i);
             stringbuffer_appendstring(&state->instructions, buffer);
             i += 8;
         } else {
             char buffer[128] = {};
-            sprintf(buffer, "  mov [rsp+%zu], byte 0\n", i);
+            sprintf(buffer, "  mov [rsp+%zu], al\n", i);
             stringbuffer_appendstring(&state->instructions, buffer);
             i++;
         }
@@ -692,46 +694,56 @@ void output_zeroes(size_t count, Output_State* state) {
 }
 
 void output_init_type(Init_Node* init, Type* type, Output_State* state) {
-    switch (type->kind) {
-        case Type_Basic: {
-            Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
-            switch (resolved.kind) {
-                case Resolved_Item: {
-                    Item_Node* item = resolved.data.item;
-                    assert(item->kind == Item_Type);
-                    output_init_type(init, &item->data.type.type, state);
-                    break;
+    if (init->arguments.count == 0) {
+        output_zeroes(get_size(type, state), state);
+    } else {
+        switch (type->kind) {
+            case Type_Basic: {
+                Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
+                switch (resolved.kind) {
+                    case Resolved_Item: {
+                        Item_Node* item = resolved.data.item;
+                        assert(item->kind == Item_Type);
+                        output_init_type(init, &item->data.type.type, state);
+                        break;
+                    }
+                    case Resolved_Enum_Variant: {
+                        assert(false);
+                    }
+                    case Unresolved:
+                        assert(false);
                 }
-                case Resolved_Enum_Variant: {
-                    assert(false);
-                }
-                case Unresolved:
-                    assert(false);
+                break;
             }
-            break;
+            case Type_Struct: {
+                Struct_Type* struct_ = &type->data.struct_;
+                if (init->arguments.count == struct_->items.count) {
+                    for (int i = init->arguments.count - 1; i >= 0; i--) {
+                        output_expression_fasm_linux_x86_64(init->arguments.elements[i], state);
+                    }
+                }
+                break;
+            }
+            case Type_Array: {
+                BArray_Type* array = &type->data.array;
+                size_t array_size = array->size_type->data.number.value;
+
+                if (init->arguments.count == array_size) {
+                    for (int i = init->arguments.count - 1; i >= 0; i--) {
+                        output_expression_fasm_linux_x86_64(init->arguments.elements[i], state);
+                    }
+                }
+                break;
+            }
+            case Type_Optional:
+                if (init->arguments.count == 1) {
+                    output_boolean(1, state);
+                    output_expression_fasm_linux_x86_64(init->arguments.elements[0], state);
+                }
+                break;
+            default:
+                assert(false);
         }
-        case Type_Struct: {
-            Struct_Type* struct_ = &type->data.struct_;
-            if (init->arguments.count == 0) {
-                output_zeroes(get_size(type, state), state);
-            } else if (init->arguments.count == struct_->items.count) {
-                for (int i = init->arguments.count - 1; i >= 0; i--) {
-                    output_expression_fasm_linux_x86_64(init->arguments.elements[i], state);
-                }
-            }
-            break;
-        }
-        case Type_Optional:
-            if (init->arguments.count == 0) {
-                output_boolean(0, state);
-                output_zeroes(get_size(init->type.data.optional.child, state), state);
-            } else if (init->arguments.count == 1) {
-                output_boolean(1, state);
-                output_expression_fasm_linux_x86_64(init->arguments.elements[0], state);
-            }
-            break;
-        default:
-            assert(false);
     }
 }
 

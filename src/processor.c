@@ -1097,74 +1097,105 @@ bool can_operate_together(Type* first, Type* second) {
 }
 
 void process_init_type(Init_Node* init, Type* type, Process_State* state) {
-    bool is_valid = true;
-    switch (type->kind) {
-        case Type_Basic: {
-            Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
-            switch (resolved.kind) {
-                case Resolved_Item: {
-                    Item_Node* item = resolved.data.item;
-                    assert(item->kind == Item_Type);
-                    process_init_type(init, &item->data.type.type, state);
-                    break;
-                }
-                case Resolved_Enum_Variant: {
-                    assert(false);
-                }
-                case Unresolved:
-                    assert(false);
-            }
-            break;
-        }
-        case Type_Struct: {
-            Struct_Type* struct_ = &type->data.struct_;
-            if (init->arguments.count == 0) {
-            } else if (init->arguments.count == struct_->items.count) {
-                for (int i = init->arguments.count - 1; i >= 0; i--) {
-                    process_expression(init->arguments.elements[i], state);
-                }
-
-                for (size_t i = 0; i < struct_->items.count; i++) {
-                    Type popped = stack_type_pop(&state->stack);
-                    if (!is_type(&struct_->items.elements[i]->type, &popped)) {
-                        is_valid = false;
+    if (init->arguments.count > 0) {
+        switch (type->kind) {
+            case Type_Basic: {
+                Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
+                switch (resolved.kind) {
+                    case Resolved_Item: {
+                        Item_Node* item = resolved.data.item;
+                        assert(item->kind == Item_Type);
+                        process_init_type(init, &item->data.type.type, state);
+                        break;
                     }
+                    case Resolved_Enum_Variant: {
+                        assert(false);
+                    }
+                    case Unresolved:
+                        assert(false);
                 }
-            } else {
-                is_valid = false;
+                break;
             }
+            case Type_Struct: {
+                Struct_Type* struct_ = &type->data.struct_;
+                if (init->arguments.count == struct_->items.count) {
+                    for (int i = init->arguments.count - 1; i >= 0; i--) {
+                        process_expression(init->arguments.elements[i], state);
+                    }
 
-            if (!is_valid) {
-                print_error_stub(&init->location);
-                printf("Initialization of struct must provide all item values of their respective types or no values\n");
-                exit(1);
+                    for (size_t i = 0; i < struct_->items.count; i++) {
+                        Type popped = stack_type_pop(&state->stack);
+                        if (!is_type(&struct_->items.elements[i]->type, &popped)) {
+                            print_error_stub(&init->location);
+                            printf("Initialization of struct expected '");
+                            print_type_inline(&struct_->items.elements[i]->type);
+                            printf("', given '");
+                            print_type_inline(&popped);
+                            printf("'\n");
+                            exit(1);
+                        }
+                    }
+                } else {
+                    print_error_stub(&init->location);
+                    printf("Initialization of struct doesn't provide all item values\n");
+                    exit(1);
+                }
+                break;
             }
-            break;
+            case Type_Array: {
+                BArray_Type* array = &type->data.array;
+                assert(array->size_type->kind == Type_Number);
+                size_t array_size = array->size_type->data.number.value;
+
+                if (init->arguments.count == array_size) {
+                    for (int i = init->arguments.count - 1; i >= 0; i--) {
+                        process_expression(init->arguments.elements[i], state);
+                    }
+
+                    for (size_t i = 0; i < array_size; i++) {
+                        Type popped = stack_type_pop(&state->stack);
+                        if (!is_type(array->element_type, &popped)) {
+                            print_error_stub(&init->location);
+                            printf("Initialization of array expected '");
+                            print_type_inline(array->element_type);
+                            printf("', given '");
+                            print_type_inline(&popped);
+                            printf("'\n");
+                            exit(1);
+                        }
+                    }
+                } else {
+                    print_error_stub(&init->location);
+                    printf("Initialization of array doesn't provide all index values\n");
+                    exit(1);
+                }
+                break;
+            }
+            case Type_Optional:
+                if (init->arguments.count == 1) {
+                    process_expression(init->arguments.elements[0], state);
+
+                    Type popped = stack_type_pop(&state->stack);
+
+                    if (!is_type(type->data.optional.child, &popped)) {
+                        print_error_stub(&init->location);
+                        printf("Initialization of optional expected '");
+                        print_type_inline(type->data.optional.child);
+                        printf("', given '");
+                        print_type_inline(&popped);
+                        printf("'\n");
+                        exit(1);
+                    }
+                } else {
+                    print_error_stub(&init->location);
+                    printf("Initialization of array doesn't provide a single value\n");
+                    exit(1);
+                }
+                break;
+            default:
+                assert(false);
         }
-        case Type_Optional:
-            if (init->arguments.count == 0) {
-            } else if (init->arguments.count == 1) {
-                process_expression(init->arguments.elements[0], state);
-
-                Type popped = stack_type_pop(&state->stack);
-
-                if (!is_type(type->data.optional.child, &popped)) {
-                    is_valid = false;
-                }
-            } else {
-                is_valid = false;
-            }
-
-            if (!is_valid) {
-                print_error_stub(&init->location);
-                printf("Initialization of optional must provide a single value of the optional type or no values\n");
-                exit(1);
-            }
-            break;
-        default:
-            assert(false);
     }
-
 }
 
 void process_expression(Expression_Node* expression, Process_State* state) {
