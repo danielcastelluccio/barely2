@@ -16,8 +16,10 @@ Type_Inner name##get(Array_Type_* array, size_t index);
 
 #define Dynamic_Array_Impl(Type_Inner, Array_Type_, name) \
 Array_Type_ name##new(size_t size) { \
+    Type_Inner* elements = malloc(sizeof(Type_Inner) * size); \
+    memset(elements, 0, sizeof(Type_Inner) * size); \
     return (Array_Type_) { \
-        malloc(sizeof(Type_Inner) * size), \
+        elements, \
         0, \
         size \
     }; \
@@ -37,7 +39,7 @@ void name##append(Array_Type_* array, Type_Inner element) { \
 } \
 \
 void name##clear(Array_Type_* array) { \
-    memset(array->elements, 0, array->count); \
+    memset(array->elements, 0, array->count * sizeof(Type_Inner)); \
     array->count = 0; \
 } \
 \
