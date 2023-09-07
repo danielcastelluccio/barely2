@@ -1096,7 +1096,7 @@ bool can_operate_together(Type* first, Type* second) {
     return false;
 }
 
-void process_init_type(Init_Node* init, Type* type, Process_State* state) {
+void process_build_type(Build_Node* init, Type* type, Process_State* state) {
     if (init->arguments.count > 0) {
         switch (type->kind) {
             case Type_Basic: {
@@ -1105,7 +1105,7 @@ void process_init_type(Init_Node* init, Type* type, Process_State* state) {
                     case Resolved_Item: {
                         Item_Node* item = resolved.data.item;
                         assert(item->kind == Item_Type);
-                        process_init_type(init, &item->data.type.type, state);
+                        process_build_type(init, &item->data.type.type, state);
                         break;
                     }
                     case Resolved_Enum_Variant: {
@@ -1120,14 +1120,15 @@ void process_init_type(Init_Node* init, Type* type, Process_State* state) {
                 Struct_Type* struct_ = &type->data.struct_;
                 if (init->arguments.count == struct_->items.count) {
                     for (int i = init->arguments.count - 1; i >= 0; i--) {
-                        process_expression(init->arguments.elements[i], state);
-                    }
+                        Type* wanted_type = &struct_->items.elements[i]->type;
+                        state->wanted_type = wanted_type;
 
-                    for (size_t i = 0; i < struct_->items.count; i++) {
+                        process_expression(init->arguments.elements[i], state);
+
                         Type popped = stack_type_pop(&state->stack);
-                        if (!is_type(&struct_->items.elements[i]->type, &popped)) {
+                        if (!is_type(wanted_type, &popped)) {
                             print_error_stub(&init->location);
-                            printf("Initialization of struct expected '");
+                            printf("Building of struct expected '");
                             print_type_inline(&struct_->items.elements[i]->type);
                             printf("', given '");
                             print_type_inline(&popped);
@@ -1135,9 +1136,12 @@ void process_init_type(Init_Node* init, Type* type, Process_State* state) {
                             exit(1);
                         }
                     }
+
+                    for (size_t i = 0; i < struct_->items.count; i++) {
+                    }
                 } else {
                     print_error_stub(&init->location);
-                    printf("Initialization of struct doesn't provide all item values\n");
+                    printf("Building of struct doesn't provide all item values\n");
                     exit(1);
                 }
                 break;
@@ -1149,14 +1153,15 @@ void process_init_type(Init_Node* init, Type* type, Process_State* state) {
 
                 if (init->arguments.count == array_size) {
                     for (int i = init->arguments.count - 1; i >= 0; i--) {
-                        process_expression(init->arguments.elements[i], state);
-                    }
+                        Type* wanted_type = array->element_type;
+                        state->wanted_type = wanted_type;
 
-                    for (size_t i = 0; i < array_size; i++) {
+                        process_expression(init->arguments.elements[i], state);
+
                         Type popped = stack_type_pop(&state->stack);
-                        if (!is_type(array->element_type, &popped)) {
+                        if (!is_type(wanted_type, &popped)) {
                             print_error_stub(&init->location);
-                            printf("Initialization of array expected '");
+                            printf("Building of array expected '");
                             print_type_inline(array->element_type);
                             printf("', given '");
                             print_type_inline(&popped);
@@ -1166,20 +1171,23 @@ void process_init_type(Init_Node* init, Type* type, Process_State* state) {
                     }
                 } else {
                     print_error_stub(&init->location);
-                    printf("Initialization of array doesn't provide all index values\n");
+                    printf("Building of array doesn't provide all index values\n");
                     exit(1);
                 }
                 break;
             }
             case Type_Optional:
                 if (init->arguments.count == 1) {
+                    Type* wanted_type = type->data.optional.child;
+                    state->wanted_type = wanted_type;
+
                     process_expression(init->arguments.elements[0], state);
 
                     Type popped = stack_type_pop(&state->stack);
 
-                    if (!is_type(type->data.optional.child, &popped)) {
+                    if (!is_type(wanted_type, &popped)) {
                         print_error_stub(&init->location);
-                        printf("Initialization of optional expected '");
+                        printf("Building of optional expected '");
                         print_type_inline(type->data.optional.child);
                         printf("', given '");
                         print_type_inline(&popped);
@@ -1188,7 +1196,7 @@ void process_init_type(Init_Node* init, Type* type, Process_State* state) {
                     }
                 } else {
                     print_error_stub(&init->location);
-                    printf("Initialization of array doesn't provide a single value\n");
+                    printf("Building of array doesn't provide a single value\n");
                     exit(1);
                 }
                 break;
@@ -1736,11 +1744,11 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             stack_type_append(&state->stack, cast->type);
             break;
         }
-        case Expression_Init: {
-            Init_Node* init = &expression->data.init;
+        case Expression_Build: {
+            Build_Node* build = &expression->data.build;
 
-            Type* type = &init->type;
-            process_init_type(init, type, state);
+            Type* type = &build->type;
+            process_build_type(build, type, state);
 
             stack_type_append(&state->stack, *type);
             break;

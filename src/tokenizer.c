@@ -50,6 +50,12 @@ void print_token(Token* token, bool newline) {
         case Token_RightParenthesis:
             printf("RightParenthesis");
             break;
+        case Token_LeftBracket:
+            printf("LeftBracket");
+            break;
+        case Token_RightBracket:
+            printf("RightBracket");
+            break;
         case Token_Colon:
             printf("Colon");
             break;

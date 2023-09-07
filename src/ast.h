@@ -282,7 +282,7 @@ typedef struct {
     Type type;
     Array_Expression_Node arguments;
     Location location;
-} Init_Node;
+} Build_Node;
 
 typedef struct {
     Type type;
@@ -310,7 +310,7 @@ struct Expression_Node {
         Expression_Reference,
         Expression_Boolean,
         Expression_Cast,
-        Expression_Init,
+        Expression_Build,
         Expression_SizeOf,
         Expression_LengthOf,
     } kind;
@@ -326,7 +326,7 @@ struct Expression_Node {
         Reference_Node reference;
         Boolean_Node boolean;
         Cast_Node cast;
-        Init_Node init;
+        Build_Node build;
         SizeOf_Node size_of;
         LengthOf_Node length_of;
     } data;

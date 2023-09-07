@@ -700,8 +700,8 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                 result.kind = Expression_Cast;
                 result.data.cast = node;
                 break;
-            } else if (strcmp(name, "@init") == 0) {
-                Init_Node node;
+            } else if (strcmp(name, "@build") == 0) {
+                Build_Node node;
                 node.location = location;
 
                 consume_check(state, &index, Token_LeftParenthesis);
@@ -727,8 +727,8 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
 
                 consume_check(state, &index, Token_RightParenthesis);
 
-                result.kind = Expression_Init;
-                result.data.init = node;
+                result.kind = Expression_Build;
+                result.data.build = node;
                 break;
             } else {
                 filter_add_directive(state, &result.directives, Directive_Generic);

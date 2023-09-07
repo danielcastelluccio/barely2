@@ -693,8 +693,8 @@ void output_zeroes(size_t count, Output_State* state) {
     }
 }
 
-void output_init_type(Init_Node* init, Type* type, Output_State* state) {
-    if (init->arguments.count == 0) {
+void output_build_type(Build_Node* build, Type* type, Output_State* state) {
+    if (build->arguments.count == 0) {
         output_zeroes(get_size(type, state), state);
     } else {
         switch (type->kind) {
@@ -704,7 +704,7 @@ void output_init_type(Init_Node* init, Type* type, Output_State* state) {
                     case Resolved_Item: {
                         Item_Node* item = resolved.data.item;
                         assert(item->kind == Item_Type);
-                        output_init_type(init, &item->data.type.type, state);
+                        output_build_type(build, &item->data.type.type, state);
                         break;
                     }
                     case Resolved_Enum_Variant: {
@@ -717,9 +717,9 @@ void output_init_type(Init_Node* init, Type* type, Output_State* state) {
             }
             case Type_Struct: {
                 Struct_Type* struct_ = &type->data.struct_;
-                if (init->arguments.count == struct_->items.count) {
-                    for (int i = init->arguments.count - 1; i >= 0; i--) {
-                        output_expression_fasm_linux_x86_64(init->arguments.elements[i], state);
+                if (build->arguments.count == struct_->items.count) {
+                    for (int i = build->arguments.count - 1; i >= 0; i--) {
+                        output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
                     }
                 }
                 break;
@@ -728,17 +728,17 @@ void output_init_type(Init_Node* init, Type* type, Output_State* state) {
                 BArray_Type* array = &type->data.array;
                 size_t array_size = array->size_type->data.number.value;
 
-                if (init->arguments.count == array_size) {
-                    for (int i = init->arguments.count - 1; i >= 0; i--) {
-                        output_expression_fasm_linux_x86_64(init->arguments.elements[i], state);
+                if (build->arguments.count == array_size) {
+                    for (int i = build->arguments.count - 1; i >= 0; i--) {
+                        output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
                     }
                 }
                 break;
             }
             case Type_Optional:
-                if (init->arguments.count == 1) {
+                if (build->arguments.count == 1) {
                     output_boolean(1, state);
-                    output_expression_fasm_linux_x86_64(init->arguments.elements[0], state);
+                    output_expression_fasm_linux_x86_64(build->arguments.elements[0], state);
                 }
                 break;
             default:
@@ -1789,11 +1789,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             break;
         }
-        case Expression_Init: {
-            Init_Node* init = &expression->data.init;
+        case Expression_Build: {
+            Build_Node* build = &expression->data.build;
 
-            Type* type = &init->type;
-            output_init_type(init, type, state);
+            Type* type = &build->type;
+            output_build_type(build, type, state);
             break;
         }
         case Expression_SizeOf: {
