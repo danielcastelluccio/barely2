@@ -46,7 +46,11 @@ size_t get_size(Type* type, Output_State* state) {
                     Array_Type updated = array_type_new(generic->types.count);
                     for (size_t i = 0; i< generic->types.count; i++) {
                         Type* type = malloc(sizeof(Type));
-                        *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic->types.elements[i]);
+                        if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
+                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic->types.elements[i]);
+                        } else {
+                            *type = *generic->types.elements[i];
+                        }
                         array_type_append(&updated, type);
                     }
 

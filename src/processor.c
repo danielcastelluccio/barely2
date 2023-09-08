@@ -1027,9 +1027,9 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in) 
         case Type_Basic: {
             Basic_Type* basic = &type_in.data.basic;
             if (basic->kind == Type_Single) {
-                for (size_t i = 0; i < parameters->count; i++) {
-                    if (strcmp(basic->data.single, parameters->elements[i]) == 0) {
-                        if (inputs != NULL) {
+                if (parameters != NULL) {
+                    for (size_t i = 0; i < parameters->count; i++) {
+                        if (strcmp(basic->data.single, parameters->elements[i]) == 0) {
                             result = *inputs->elements[i];
                         }
                     }
