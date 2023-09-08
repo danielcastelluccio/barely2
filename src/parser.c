@@ -700,6 +700,20 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                 result.kind = Expression_Cast;
                 result.data.cast = node;
                 break;
+            } else if (strcmp(name, "@init") == 0) {
+                Init_Node node;
+                node.location = location;
+
+                consume_check(state, &index, Token_LeftParenthesis);
+
+                Type type = parse_type(state, &index);
+                node.type = type;
+
+                consume_check(state, &index, Token_RightParenthesis);
+
+                result.kind = Expression_Init;
+                result.data.init = node;
+                break;
             } else if (strcmp(name, "@build") == 0) {
                 Build_Node node;
                 node.location = location;

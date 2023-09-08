@@ -694,56 +694,54 @@ void output_zeroes(size_t count, Output_State* state) {
 }
 
 void output_build_type(Build_Node* build, Type* type, Output_State* state) {
-    if (build->arguments.count == 0) {
-        output_zeroes(get_size(type, state), state);
-    } else {
-        switch (type->kind) {
-            case Type_Basic: {
-                Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
-                switch (resolved.kind) {
-                    case Resolved_Item: {
-                        Item_Node* item = resolved.data.item;
-                        assert(item->kind == Item_Type);
-                        output_build_type(build, &item->data.type.type, state);
-                        break;
-                    }
-                    case Resolved_Enum_Variant: {
-                        assert(false);
-                    }
-                    case Unresolved:
-                        assert(false);
+    switch (type->kind) {
+        case Type_Basic: {
+            Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
+            switch (resolved.kind) {
+                case Resolved_Item: {
+                    Item_Node* item = resolved.data.item;
+                    assert(item->kind == Item_Type);
+                    output_build_type(build, &item->data.type.type, state);
+                    break;
                 }
-                break;
+                case Resolved_Enum_Variant: {
+                    assert(false);
+                }
+                case Unresolved:
+                    assert(false);
             }
-            case Type_Struct: {
-                Struct_Type* struct_ = &type->data.struct_;
-                if (build->arguments.count == struct_->items.count) {
-                    for (int i = build->arguments.count - 1; i >= 0; i--) {
-                        output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
-                    }
-                }
-                break;
-            }
-            case Type_Array: {
-                BArray_Type* array = &type->data.array;
-                size_t array_size = array->size_type->data.number.value;
-
-                if (build->arguments.count == array_size) {
-                    for (int i = build->arguments.count - 1; i >= 0; i--) {
-                        output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
-                    }
-                }
-                break;
-            }
-            case Type_Optional:
-                if (build->arguments.count == 1) {
-                    output_boolean(1, state);
-                    output_expression_fasm_linux_x86_64(build->arguments.elements[0], state);
-                }
-                break;
-            default:
-                assert(false);
+            break;
         }
+        case Type_Struct: {
+            Struct_Type* struct_ = &type->data.struct_;
+            if (build->arguments.count == struct_->items.count) {
+                for (int i = build->arguments.count - 1; i >= 0; i--) {
+                    output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
+                }
+            }
+            break;
+        }
+        case Type_Array: {
+            BArray_Type* array = &type->data.array;
+            size_t array_size = array->size_type->data.number.value;
+
+            if (build->arguments.count == array_size) {
+                for (int i = build->arguments.count - 1; i >= 0; i--) {
+                    output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
+                }
+            }
+            break;
+        }
+        case Type_Optional:
+            if (build->arguments.count == 1) {
+                output_boolean(1, state);
+                output_expression_fasm_linux_x86_64(build->arguments.elements[0], state);
+            } else if (build->arguments.count == 0) {
+                output_zeroes(get_size(type, state), state);
+            }
+            break;
+        default:
+            assert(false);
     }
 }
 
@@ -1787,6 +1785,13 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 assert(false);
             }
 
+            break;
+        }
+        case Expression_Init: {
+            Init_Node* init = &expression->data.init;
+
+            Type* type = &init->type;
+            output_zeroes(get_size(type, state), state);
             break;
         }
         case Expression_Build: {

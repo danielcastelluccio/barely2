@@ -286,6 +286,11 @@ typedef struct {
 
 typedef struct {
     Type type;
+    Location location;
+} Init_Node;
+
+typedef struct {
+    Type type;
     Type computed_result_type;
     Location location;
 } SizeOf_Node;
@@ -310,6 +315,7 @@ struct Expression_Node {
         Expression_Reference,
         Expression_Boolean,
         Expression_Cast,
+        Expression_Init,
         Expression_Build,
         Expression_SizeOf,
         Expression_LengthOf,
@@ -326,6 +332,7 @@ struct Expression_Node {
         Reference_Node reference;
         Boolean_Node boolean;
         Cast_Node cast;
+        Init_Node init;
         Build_Node build;
         SizeOf_Node size_of;
         LengthOf_Node length_of;
