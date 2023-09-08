@@ -1791,6 +1791,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     assert(false);
                 }
             } else if (input.kind == Type_Internal && input.data.internal == Type_Ptr && output.kind == Type_Pointer) {
+            } else if (input.kind == Type_Pointer && output.kind == Type_Internal && output.data.internal == Type_Ptr) {
             } else {
                 assert(false);
             }
@@ -1914,8 +1915,19 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
 
                 output_expression_fasm_linux_x86_64(procedure->body, state);
 
+                size_t arguments_size = 0;
+                for (size_t i = 0; i < procedure->arguments.count; i++) {
+                    arguments_size += get_size(&procedure->arguments.elements[i].type, state);
+                }
+
                 stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
-                stringbuffer_appendstring(&state->instructions, "  pop rbp\n");
+                stringbuffer_appendstring(&state->instructions, "  mov rcx, [rsp+0]\n");
+                stringbuffer_appendstring(&state->instructions, "  mov rdx, [rsp+8]\n");
+                memset(buffer, 0, 128);
+                sprintf(buffer, "  add rsp, %zu\n", arguments_size + 16);
+                stringbuffer_appendstring(&state->instructions, buffer);
+                stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
+                stringbuffer_appendstring(&state->instructions, "  push rdx\n");
                 stringbuffer_appendstring(&state->instructions, "  ret\n");
             }
             break;

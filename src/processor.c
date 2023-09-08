@@ -245,15 +245,19 @@ bool is_type(Type* wanted, Type* given) {
         if (wanted_proc->arguments.count != given_proc->arguments.count) is_valid = false;
         if (wanted_proc->returns.count != given_proc->returns.count) is_valid = false;
 
-        for (size_t i = 0; i < wanted_proc->arguments.count; i++) {
-            if (!is_type(array_type_get(&wanted_proc->arguments, i), given_proc->arguments.elements[i])) {
-                is_valid = false;
+        if (is_valid) {
+            for (size_t i = 0; i < wanted_proc->arguments.count; i++) {
+                if (!is_type(array_type_get(&wanted_proc->arguments, i), given_proc->arguments.elements[i])) {
+                    is_valid = false;
+                }
             }
         }
 
-        for (size_t i = 0; i < wanted_proc->returns.count; i++) {
-            if (!is_type(wanted_proc->returns.elements[i], given_proc->returns.elements[i])) {
-                is_valid = false;
+        if (is_valid) {
+            for (size_t i = 0; i < wanted_proc->returns.count; i++) {
+                if (!is_type(wanted_proc->returns.elements[i], given_proc->returns.elements[i])) {
+                    is_valid = false;
+                }
             }
         }
 
@@ -503,11 +507,13 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
                     case Resolved_Item: {
                         Item_Node* item = resolved.data.item;
                         assert(item->kind == Item_Type);
-                        Type* result = malloc(sizeof(Type));
-                        *result = *get_parent_item_type(&item->data.type.type, item_name, state);
-                        if (has_directive(&parent_type->directives, Directive_Generic)) {
-                            Array_Type* generic_values = &get_directive(&parent_type->directives, Directive_Generic)->data.generic.types;
-                            *result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result, state);
+                        Type* result = get_parent_item_type(&item->data.type.type, item_name, state);
+
+                        if (result != NULL) {
+                            if (has_directive(&parent_type->directives, Directive_Generic)) {
+                                Array_Type* generic_values = &get_directive(&parent_type->directives, Directive_Generic)->data.generic.types;
+                                *result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result, state);
+                            }
                         }
                         return result;
                     }
@@ -1085,11 +1091,11 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, 
                     for (size_t i = 0; i < parameters->count; i++) {
                         if (strcmp(basic->data.single, parameters->elements[i]) == 0) {
                             result = *inputs->elements[i];
-
-                            process_type(&result, state);
                         }
                     }
                 }
+
+                process_type(&result, state);
             } else {
                 assert(false);
             }
@@ -1784,6 +1790,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 is_valid = true;
             }
 
+            if (cast->type.kind == Type_Internal && cast->type.data.internal == Type_Ptr && input.kind == Type_Pointer) {
+                is_valid = true;
+            }
+
             if (!is_valid) {
                 print_error_stub(&cast->location);
                 printf("Type '");
@@ -1986,6 +1996,17 @@ void process_generics_expression(Expression_Node* expression, Generic_State* sta
             if (if_->else_expression != NULL) {
                 process_generics_expression(if_->else_expression, state, current_procedure_generics, current_procedure_values);
             }
+            break;
+        }
+        case Expression_While: {
+            While_Node* while_ = &expression->data.while_;
+            process_generics_expression(while_->inside, state, current_procedure_generics, current_procedure_values);
+            break;
+        }
+        case Expression_Cast: {
+            Cast_Node* cast = &expression->data.cast;
+            process_generics_expression(cast->expression, state, current_procedure_generics, current_procedure_values);
+            break;
         }
         default:
             break;
