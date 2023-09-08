@@ -25,7 +25,7 @@ size_t get_size(Type* type, Output_State* state) {
     switch (type->kind) {
         case Type_Basic: {
             if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                Type type_new = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type);
+                Type type_new = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type, &state->generic);
 
                 if (!is_type(&type_new, type)) {
                     return get_size(&type_new, state);
@@ -33,11 +33,17 @@ size_t get_size(Type* type, Output_State* state) {
             }
 
             Basic_Type* basic = &type->data.basic;
-            Identifier identifier = basic_type_to_identifier(*basic);
-            Resolved resolved = resolve(&state->generic, identifier);
-            if (resolved.kind == Resolved_Item) {
-                Item_Node* item = resolved.data.item;
-                assert(item->kind == Item_Type);
+            Item_Node* item = basic->resolved_node;
+
+            if (item == NULL) {
+                Identifier identifier = basic_type_to_identifier(*basic);
+                Resolved resolved = resolve(&state->generic, identifier);
+                if (resolved.kind == Resolved_Item) {
+                    item = resolved.data.item;
+                }
+            }
+
+            if (item != NULL) {
                 Type_Node* type_node = &item->data.type;
                 Type type_result = type_node->type;
 
@@ -47,14 +53,14 @@ size_t get_size(Type* type, Output_State* state) {
                     for (size_t i = 0; i< generic->types.count; i++) {
                         Type* type = malloc(sizeof(Type));
                         if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic->types.elements[i]);
+                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic->types.elements[i], &state->generic);
                         } else {
                             *type = *generic->types.elements[i];
                         }
                         array_type_append(&updated, type);
                     }
 
-                    type_result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type_result);
+                    type_result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type_result, &state->generic);
                 }
 
                 return get_size(&type_result, state);
@@ -208,12 +214,12 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                         Type* type = malloc(sizeof(Type));
                         *type = *generic->types.elements[i];
                         if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type);
+                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type, &state->generic);
                         }
                         array_type_append(&updated, type);
                     }
 
-                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type);
+                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type, &state->generic);
                 }
 
                 return get_parent_item_location_size(&type, item_name, state);
@@ -1474,7 +1480,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                             Type* generic_type = generic->types.elements[j];
                                             Type applied_generic_type = *generic_type;
                                             if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                                                applied_generic_type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic_type);
+                                                applied_generic_type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic_type, &state->generic);
                                             }
 
                                             if (!is_type(&applied_generic_type, implementation->elements[j])) {

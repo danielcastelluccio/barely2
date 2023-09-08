@@ -404,7 +404,7 @@ Type parse_type(Parser_State* state, size_t* index_in) {
         if (!found) {
             filter_add_directive(state, &result.directives, Directive_Generic);
 
-            Basic_Type basic;
+            Basic_Type basic = {};
             basic.kind = Type_Single;
 
             basic.data.single = name;

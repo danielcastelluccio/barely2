@@ -47,6 +47,9 @@ typedef struct {
 
 Dynamic_Array_Def(Directive_Node, Array_Directive, array_directive_)
 
+struct Item_Node;
+typedef struct Item_Node Item_Node;
+
 typedef enum {
     Type_USize,
     Type_U8,
@@ -67,6 +70,7 @@ typedef struct {
         char* single;
         Array_String multi;
     } data;
+    Item_Node* resolved_node;
 } Basic_Type;
 
 typedef struct {
@@ -388,9 +392,6 @@ typedef struct {
 typedef struct {
     Type type;
 } Type_Node;
-
-struct Item_Node;
-typedef struct Item_Node Item_Node;
 
 Dynamic_Array_Def(Item_Node, Array_Item_Node, array_item_node_)
 
