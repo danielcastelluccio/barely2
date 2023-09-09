@@ -466,13 +466,18 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                     size_t location = 8;
                     size_t size = 0;
-                    for (size_t j = 0; j < state->current_declares.count; j++) {
-                        size_t declare_size = get_size(&state->current_declares.elements[j].type, state);
-                        if (strcmp(state->current_declares.elements[j].name, name) == 0) {
-                            size = declare_size;
-                            break;
+                    for (int i = state->current_declares.count - 1; i >= 0; i--) {
+                        Declaration* declaration = &state->current_declares.elements[i];
+                        size_t declaration_size = get_size(&declaration->type, state);
+
+                        if (found) {
+                            location += declaration_size;
                         }
-                        location += declare_size;
+
+                        if (!found && strcmp(declaration->name, name) == 0) {
+                            size = declaration_size;
+                            found = true;
+                        }
                     }
 
                     size_t i = 0;
@@ -1352,7 +1357,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             location += declaration_size;
                         }
 
-                        if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
+                        if (!found && strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
                             size = declaration_size;
                             found = true;
                         }

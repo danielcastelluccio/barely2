@@ -1137,6 +1137,16 @@ Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, 
             result.data.pointer = pointer_new;
             break;
         }
+        case Type_Optional: {
+            Optional_Type* optional = &type_in.data.optional;
+            Optional_Type optional_new = { .child = malloc(sizeof(Type)) };
+
+            *optional_new.child = apply_generics(parameters, inputs, *optional->child, state);
+
+            result.kind = Type_Optional;
+            result.data.optional = optional_new;
+            break;
+        }
         case Type_Internal: {
             break;
         }
@@ -1533,6 +1543,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 }
 
                 if (found) {
+                    if (consume_in_reference(state)) {
+                        type = create_pointer_type(type);
+                    }
+
                     stack_type_push(&state->stack, type);
                 }
             }
