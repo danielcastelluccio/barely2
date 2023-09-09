@@ -512,7 +512,9 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
                         if (result != NULL) {
                             if (has_directive(&parent_type->directives, Directive_Generic)) {
                                 Array_Type* generic_values = &get_directive(&parent_type->directives, Directive_Generic)->data.generic.types;
-                                *result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result, state);
+                                Type result_temp = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result, state);
+                                result = malloc(sizeof(Type));
+                                *result = result_temp;
                             }
                         }
                         return result;
