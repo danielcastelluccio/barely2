@@ -849,6 +849,7 @@ void process_type(Type* type, Generic_State* state) {
             Identifier identifier = basic_type_to_identifier(*basic);
             Resolved resolved = resolve(state, identifier);
             if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type) {
+                process_type(&resolved.data.item->data.type.type, state);
                 basic->resolved_node = resolved.data.item;
             }
             break;
@@ -858,6 +859,9 @@ void process_type(Type* type, Generic_State* state) {
             for (size_t i = 0; i < struct_->items.count; i++) {
                 process_type(&struct_->items.elements[i]->type, state);
             }
+            break;
+        }
+        case Type_Enum: {
             break;
         }
         case Type_Procedure: {
