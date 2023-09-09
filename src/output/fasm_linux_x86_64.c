@@ -268,6 +268,39 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
     return result;
 }
 
+bool has_local_variable(char* name, Output_State* state) {
+    for (int i = state->current_declares.count - 1; i >= 0; i--) {
+        Declaration* declaration = &state->current_declares.elements[i];
+        if (strcmp(declaration->name, name) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+Location_Size_Data get_local_variable_location_size(char* name, Output_State* state) {
+    Location_Size_Data result = { .location = 8 };
+
+    bool found = false;
+
+    for (int i = state->current_declares.count - 1; i >= 0; i--) {
+        Declaration* declaration = &state->current_declares.elements[i];
+        size_t declaration_size = get_size(&declaration->type, state);
+
+        if (found) {
+            result.location += declaration_size;
+        }
+
+        if (!found && strcmp(declaration->name, name) == 0) {
+            result.size = declaration_size;
+            found = true;
+        }
+    }
+
+    return result;
+}
+
 void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State* state) {
     if (has_directive(&statement->directives, Directive_If)) {
         Directive_If_Node* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
@@ -415,16 +448,13 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                         parent_type_raw = &parent_type;
                     }
 
-                    size_t location = 0;
-                    size_t size = 0;
-
                     output_expression_fasm_linux_x86_64(assign_part->data.parent.expression, state);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
 
                     Location_Size_Data result = get_parent_item_location_size(parent_type_raw, assign_part->data.parent.name, state);
-                    location = result.location;
-                    size = result.size;
+                    size_t location = result.location;
+                    size_t size = result.size;
                         
                     size_t i = 0;
                     while (i < size) {
@@ -464,52 +494,44 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
                     char* name = assign_part->data.identifier.data.single;
 
-                    size_t location = 8;
-                    size_t size = 0;
-                    for (int i = state->current_declares.count - 1; i >= 0; i--) {
-                        Declaration* declaration = &state->current_declares.elements[i];
-                        size_t declaration_size = get_size(&declaration->type, state);
+                    if (has_local_variable(name, state)) {
+                        found = true;
 
-                        if (found) {
-                            location += declaration_size;
+                        Location_Size_Data result = get_local_variable_location_size(name, state);
+                        size_t location = result.location;
+                        size_t size = result.size;
+
+                        size_t i = 0;
+                        while (i < size) {
+                            if (size - i >= 8) {
+                                char buffer[128] = {};
+                                sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                memset(buffer, 0, 128);
+
+                                sprintf(buffer, "  mov [rbp-%zu], rax\n", location + size - i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                i += 8;
+                            } else if (size - i >= 1) {
+                                char buffer[128] = {};
+                                sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                memset(buffer, 0, 128);
+
+                                sprintf(buffer, "  mov [rbp-%zu], al\n", location + size - i);
+                                stringbuffer_appendstring(&state->instructions, buffer);
+
+                                i += 1;
+                            }
                         }
 
-                        if (!found && strcmp(declaration->name, name) == 0) {
-                            size = declaration_size;
-                            found = true;
-                        }
+                        char buffer[128] = {};
+                        sprintf(buffer, "  add rsp, %zu\n", size);
+                        stringbuffer_appendstring(&state->instructions, buffer);
                     }
-
-                    size_t i = 0;
-                    while (i < size) {
-                        if (size - i >= 8) {
-                            char buffer[128] = {};
-                            sprintf(buffer, "  mov rax, [rsp+%zu]\n", i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
-
-                            memset(buffer, 0, 128);
-
-                            sprintf(buffer, "  mov [rbp-%zu], rax\n", location + size - i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
-
-                            i += 8;
-                        } else if (size - i >= 1) {
-                            char buffer[128] = {};
-                            sprintf(buffer, "  mov al, [rsp+%zu]\n", i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
-
-                            memset(buffer, 0, 128);
-
-                            sprintf(buffer, "  mov [rbp-%zu], al\n", location + size - i);
-                            stringbuffer_appendstring(&state->instructions, buffer);
-
-                            i += 1;
-                        }
-                    }
-
-                    char buffer[128] = {};
-                    sprintf(buffer, "  add rsp, %zu\n", size);
-                    stringbuffer_appendstring(&state->instructions, buffer);
                 }
 
                 if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
@@ -1292,11 +1314,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         parent_type_raw = &parent_type;
                     }
 
-                    size_t location = 0;
-                    size_t size = 0;
                     Location_Size_Data result = get_parent_item_location_size(parent_type_raw, retrieve->data.parent.name, state);
-                    location = result.location;
-                    size = result.size;
+                    size_t location = result.location;
+                    size_t size = result.size;
 
                     output_expression_fasm_linux_x86_64(retrieve->data.parent.expression, state);
 
@@ -1347,23 +1367,14 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Identifier) {
-                    size_t location = 8;
-                    size_t size = 0;
-                    for (int i = state->current_declares.count - 1; i >= 0; i--) {
-                        Declaration* declaration = &state->current_declares.elements[i];
-                        size_t declaration_size = get_size(&declaration->type, state);
+                    char* name = retrieve->data.identifier.data.single;
+                    if (has_local_variable(name, state)) {
+                        found = true;
 
-                        if (found) {
-                            location += declaration_size;
-                        }
+                        Location_Size_Data result = get_local_variable_location_size(name, state);
+                        size_t location = result.location;
+                        size_t size = result.size;
 
-                        if (!found && strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
-                            size = declaration_size;
-                            found = true;
-                        }
-                    }
-
-                    if (found) {
                         if (consume_in_reference_output(state)) {
                             char buffer[128] = {};
                             sprintf(buffer, "  lea rax, [rbp-%zu]\n", location + size);
