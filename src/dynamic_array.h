@@ -12,7 +12,8 @@ Array_Type_ name##new(size_t size); \
 void name##append(Array_Type_* array, Type_Inner element); \
 void name##clear(Array_Type_* array); \
 void name##free(Array_Type_* array); \
-Type_Inner name##get(Array_Type_* array, size_t index);
+Type_Inner name##get(Array_Type_* array, size_t index); \
+void name##set(Array_Type_* array, size_t index, Type_Inner value);
 
 #define Dynamic_Array_Impl(Type_Inner, Array_Type_, name) \
 Array_Type_ name##new(size_t size) { \
@@ -49,6 +50,9 @@ void name##free(Array_Type_* array) { \
 \
 Type_Inner name##get(Array_Type_* array, size_t index) { \
     return array->elements[index]; \
+} \
+void name##set(Array_Type_* array, size_t index, Type_Inner value) { \
+    array->elements[index] = value; \
 } \
 
 #endif

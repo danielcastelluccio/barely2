@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -590,7 +591,28 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
     return result;
 }
 
-Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
+int get_precedence(Parser_State* state, size_t index) {
+    if (peek(state, index) == Token_Plus ||
+            peek(state, index) == Token_Minus ||
+            peek(state, index) == Token_Percent) {
+        return 2;
+    }
+    if (peek(state, index) == Token_Asterisk ||
+            peek(state, index) == Token_Slash) {
+        return 3;
+    }
+    if (peek(state, index) == Token_DoubleEquals ||
+            peek(state, index) == Token_ExclamationEquals ||
+            peek(state, index) == Token_GreaterThan ||
+            peek(state, index) == Token_LessThan ||
+            peek(state, index) == Token_LessThanEqual ||
+            peek(state, index) == Token_GreaterThanEqual) {
+        return 1;
+    }
+    return -1;
+}
+
+Expression_Node parse_expression_without_operators(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
     Expression_Node result = { .directives = array_directive_new(1) };
 
@@ -980,19 +1002,21 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
             result.data.invoke = node;
             continue;
         }
+    }
 
-        if (peek(state, index) == Token_Plus ||
-                peek(state, index) == Token_Minus ||
-                peek(state, index) == Token_Asterisk ||
-                peek(state, index) == Token_Slash ||
-                peek(state, index) == Token_Percent ||
-                peek(state, index) == Token_DoubleEquals ||
-                peek(state, index) == Token_ExclamationEquals ||
-                peek(state, index) == Token_GreaterThan ||
-                peek(state, index) == Token_LessThan ||
-                peek(state, index) == Token_LessThanEqual ||
-                peek(state, index) == Token_GreaterThanEqual) {
-            running = true;
+    *index_in = index;
+    return result;
+}
+
+Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
+    size_t index = *index_in;
+    Expression_Node result = parse_expression_without_operators(state, &index);
+
+    if (get_precedence(state, index) > 0) {
+        int previous_precedence = INT_MAX;
+        while (get_precedence(state, index) > 0) {
+            int current_precedence = get_precedence(state, index);
+
             Invoke_Node node;
             node.kind = Invoke_Operator;
             node.location = state->tokens->elements[index].location;
@@ -1038,20 +1062,35 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
             }
             node.data.operator_.operator_ = operator;
 
-            Expression_Node* left_side = malloc(sizeof(Expression_Node));
-            *left_side = result;
+            Expression_Node* parsed = malloc(sizeof(Expression_Node));
+            *parsed = parse_expression_without_operators(state, &index);
 
-            Expression_Node* right_side = malloc(sizeof(Expression_Node));
-            *right_side = parse_expression(state, &index);
+            if (current_precedence > previous_precedence) {
+                Expression_Node* result_inner = malloc(sizeof(Expression_Node));
 
-            Array_Expression_Node arguments = array_expression_node_new(32);
-            array_expression_node_append(&arguments, left_side);
-            array_expression_node_append(&arguments, right_side);
-            node.arguments = arguments;
+                Array_Expression_Node arguments = array_expression_node_new(32);
+                array_expression_node_append(&arguments, array_expression_node_get(&result.data.invoke.arguments, 1));
+                array_expression_node_append(&arguments, parsed);
+                node.arguments = arguments;
 
-            result.kind = Expression_Invoke;
-            result.data.invoke = node;
-            continue;
+                result_inner->kind = Expression_Invoke;
+                result_inner->data.invoke = node;
+
+                array_expression_node_set(&result.data.invoke.arguments, 1, result_inner);
+            } else {
+                Expression_Node* result_allocated = malloc(sizeof(Expression_Node));
+                *result_allocated = result;
+
+                Array_Expression_Node arguments = array_expression_node_new(32);
+                array_expression_node_append(&arguments, result_allocated);
+                array_expression_node_append(&arguments, parsed);
+                node.arguments = arguments;
+
+                result.kind = Expression_Invoke;
+                result.data.invoke = node;
+            }
+
+            previous_precedence = current_precedence;
         }
     }
 
