@@ -52,10 +52,10 @@ typedef struct Item_Node Item_Node;
 
 typedef enum {
     Type_USize,
+    Type_U64,
+    Type_U32,
+    Type_U86,
     Type_U8,
-    Type_U4,
-    Type_U2,
-    Type_U1,
     Type_F8,
     Type_Ptr,
     Type_Bool,

@@ -373,19 +373,19 @@ Type parse_type(Parser_State* state, size_t* index_in) {
             if (strcmp(name, "usize") == 0) {
                 internal = Type_USize;
                 found = true;
+            } else if (strcmp(name, "u64") == 0) {
+                internal = Type_U64;
+                found = true;
+            } else if (strcmp(name, "u32") == 0) {
+                internal = Type_U32;
+                found = true;
+            } else if (strcmp(name, "u16") == 0) {
+                internal = Type_U86;
+                found = true;
             } else if (strcmp(name, "u8") == 0) {
                 internal = Type_U8;
                 found = true;
-            } else if (strcmp(name, "u4") == 0) {
-                internal = Type_U4;
-                found = true;
-            } else if (strcmp(name, "u2") == 0) {
-                internal = Type_U2;
-                found = true;
-            } else if (strcmp(name, "u1") == 0) {
-                internal = Type_U1;
-                found = true;
-            } else if (strcmp(name, "f8") == 0) {
+            } else if (strcmp(name, "f64") == 0) {
                 internal = Type_F8;
                 found = true;
             } else if (strcmp(name, "ptr") == 0) {
