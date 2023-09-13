@@ -1412,8 +1412,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         switch (item->kind) {
                             case Item_Procedure: {
                                 char buffer[128] = {};
-                                sprintf(buffer + strlen(buffer), "  push %s.", item->name);
-                                sprintf(buffer + strlen(buffer), "%zu\n", resolved.file->id);
+                                sprintf(buffer, "  push %s\n", item->name);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 break;
                             }
@@ -1805,6 +1804,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
     Output_State state = (Output_State) {
         .generic = (Generic_State) {
             .program = program,
+            .current_file = NULL,
             .package_names = package_names,
             .package_paths = package_paths,
         },
@@ -1821,6 +1821,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
 
     for (size_t j = 0; j < program->count; j++) {
         File_Node* file_node = &program->elements[j];
+        state.generic.current_file = file_node;
 
         for (size_t i = 0; i < file_node->items.count; i++) {
             Item_Node* item = &file_node->items.elements[i];
