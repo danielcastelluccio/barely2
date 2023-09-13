@@ -15,7 +15,6 @@ Dynamic_Array_Def(size_t, Array_Size, array_size_)
 
 typedef struct {
     File_Node* file;
-    Module_Node* parent_module;
     enum {
         Unresolved,
         Resolved_Item,

@@ -128,45 +128,6 @@ void parse_directives(Parser_State* state, size_t* index_in) {
 
             directive.kind = Directive_If;
             directive.data.if_ = if_node;
-        } else if (strcmp(directive_string, "#is_generic") == 0) {
-            Directive_IsGeneric_Node generic_node = { .types = array_string_new(1), .implementations = array_array_type_new(1) };
-            consume_check(state, &index, Token_LeftParenthesis);
-
-            while (peek(state, index) != Token_RightParenthesis) {
-                if (peek(state, index) == Token_Comma) {
-                    consume(state, &index);
-                    continue;
-                }
-
-                char* identifier = consume_identifier(state, &index);
-                array_string_append(&generic_node.types, identifier);
-            }
-
-            consume_check(state, &index, Token_RightParenthesis);
-
-            directive.kind = Directive_IsGeneric;
-            directive.data.is_generic = generic_node;
-        } else if (strcmp(directive_string, "#generic") == 0) {
-            Directive_Generic_Node generic_node;
-            consume_check(state, &index, Token_LeftParenthesis);
-
-            generic_node.types = array_type_new(1);
-
-            while (peek(state, index) != Token_RightParenthesis) {
-                if (peek(state, index) == Token_Comma) {
-                    consume(state, &index);
-                    continue;
-                }
-
-                Type* type = malloc(sizeof(Type));
-                *type = parse_type(state, &index);
-                array_type_append(&generic_node.types, type);
-            }
-
-            consume_check(state, &index, Token_RightParenthesis);
-
-            directive.kind = Directive_Generic;
-            directive.data.generic = generic_node;
         }
 
         array_directive_append(&state->directives, directive);
@@ -334,18 +295,6 @@ Type parse_type(Parser_State* state, size_t* index_in) {
 
         result.kind = Type_Number;
         result.data.number = number_type;
-    } else if (peek(state, index) == Token_QuestionMark) {
-        Optional_Type optional_type;
-
-        consume(state, &index);
-
-        Type* child = malloc(sizeof(Type));
-        *child = parse_type(state, &index);
-
-        optional_type.child = child;
-
-        result.kind = Type_Optional;
-        result.data.optional = optional_type;
     } else {
         char* name = consume_identifier(state, &index);
         Internal_Type internal;
@@ -403,8 +352,6 @@ Type parse_type(Parser_State* state, size_t* index_in) {
         }
 
         if (!found) {
-            filter_add_directive(state, &result.directives, Directive_Generic);
-
             Basic_Type basic = {};
             basic.kind = Type_Single;
 
@@ -767,8 +714,6 @@ Expression_Node parse_expression_without_operators(Parser_State* state, size_t* 
                 result.data.build = node;
                 break;
             } else {
-                filter_add_directive(state, &result.directives, Directive_Generic);
-
                 Retrieve_Node node = {};
                 node.location = location;
                 node.kind = Retrieve_Assign_Identifier;
@@ -1098,15 +1043,12 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
     return result;
 }
 
-static size_t module_id;
-
 Item_Node parse_item(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
     Item_Node result = { .directives = array_directive_new(1) };
 
     parse_directives(state, &index);
     filter_add_directive(state, &result.directives, Directive_If);
-    filter_add_directive(state, &result.directives, Directive_IsGeneric);
 
     char* keyword = consume_keyword(state, &index);
     if (strcmp(keyword, "proc") == 0) {
@@ -1170,26 +1112,6 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
 
         result.kind = Item_Type;
         result.data.type = node;
-    } else if (strcmp(keyword, "mod") == 0) {
-        Module_Node node;
-        node.items = array_item_node_new(8);
-        node.id = module_id;
-        module_id++;
-        
-        result.name = consume_identifier(state, &index);
-        consume_check(state, &index, Token_LeftCurlyBrace);
-
-        while (peek(state, index) != Token_RightCurlyBrace) {
-            Item_Node item = parse_item(state, &index);
-            Item_Node* item_allocated = malloc(sizeof(Item_Node));
-            *item_allocated = item;
-            array_item_node_append(&node.items, item);
-        }
-
-        consume(state, &index);
-
-        result.kind = Item_Module;
-        result.data.module = node;
     } else if (strcmp(keyword, "global") == 0) {
         Global_Node node;
 

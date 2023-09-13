@@ -96,7 +96,7 @@ Resolved resolve(Generic_State* state, Identifier data) {
         initial_search.data.single = data.data.multi.elements[0];
     }
 
-    Resolved result = { NULL, NULL, Unresolved, {} };
+    Resolved result = { NULL, Unresolved, {} };
     for (size_t j = 0; j < state->program->count; j++) {
         File_Node* file_node = &state->program->elements[j];
         bool stop = false;
@@ -104,7 +104,7 @@ Resolved resolve(Generic_State* state, Identifier data) {
             for (size_t i = 0; i < file_node->items.count; i++) {
                 Item_Node* item = &file_node->items.elements[i];
                 if (initial_search.kind == Identifier_Single && strcmp(item->name, initial_search.data.single) == 0) {
-                    result = (Resolved) { file_node, NULL, Resolved_Item, { .item = item } };
+                    result = (Resolved) { file_node, Resolved_Item, { .item = item } };
                     stop = true;
                     break;
                 }
@@ -118,26 +118,12 @@ Resolved resolve(Generic_State* state, Identifier data) {
 
     if (data.kind == Identifier_Multi) {
         if (strcmp(data.data.multi.elements[0], "") == 0) {
-            result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = NULL, .variant = data.data.multi.elements[1]} } };
+            result = (Resolved) { result.file, Resolved_Enum_Variant, { .enum_ = { .enum_ = NULL, .variant = data.data.multi.elements[1]} } };
         } else {
             size_t identifier_index = 1;
-            while (result.kind == Resolved_Item && result.data.item->kind == Item_Module) {
-                Module_Node* module = &result.data.item->data.module;
-                char* wanted_name = data.data.multi.elements[identifier_index];
-                for (size_t i = 0; i < module->items.count; i++) {
-                    Item_Node* item = &module->items.elements[i];
-                    if (strcmp(item->name, wanted_name) == 0) {
-                        result = (Resolved) { result.file, module, Resolved_Item, { .item = item } };
-                        break;
-                    }
-                }
-
-                identifier_index++;
-            }
-
             if (result.kind == Resolved_Item && result.data.item->kind == Item_Type && result.data.item->data.type.type.kind == Type_Enum) {
                 char* wanted_name = data.data.multi.elements[identifier_index];
-                result = (Resolved) { result.file, result.parent_module, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.type.data.enum_, .variant = wanted_name} } };
+                result = (Resolved) { result.file, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.type.data.enum_, .variant = wanted_name} } };
             }
         }
     }
@@ -215,10 +201,6 @@ bool is_type(Type* wanted, Type* given) {
         return is_type(wanted->data.pointer.child, given->data.pointer.child);
     }
 
-    if (wanted->kind == Type_Optional) {
-        return is_type(wanted->data.optional.child, given->data.optional.child);
-    }
-
     if (wanted->kind == Type_Basic) {
         if (wanted->data.basic.kind == Type_Single && given->data.basic.kind == Type_Single) {
             return strcmp(wanted->data.basic.data.single, given->data.basic.data.single) == 0;
@@ -293,18 +275,6 @@ bool is_internal_type(Internal_Type wanted, Type* given) {
 }
 
 void print_type_inline(Type* type) {
-    if (has_directive(&type->directives, Directive_Generic)) {
-        Directive_Generic_Node* generic = &get_directive(&type->directives, Directive_Generic)->data.generic;
-        printf("#generic(");
-        for (size_t i = 0; i < generic->types.count; i++) {
-            print_type_inline(generic->types.elements[i]);
-            if (i < generic->types.count - 1) {
-                printf(", ");
-            }
-        }
-        printf(") ");
-    }
-
     switch (type->kind) {
         case Type_Basic: {
             Basic_Type* basic = &type->data.basic;
@@ -325,12 +295,6 @@ void print_type_inline(Type* type) {
             Pointer_Type* pointer = &type->data.pointer;
             printf("*");
             print_type_inline(pointer->child);
-            break;
-        }
-        case Type_Optional: {
-            Optional_Type* optional = &type->data.optional;
-            printf("?");
-            print_type_inline(optional->child);
             break;
         }
         case Type_Array: {
@@ -507,17 +471,7 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
                     case Resolved_Item: {
                         Item_Node* item = resolved.data.item;
                         assert(item->kind == Item_Type);
-                        Type* result = get_parent_item_type(&item->data.type.type, item_name, state);
-
-                        if (result != NULL) {
-                            if (has_directive(&parent_type->directives, Directive_Generic)) {
-                                Array_Type* generic_values = &get_directive(&parent_type->directives, Directive_Generic)->data.generic.types;
-                                Type result_temp = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, generic_values, *result, state);
-                                result = malloc(sizeof(Type));
-                                *result = result_temp;
-                            }
-                        }
-                        return result;
+                        return get_parent_item_type(&item->data.type.type, item_name, state);
                     }
                     case Resolved_Enum_Variant: {
                         assert(false);
@@ -545,19 +499,6 @@ Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* st
                     if (strcmp(declaration->name, item_name) == 0) {
                         result = &declaration->type;
                     }
-                }
-                break;
-            }
-            case Type_Optional: {
-                result = malloc(sizeof(Type));
-                if (strcmp(item_name, "?") == 0) {
-                    assert(parent_type->kind == Type_Optional);
-                    *result = *parent_type->data.optional.child;
-                } else if (strcmp(item_name, "??") == 0) {
-                    assert(parent_type->kind == Type_Optional);
-                    *result = create_internal_type(Type_Bool);
-                } else {
-                    assert(false);
                 }
                 break;
             }
@@ -834,64 +775,6 @@ void process_assign(Statement_Assign_Node* assign, Process_State* state) {
     }
 }
 
-void process_type(Type* type, Generic_State* state) {
-    if (has_directive(&type->directives, Directive_Generic)) {
-        Directive_Generic_Node* generic = &get_directive(&type->directives, Directive_Generic)->data.generic;
-        for (size_t i = 0; i < generic->types.count; i++) {
-            process_type(generic->types.elements[i], state);
-        }
-    }
-
-    switch (type->kind) {
-        case Type_Basic: {
-            Basic_Type* basic = &type->data.basic;
-
-            Identifier identifier = basic_type_to_identifier(*basic);
-            Resolved resolved = resolve(state, identifier);
-            if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type) {
-                process_type(&resolved.data.item->data.type.type, state);
-                basic->resolved_node = resolved.data.item;
-            }
-            break;
-        }
-        case Type_Struct: {
-            Struct_Type* struct_ = &type->data.struct_;
-            for (size_t i = 0; i < struct_->items.count; i++) {
-                process_type(&struct_->items.elements[i]->type, state);
-            }
-            break;
-        }
-        case Type_Enum: {
-            break;
-        }
-        case Type_Procedure: {
-            Procedure_Type* procedure = &type->data.procedure;
-            for (size_t i = 0; i < procedure->arguments.count; i++) {
-                process_type(procedure->arguments.elements[i], state);
-            }
-            for (size_t i = 0; i < procedure->returns.count; i++) {
-                process_type(procedure->returns.elements[i], state);
-            }
-            break;
-        }
-        case Type_Pointer: {
-            Pointer_Type* pointer = &type->data.pointer;
-            process_type(pointer->child, state);
-            break;
-        }
-        case Type_Array: {
-            BArray_Type* array = &type->data.array;
-            process_type(array->element_type, state);
-            break;
-        }
-        case Type_Internal: {
-            break;
-        }
-        default:
-            assert(false);
-    }
-}
-
 void process_statement(Statement_Node* statement, Process_State* state) {
     if (has_directive(&statement->directives, Directive_If)) {
         Directive_If_Node* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
@@ -1047,121 +930,6 @@ void process_type_expression(Type* type, Process_State* state) {
     }
 }
 
-Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, Generic_State* state) {
-    Type result = type_in;
-    result.directives = array_directive_new(type_in.directives.count);
-    for (size_t i = 0; i < type_in.directives.count; i++) {
-        Directive_Node* directive = &type_in.directives.elements[i];
-        Directive_Node directive_new = *directive;
-
-        if (directive->kind == Directive_Generic) {
-            Directive_Generic_Node generic = { .types = array_type_new(1) };
-
-            for (size_t i = 0; i < directive->data.generic.types.count; i++) {
-                Type* type = malloc(sizeof(Type));
-                *type = apply_generics(parameters, inputs, *directive->data.generic.types.elements[i], state);
-                array_type_append(&generic.types, type);
-            }
-
-            directive_new.kind = Directive_Generic;
-            directive_new.data.generic = generic;
-        }
-
-        array_directive_append(&result.directives, directive_new);
-    }
-
-    switch (type_in.kind) {
-        case Type_Procedure: {
-            Procedure_Type* procedure_in = &type_in.data.procedure;
-            Procedure_Type procedure_out = { .arguments = array_type_new(procedure_in->arguments.count), .returns = array_type_new(procedure_in->returns.count) };
-            for (size_t i = 0; i < procedure_in->arguments.count; i++) {
-                Type* result = malloc(sizeof(Type));
-                *result = apply_generics(parameters, inputs, *procedure_in->arguments.elements[i], state);
-                array_type_append(&procedure_out.arguments, result);
-            }
-
-            for (size_t i = 0; i < procedure_in->returns.count; i++) {
-                Type* result = malloc(sizeof(Type));
-                *result = apply_generics(parameters, inputs, *procedure_in->returns.elements[i], state);
-                array_type_append(&procedure_out.returns, result);
-            }
-
-            result.kind = Type_Procedure;
-            result.data.procedure = procedure_out;
-            break;
-        }
-        case Type_Basic: {
-            Basic_Type* basic = &type_in.data.basic;
-            if (basic->kind == Type_Single) {
-                if (parameters != NULL) {
-                    for (size_t i = 0; i < parameters->count; i++) {
-                        if (strcmp(basic->data.single, parameters->elements[i]) == 0) {
-                            result = *inputs->elements[i];
-                        }
-                    }
-                }
-
-                process_type(&result, state);
-            } else {
-                assert(false);
-            }
-            break;
-        }
-        case Type_Struct: {
-            Struct_Type* struct_in = &type_in.data.struct_;
-            Struct_Type struct_out = { .items = array_declaration_pointer_new(struct_in->items.count) };
-            for (size_t i = 0; i < struct_in->items.count; i++) {
-                Declaration* result = malloc(sizeof(Declaration));
-                *result = *struct_in->items.elements[i];
-                result->type = apply_generics(parameters, inputs, result->type, state);
-                array_declaration_pointer_append(&struct_out.items, result);
-            }
-
-            result.kind = Type_Struct;
-            result.data.struct_ = struct_out;
-            break;
-        }
-        case Type_Array: {
-            BArray_Type* array_in = &type_in.data.array;
-            BArray_Type array_out = { .has_size = array_in->has_size, .size_type = array_in->size_type };
-
-            Type* element_type = malloc(sizeof(Type));
-            *element_type = apply_generics(parameters, inputs, *array_in->element_type, state);
-            array_out.element_type = element_type;
-
-            result.kind = Type_Array;
-            result.data.array = array_out;
-            break;
-        }
-        case Type_Pointer: {
-            Pointer_Type* pointer = &type_in.data.pointer;
-            Pointer_Type pointer_new = { .child = malloc(sizeof(Type)) };
-
-            *pointer_new.child = apply_generics(parameters, inputs, *pointer->child, state);
-
-            result.kind = Type_Pointer;
-            result.data.pointer = pointer_new;
-            break;
-        }
-        case Type_Optional: {
-            Optional_Type* optional = &type_in.data.optional;
-            Optional_Type optional_new = { .child = malloc(sizeof(Type)) };
-
-            *optional_new.child = apply_generics(parameters, inputs, *optional->child, state);
-
-            result.kind = Type_Optional;
-            result.data.optional = optional_new;
-            break;
-        }
-        case Type_Internal: {
-            break;
-        }
-        default:
-            assert(false);
-    }
-    return result;
-}
-
 bool can_operate_together(Type* first, Type* second) {
     if (is_type(first, second)) {
         return true;
@@ -1253,31 +1021,6 @@ void process_build_type(Build_Node* build, Type* type, Process_State* state) {
             }
             break;
         }
-        case Type_Optional:
-            if (build->arguments.count == 1) {
-                Type* wanted_type = type->data.optional.child;
-                state->wanted_type = wanted_type;
-
-                process_expression(build->arguments.elements[0], state);
-
-                Type popped = stack_type_pop(&state->stack);
-
-                if (!is_type(wanted_type, &popped)) {
-                    print_error_stub(&build->location);
-                    printf("Building of optional expected '");
-                    print_type_inline(type->data.optional.child);
-                    printf("', given '");
-                    print_type_inline(&popped);
-                    printf("'\n");
-                    exit(1);
-                }
-            } else if (build->arguments.count == 0) {
-            } else {
-                print_error_stub(&build->location);
-                printf("Building of optional doesn't provide a 0 or 1 values\n");
-                exit(1);
-            }
-            break;
         default:
             assert(false);
     }
@@ -1608,20 +1351,6 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     case Resolved_Item: {
                         Item_Node* item = resolved.data.item;
 
-                        bool item_generic = has_directive(&item->directives, Directive_IsGeneric);
-                        bool expression_generic = has_directive(&expression->directives, Directive_Generic);
-                        if (item_generic && !expression_generic) {
-                            print_error_stub(&retrieve->location);
-                            printf("Referencing generic item without generic constraints\n");
-                            exit(1);
-                        }
-
-                        if (!item_generic && expression_generic) {
-                            print_error_stub(&retrieve->location);
-                            printf("Referencing non-generic item with generic constraints\n");
-                            exit(1);
-                        }
-
                         found = true;
                         switch (item->kind) {
                             case Item_Procedure: {
@@ -1642,9 +1371,6 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                                 type.kind = Type_Procedure;
                                 type.data.procedure = procedure_type;
-                                if (expression_generic) {
-                                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &get_directive(&expression->directives, Directive_Generic)->data.generic.types, type, &state->generic);
-                                }
                                 stack_type_push(&state->stack, create_pointer_type(type));
                                 break;
                             }
@@ -1914,14 +1640,6 @@ void process_item(Item_Node* item, Process_State* state) {
             process_expression(procedure->body, state);
             break;
         }
-        case Item_Module: {
-            Module_Node* module = &item->data.module;
-            for (size_t i = 0; i < module->items.count; i++) {
-                Item_Node* item = &module->items.elements[i];
-                process_item(item, state);
-            }
-            break;
-        }
         case Item_Global: {
             break;
         }
@@ -1934,130 +1652,6 @@ void process_item(Item_Node* item, Process_State* state) {
             break;
         default:
             assert(false);
-    }
-}
-
-void process_generics_expression(Expression_Node* expression, Generic_State* state, Array_String* current_procedure_generics, Array_Type* current_procedure_values);
-void process_generics_procedure(Item_Node* item, Generic_State* state, Array_Type* generic_values);
-
-void process_generics_statement(Statement_Node* statement, Generic_State* state, Array_String* current_procedure_generics, Array_Type* current_procedure_values) {
-    switch (statement->kind) {
-        case Statement_Expression: {
-            process_generics_expression(statement->data.expression.expression, state, current_procedure_generics, current_procedure_values);
-            break;
-        }
-        case Statement_Return: {
-            process_generics_expression(statement->data.return_.expression, state, current_procedure_generics, current_procedure_values);
-            break;
-        }
-        case Statement_Declare: {
-            if (statement->data.declare.expression != NULL) {
-                process_generics_expression(statement->data.declare.expression, state, current_procedure_generics, current_procedure_values);
-            }
-            break;
-        }
-        case Statement_Assign: {
-            process_generics_expression(statement->data.assign.expression, state, current_procedure_generics, current_procedure_values);
-            break;
-        }
-        default:
-            break;
-    }
-}
-
-void process_generics_expression(Expression_Node* expression, Generic_State* state, Array_String* current_procedure_generics, Array_Type* current_procedure_values) {
-    switch (expression->kind) {
-        case Expression_Block: {
-            Block_Node* block = &expression->data.block;
-            for (size_t i = 0; i < block->statements.count; i++) {
-                process_generics_statement(block->statements.elements[i], state, current_procedure_generics, current_procedure_values);
-            }
-            break;
-        }
-        case Expression_Invoke: {
-            Invoke_Node* invoke = &expression->data.invoke;
-            for (size_t i = 0; i < invoke->arguments.count; i++) {
-                process_generics_expression(invoke->arguments.elements[i], state, current_procedure_generics, current_procedure_values);
-            }
-            if (invoke->kind == Invoke_Standard) {
-                process_generics_expression(invoke->data.procedure, state, current_procedure_generics, current_procedure_values);
-            }
-            break;
-        }
-        case Expression_Retrieve: {
-            Retrieve_Node* retrieve = &expression->data.retrieve;
-            if (has_directive(&expression->directives, Directive_Generic)) {
-                Directive_Generic_Node* generic = &get_directive(&expression->directives, Directive_Generic)->data.generic;
-
-                Resolved resolved = resolve(state, retrieve->data.identifier);
-                assert(resolved.kind == Resolved_Item);
-
-                bool skip_process = false;
-
-                Array_Type replaced = array_type_new(generic->types.count);
-                for (size_t i = 0; i < generic->types.count; i++) {
-                    Type* type = malloc(sizeof(Type));
-                    *type = apply_generics(current_procedure_generics, current_procedure_values, *generic->types.elements[i], state);
-                    if (!is_type(type, generic->types.elements[i]) && current_procedure_values == NULL) {
-                        skip_process = true;
-                    }
-                    array_type_append(&replaced, type);
-                }
-
-                if (!skip_process) {
-                    process_generics_procedure(resolved.data.item, state, &replaced);
-                }
-            }
-            break;
-        }
-        case Expression_If: {
-            If_Node* if_ = &expression->data.if_;
-            process_generics_expression(if_->if_expression, state, current_procedure_generics, current_procedure_values);
-            if (if_->else_expression != NULL) {
-                process_generics_expression(if_->else_expression, state, current_procedure_generics, current_procedure_values);
-            }
-            break;
-        }
-        case Expression_While: {
-            While_Node* while_ = &expression->data.while_;
-            process_generics_expression(while_->inside, state, current_procedure_generics, current_procedure_values);
-            break;
-        }
-        case Expression_Cast: {
-            Cast_Node* cast = &expression->data.cast;
-            process_generics_expression(cast->expression, state, current_procedure_generics, current_procedure_values);
-            break;
-        }
-        default:
-            break;
-    }
-}
-
-void process_generics_procedure(Item_Node* item, Generic_State* state, Array_Type* generic_values) {
-    if (generic_values != NULL) {
-        Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
-        array_array_type_append(&isgeneric->implementations, *generic_values);
-    }
-
-    Procedure_Node* procedure = &item->data.procedure;
-    Array_String* isgeneric_types = NULL;
-    if (has_directive(&item->directives, Directive_IsGeneric)) {
-        isgeneric_types = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types;
-    }
-    process_generics_expression(procedure->body, state, isgeneric_types, generic_values);
-}
-
-void process_generics(Generic_State* state) {
-    for (size_t j = 0; j < state->program->count; j++) {
-        File_Node* file_node = &state->program->elements[j];
-        state->current_file = file_node;
-
-        for (size_t i = 0; i < file_node->items.count; i++) {
-            Item_Node* item = &file_node->items.elements[i];
-            if (item->kind == Item_Procedure && !has_directive(&item->directives, Directive_IsGeneric)) {
-                process_generics_procedure(item, state, NULL);
-            }
-        }
     }
 }
 
@@ -2089,6 +1683,4 @@ void process(Program* program, Array_String* package_names, Array_String* packag
             process_item(item, &state);
         }
     }
-
-    process_generics(&state.generic);
 }

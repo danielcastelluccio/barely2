@@ -21,27 +21,14 @@ typedef struct {
     bool result;
 } Directive_If_Node;
 
-typedef struct {
-    Array_Type types;
-} Directive_Generic_Node;
-
-typedef struct {
-    Array_String types;
-    Array_Array_Type implementations;
-} Directive_IsGeneric_Node;
-
 typedef enum {
     Directive_If,
-    Directive_IsGeneric,
-    Directive_Generic,
 } Directive_Kind;
 
 typedef struct {
     Directive_Kind kind;
     union {
         Directive_If_Node if_;
-        Directive_IsGeneric_Node is_generic;
-        Directive_Generic_Node generic;
     } data;
 } Directive_Node;
 
@@ -106,10 +93,6 @@ typedef struct {
 } Enum_Type;
 
 typedef struct {
-    Type* child;
-} Optional_Type;
-
-typedef struct {
     size_t value;
 } Number_Type;
 
@@ -130,7 +113,6 @@ struct Type {
         Type_Struct,
         Type_Union,
         Type_Enum,
-        Type_Optional,
         Type_Number,
         Type_TypeOf,
         Type_RegisterSize,
@@ -144,7 +126,6 @@ struct Type {
         Struct_Type struct_;
         Union_Type union_;
         Enum_Type enum_;
-        Optional_Type optional;
         Number_Type number;
         TypeOf_Type type_of;
     } data;
@@ -396,11 +377,6 @@ typedef struct {
 Dynamic_Array_Def(Item_Node, Array_Item_Node, array_item_node_)
 
 typedef struct {
-    Array_Item_Node items;
-    size_t id;
-} Module_Node;
-
-typedef struct {
     Type type;
 } Global_Node;
 
@@ -419,7 +395,6 @@ struct Item_Node {
     enum {
         Item_Procedure,
         Item_Type,
-        Item_Module,
         Item_Global,
         Item_Constant,
         Item_Use,
@@ -427,7 +402,6 @@ struct Item_Node {
     union {
         Procedure_Node procedure;
         Type_Node type;
-        Module_Node module;
         Global_Node global;
         Constant_Node constant;
         Use_Node use;

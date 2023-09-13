@@ -16,22 +16,12 @@ typedef struct {
     Array_Declaration current_declares;
     Array_Size scoped_declares;
     Item_Node* current_procedure;
-    Array_Type* current_generics_implementation;
-    Module_Node* current_module;
     bool in_reference;
 } Output_State;
 
 size_t get_size(Type* type, Output_State* state) {
     switch (type->kind) {
         case Type_Basic: {
-            if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                Type type_new = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type, &state->generic);
-
-                if (!is_type(&type_new, type)) {
-                    return get_size(&type_new, state);
-                }
-            }
-
             Basic_Type* basic = &type->data.basic;
             Item_Node* item = basic->resolved_node;
 
@@ -46,23 +36,6 @@ size_t get_size(Type* type, Output_State* state) {
             if (item != NULL) {
                 Type_Node* type_node = &item->data.type;
                 Type type_result = type_node->type;
-
-                if (has_directive(&item->directives, Directive_IsGeneric)) {
-                    Directive_Generic_Node* generic = &get_directive(&type->directives, Directive_Generic)->data.generic;
-                    Array_Type updated = array_type_new(generic->types.count);
-                    for (size_t i = 0; i< generic->types.count; i++) {
-                        Type* type = malloc(sizeof(Type));
-                        if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic->types.elements[i], &state->generic);
-                        } else {
-                            *type = *generic->types.elements[i];
-                        }
-                        array_type_append(&updated, type);
-                    }
-
-                    type_result = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type_result, &state->generic);
-                }
-
                 return get_size(&type_result, state);
             }
             break;
@@ -99,10 +72,6 @@ size_t get_size(Type* type, Output_State* state) {
         }
         case Type_Pointer: {
             return 8;
-        }
-        case Type_Optional: {
-            Optional_Type* optional = &type->data.optional;
-            return get_size(optional->child, state) + 1;
         }
         case Type_Struct: {
             size_t size = 0;
@@ -206,22 +175,6 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                 Item_Node* item = resolved.data.item;
                 assert(item->kind == Item_Type);
                 Type type = item->data.type.type;
-
-                if (has_directive(&item->directives, Directive_IsGeneric)) {
-                    Directive_Generic_Node* generic = &get_directive(&parent_type->directives, Directive_Generic)->data.generic;
-                    Array_Type updated = array_type_new(1);
-                    for (size_t i = 0; i< generic->types.count; i++) {
-                        Type* type = malloc(sizeof(Type));
-                        *type = *generic->types.elements[i];
-                        if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                            *type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *type, &state->generic);
-                        }
-                        array_type_append(&updated, type);
-                    }
-
-                    type = apply_generics(&get_directive(&item->directives, Directive_IsGeneric)->data.is_generic.types, &updated, type, &state->generic);
-                }
-
                 return get_parent_item_location_size(&type, item_name, state);
             }
             case Type_Struct: {
@@ -246,17 +199,6 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                         result.size = item_size;
                         break;
                     }
-                }
-                break;
-            }
-            case Type_Optional: {
-                if (strcmp(item_name, "?") == 0) {
-                    result.size = get_size(parent_type->data.optional.child, state);
-                } else if (strcmp(item_name, "??") == 0) {
-                    result.location = get_size(parent_type->data.optional.child, state);
-                    result.size = 1;
-                } else {
-                    assert(false);
                 }
                 break;
             }
@@ -554,9 +496,6 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                             memset(buffer, 0, 128);
 
                                             sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
-                                            if (resolved.parent_module != NULL) {
-                                                sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
-                                            }
                                             sprintf(buffer + strlen(buffer), "%zu+%zu], rax\n", resolved.file->id, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
@@ -569,9 +508,6 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                                             memset(buffer, 0, 128);
 
                                             sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
-                                            if (resolved.parent_module != NULL) {
-                                                sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
-                                            }
                                             sprintf(buffer + strlen(buffer), "%zu+%zu], al\n", resolved.file->id, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
@@ -769,14 +705,6 @@ void output_build_type(Build_Node* build, Type* type, Output_State* state) {
             }
             break;
         }
-        case Type_Optional:
-            if (build->arguments.count == 1) {
-                output_boolean(1, state);
-                output_expression_fasm_linux_x86_64(build->arguments.elements[0], state);
-            } else if (build->arguments.count == 0) {
-                output_zeroes(get_size(type, state), state);
-            }
-            break;
         default:
             assert(false);
     }
@@ -1485,36 +1413,6 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             case Item_Procedure: {
                                 char buffer[128] = {};
                                 sprintf(buffer + strlen(buffer), "  push %s.", item->name);
-                                if (has_directive(&item->directives, Directive_IsGeneric)) {
-                                    size_t implementation_index = -1;
-                                    Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
-                                    Directive_Generic_Node* generic = &get_directive(&expression->directives, Directive_Generic)->data.generic;
-                                    for (size_t i = 0; i < isgeneric->implementations.count; i++) {
-                                        Array_Type* implementation = &isgeneric->implementations.elements[i];
-                                        bool matches = true;
-                                        for (size_t j = 0; j < implementation->count; j++) {
-                                            Type* generic_type = generic->types.elements[j];
-                                            Type applied_generic_type = *generic_type;
-                                            if (has_directive(&state->current_procedure->directives, Directive_IsGeneric)) {
-                                                applied_generic_type = apply_generics(&get_directive(&state->current_procedure->directives, Directive_IsGeneric)->data.is_generic.types, state->current_generics_implementation, *generic_type, &state->generic);
-                                            }
-
-                                            if (!is_type(&applied_generic_type, implementation->elements[j])) {
-                                                matches = false;
-                                            }
-                                        }
-
-                                        if (matches) {
-                                            implementation_index = i;
-                                            break;
-                                        }
-                                    }
-
-                                    sprintf(buffer + strlen(buffer), "%zu.", implementation_index);
-                                }
-                                if (resolved.parent_module != NULL) {
-                                    sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
-                                }
                                 sprintf(buffer + strlen(buffer), "%zu\n", resolved.file->id);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 break;
@@ -1524,9 +1422,6 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 if (consume_in_reference_output(state)) {
                                     char buffer[128] = {};
                                     sprintf(buffer + strlen(buffer), "  lea rax, [%s.", item->name);
-                                    if (resolved.parent_module != NULL) {
-                                        sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
-                                    }
                                     sprintf(buffer + strlen(buffer), "%zu]\n", resolved.file->id);
 
                                     stringbuffer_appendstring(&state->instructions, buffer);
@@ -1543,9 +1438,6 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                         if (size - i >= 8) {
                                             char buffer[128] = {};
                                             sprintf(buffer + strlen(buffer), "  mov rax, [%s.", item->name);
-                                            if (resolved.parent_module != NULL) {
-                                                sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
-                                            }
                                             sprintf(buffer + strlen(buffer), "%zu+%zu]\n", resolved.file->id, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
@@ -1558,9 +1450,6 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                         } else if (size - i >= 1) {
                                             char buffer[128] = {};
                                             sprintf(buffer + strlen(buffer), "  mov al, [%s.", item->name);
-                                            if (resolved.parent_module != NULL) {
-                                                sprintf(buffer + strlen(buffer), "%zu.", resolved.parent_module->id);
-                                            }
                                             sprintf(buffer + strlen(buffer), "%zu+%zu]\n", resolved.file->id, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
@@ -1860,92 +1749,36 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
 
             state->current_declares = array_declaration_new(4);
             state->current_procedure = item;
-            state->current_generics_implementation = NULL;
 
-            if (has_directive(&item->directives, Directive_IsGeneric)) {
-                Directive_IsGeneric_Node* isgeneric = &get_directive(&item->directives, Directive_IsGeneric)->data.is_generic;
-                for (size_t i = 0; i < isgeneric->implementations.count; i++) {
-                    char buffer[128] = {};
-                    sprintf(buffer + strlen(buffer), "%s.", item->name);
+            char buffer[128] = {};
+            sprintf(buffer, "%s:\n", item->name);
+            stringbuffer_appendstring(&state->instructions, buffer);
 
-                    sprintf(buffer + strlen(buffer), "%zu.", i);
+            stringbuffer_appendstring(&state->instructions, "  push rbp\n");
+            stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
 
-                    if (state->current_module != NULL) {
-                        sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
-                    }
+            size_t locals_size = 8 + collect_expression_locals_size(procedure->body, state);
 
-                    sprintf(buffer + strlen(buffer), "%zu:\n", state->generic.current_file->id);
-                    stringbuffer_appendstring(&state->instructions, buffer);
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  sub rsp, %zu\n", locals_size);
+            stringbuffer_appendstring(&state->instructions, buffer);
 
-                    state->current_generics_implementation = &isgeneric->implementations.elements[i];
+            output_expression_fasm_linux_x86_64(procedure->body, state);
 
-                    stringbuffer_appendstring(&state->instructions, "  push rbp\n");
-                    stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
-
-                    size_t locals_size = 8 + collect_expression_locals_size(procedure->body, state);
-
-                    memset(buffer, 0, 128);
-                    sprintf(buffer, "  sub rsp, %zu\n", locals_size);
-                    stringbuffer_appendstring(&state->instructions, buffer);
-
-                    output_expression_fasm_linux_x86_64(procedure->body, state);
-
-                    size_t arguments_size = 0;
-                    for (size_t i = 0; i < procedure->arguments.count; i++) {
-                        arguments_size += get_size(&procedure->arguments.elements[i].type, state);
-                    }
-
-                    stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
-                    stringbuffer_appendstring(&state->instructions, "  mov rcx, [rsp+0]\n");
-                    stringbuffer_appendstring(&state->instructions, "  mov rdx, [rsp+8]\n");
-                    memset(buffer, 0, 128);
-                    sprintf(buffer, "  add rsp, %zu\n", arguments_size + 16);
-                    stringbuffer_appendstring(&state->instructions, buffer);
-                    stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
-                    stringbuffer_appendstring(&state->instructions, "  push rdx\n");
-                    stringbuffer_appendstring(&state->instructions, "  ret\n");
-                }
-            } else {
-                if (strcmp(item->name, "main") == 0) {
-                    stringbuffer_appendstring(&state->instructions, "main:\n");
-                } else {
-                    char buffer[128] = {};
-                    sprintf(buffer + strlen(buffer), "%s.", item->name);
-
-                    if (state->current_module != NULL) {
-                        sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
-                    }
-
-                    sprintf(buffer + strlen(buffer), "%zu:\n", state->generic.current_file->id);
-                    stringbuffer_appendstring(&state->instructions, buffer);
-                }
-
-                stringbuffer_appendstring(&state->instructions, "  push rbp\n");
-                stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
-
-                size_t locals_size = 8 + collect_expression_locals_size(procedure->body, state);
-
-                char buffer[128] = {};
-                sprintf(buffer, "  sub rsp, %zu\n", locals_size);
-                stringbuffer_appendstring(&state->instructions, buffer);
-
-                output_expression_fasm_linux_x86_64(procedure->body, state);
-
-                size_t arguments_size = 0;
-                for (size_t i = 0; i < procedure->arguments.count; i++) {
-                    arguments_size += get_size(&procedure->arguments.elements[i].type, state);
-                }
-
-                stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
-                stringbuffer_appendstring(&state->instructions, "  mov rcx, [rsp+0]\n");
-                stringbuffer_appendstring(&state->instructions, "  mov rdx, [rsp+8]\n");
-                memset(buffer, 0, 128);
-                sprintf(buffer, "  add rsp, %zu\n", arguments_size + 16);
-                stringbuffer_appendstring(&state->instructions, buffer);
-                stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
-                stringbuffer_appendstring(&state->instructions, "  push rdx\n");
-                stringbuffer_appendstring(&state->instructions, "  ret\n");
+            size_t arguments_size = 0;
+            for (size_t i = 0; i < procedure->arguments.count; i++) {
+                arguments_size += get_size(&procedure->arguments.elements[i].type, state);
             }
+
+            stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
+            stringbuffer_appendstring(&state->instructions, "  mov rcx, [rsp+0]\n");
+            stringbuffer_appendstring(&state->instructions, "  mov rdx, [rsp+8]\n");
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  add rsp, %zu\n", arguments_size + 16);
+            stringbuffer_appendstring(&state->instructions, buffer);
+            stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
+            stringbuffer_appendstring(&state->instructions, "  push rdx\n");
+            stringbuffer_appendstring(&state->instructions, "  ret\n");
             break;
         }
         case Item_Global: {
@@ -1953,23 +1786,8 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             size_t size = get_size(&global->type, state);
 
             char buffer[128] = {};
-            sprintf(buffer + strlen(buffer), "%s.", item->name);
-
-            if (state->current_module != NULL) {
-                sprintf(buffer + strlen(buffer), "%zu.", state->current_module->id);
-            }
-
-            sprintf(buffer + strlen(buffer), "%zu: rb %zu\n", state->generic.current_file->id, size);
+            sprintf(buffer, "%s: rb %zu\n", item->name, size);
             stringbuffer_appendstring(&state->bss, buffer);
-            break;
-        }
-        case Item_Module: {
-            Module_Node* module = &item->data.module;
-            for (size_t i = 0; i < module->items.count; i++) {
-                state->current_module = module;
-                Item_Node* item = &module->items.elements[i];
-                output_item_fasm_linux_x86_64(item, state);
-            }
             break;
         }
         case Item_Constant:
@@ -1987,7 +1805,6 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
     Output_State state = (Output_State) {
         .generic = (Generic_State) {
             .program = program,
-            .current_file = NULL,
             .package_names = package_names,
             .package_paths = package_paths,
         },
@@ -1999,18 +1816,14 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         .current_declares = {},
         .scoped_declares = {},
         .current_procedure = NULL,
-        .current_generics_implementation = 0,
-        .current_module = NULL,
         .in_reference = false,
     };
 
     for (size_t j = 0; j < program->count; j++) {
         File_Node* file_node = &program->elements[j];
-        state.generic.current_file = file_node;
 
         for (size_t i = 0; i < file_node->items.count; i++) {
             Item_Node* item = &file_node->items.elements[i];
-            state.current_module = NULL;
             output_item_fasm_linux_x86_64(item, &state);
         }
     }
