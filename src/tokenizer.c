@@ -73,6 +73,9 @@ void print_token(Token* token, bool newline) {
         case Token_Period:
             printf("Period");
             break;
+        case Token_DoublePeriod:
+            printf("DoublePeriod");
+            break;
         case Token_Equals:
             printf("Equals");
             break;
@@ -240,9 +243,15 @@ Tokens tokenize(char* file, char* contents) {
                     break;
                 case '.':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Period, 0, LOCATION(file, row, col) });
-                    col++;
-                    i++;
+                    if (contents[i + 1] == '.') {
+                        tokens_append(&tokens, (Token) { Token_DoublePeriod, 0, LOCATION(file, row, col) });
+                        col += 2;
+                        i += 2;
+                    } else {
+                        tokens_append(&tokens, (Token) { Token_Period, 0, LOCATION(file, row, col) });
+                        col++;
+                        i++;
+                    }
                     break;
                 case '=':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);

@@ -386,12 +386,19 @@ typedef struct {
 } Procedure_Node;
 
 typedef enum {
-    Macro_Expression
+    Macro_Expression,
+    Macro_Multi
 } Macro_Syntax_Kind;
+
+typedef struct {
+    Macro_Syntax_Kind kind;
+    bool repeat;
+} Macro_Syntax_Argument;
 
 struct Macro_Syntax_Data {
     Macro_Syntax_Kind kind;
     union {
+        Array_Macro_Syntax_Data multi;
         Expression_Node* expression;
     } data;
 };
@@ -402,10 +409,10 @@ typedef struct {
 } Macro_Variant;
 
 Dynamic_Array_Def(Macro_Variant, Array_Macro_Variant, array_macro_variant_)
-Dynamic_Array_Def(Macro_Syntax_Kind, Array_Macro_Syntax_Kind, array_macro_syntax_kind_)
+Dynamic_Array_Def(Macro_Syntax_Argument, Array_Macro_Syntax_Argument, array_macro_syntax_argument_)
 
 typedef struct {
-    Array_Macro_Syntax_Kind arguments;
+    Array_Macro_Syntax_Argument arguments;
     Macro_Syntax_Kind return_;
     Array_Macro_Variant variants;
 } Macro_Node;

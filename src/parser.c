@@ -740,6 +740,21 @@ Expression_Node parse_expression_without_operators(Parser_State* state, size_t* 
             }
             break;
         }
+        case Token_DoublePeriod: {
+            consume(state, &index);
+
+            Retrieve_Node node = {};
+            node.kind = Retrieve_Assign_Identifier;
+            Identifier identifier = {};
+            identifier.kind = Identifier_Single;
+            identifier.data.single = "..";
+
+            node.kind = Retrieve_Assign_Identifier;
+            node.data.identifier = identifier;
+            result.kind = Expression_Retrieve;
+            result.data.retrieve = node;
+            break;
+        }
         case Token_DoubleColon: {
             Retrieve_Node node = {};
             node.location = state->tokens->elements[index].location;
@@ -1153,7 +1168,7 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
 
         consume_check(state, &index, Token_Exclamation);
 
-        Macro_Node node = { .arguments = array_macro_syntax_kind_new(2), .variants = array_macro_variant_new(2) };
+        Macro_Node node = { .arguments = array_macro_syntax_argument_new(2), .variants = array_macro_variant_new(2) };
         consume_check(state, &index, Token_LeftParenthesis);
 
         while (peek(state, index) != Token_RightParenthesis) {
@@ -1162,7 +1177,15 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
                 continue;
             }
 
-            array_macro_syntax_kind_append(&node.arguments, parse_macro_syntax_kind(state, &index));
+            Macro_Syntax_Argument argument = {};
+            argument.kind = parse_macro_syntax_kind(state, &index);
+
+            if (peek(state, index) == Token_DoublePeriod) {
+                consume(state, &index);
+                argument.repeat = true;
+            }
+
+            array_macro_syntax_argument_append(&node.arguments, argument);
         }
 
         consume(state, &index);
@@ -1173,6 +1196,10 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
         consume_check(state, &index, Token_LeftCurlyBrace);
 
         while (peek(state, index) != Token_RightCurlyBrace) {
+            if (peek(state, index) == Token_Comma) {
+                consume(state, &index);
+            }
+
             Macro_Variant variant = { .bindings = array_string_new(2) };
             consume_check(state, &index, Token_LeftParenthesis);
 
@@ -1182,7 +1209,12 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
                     continue;
                 }
 
-                array_string_append(&variant.bindings, consume_identifier(state, &index));
+                if (peek(state, index) == Token_DoublePeriod) {
+                    array_string_append(&variant.bindings, "..");
+                    consume(state, &index);
+                } else {
+                    array_string_append(&variant.bindings, consume_identifier(state, &index));
+                }
             }
 
             consume(state, &index);

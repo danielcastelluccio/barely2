@@ -16,6 +16,7 @@ typedef enum {
     Token_Semicolon,
     Token_Comma,
     Token_Period,
+    Token_DoublePeriod,
     Token_Exclamation,
     Token_Equals,
     Token_DoubleEquals,
