@@ -1026,6 +1026,149 @@ void process_build_type(Build_Node* build, Type* type, Process_State* state) {
     }
 }
 
+Expression_Node clone_macro_expression(Expression_Node expression, Array_String bindings, Array_Macro_Syntax_Data values);
+
+Statement_Node clone_macro_statement(Statement_Node statement, Array_String bindings, Array_Macro_Syntax_Data values) {
+    Statement_Node result = {};
+    result.kind = statement.kind;
+
+    switch (statement.kind) {
+        case Statement_Declare: {
+            Statement_Declare_Node* declare_in = &statement.data.declare;
+            Statement_Declare_Node declare_out = { .declarations = array_declaration_new(declare_in->declarations.count) };
+
+            for (size_t i = 0; i < declare_in->declarations.count; i++) {
+                array_declaration_append(&declare_out.declarations, declare_in->declarations.elements[i]);
+            }
+
+            declare_out.expression = malloc(sizeof(Expression_Node));
+            *declare_out.expression = clone_macro_expression(*declare_in->expression, bindings, values);
+
+            result.data.declare = declare_out;
+            break;
+        }
+        default:
+            assert(false);
+    }
+
+    return result;
+}
+
+Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data values) {
+    (void) bindings;
+    (void) values;
+
+    Type result;
+    result.kind = type.kind;
+
+    switch (type.kind) {
+        default:
+            assert(false);
+    }
+
+    return result;
+}
+
+Expression_Node clone_macro_expression(Expression_Node expression, Array_String bindings, Array_Macro_Syntax_Data values) {
+    Expression_Node result;
+    result.kind = expression.kind;
+
+    switch (expression.kind) {
+        case Expression_Block: {
+            Block_Node* block_in = &expression.data.block;
+            Block_Node block_out = { .statements = array_statement_node_new(block_in->statements.count) };
+
+            for (size_t i = 0; i < block_in->statements.count; i++) {
+                Statement_Node* statement = malloc(sizeof(Statement_Node));
+                *statement = clone_macro_statement(*block_in->statements.elements[i], bindings, values);
+                array_statement_node_append(&block_out.statements, statement);
+            }
+
+            result.data.block = block_out;
+            break;
+        }
+        case Expression_Invoke: {
+            Invoke_Node* invoke_in = &expression.data.invoke;
+            Invoke_Node invoke_out = { .kind = invoke_in->kind, .arguments = array_expression_node_new(invoke_in->arguments.count) };
+
+            for (size_t i = 0; i < invoke_in->arguments.count; i++) {
+                Expression_Node* expression = malloc(sizeof(Expression_Node));
+                *expression = clone_macro_expression(*invoke_in->arguments.elements[i], bindings, values);
+                array_expression_node_append(&invoke_out.arguments, expression);
+            }
+
+            switch (invoke_in->kind) {
+                case Invoke_Standard: {
+                    Expression_Node* expression = malloc(sizeof(Expression_Node));
+                    *expression = clone_macro_expression(*invoke_in->data.procedure, bindings, values);
+                    invoke_out.data.procedure = expression;
+                    break;
+                }
+                default:
+                    invoke_out.data.operator_ = invoke_in->data.operator_;
+                    break;
+            }
+
+            result.data.invoke = invoke_out;
+            break;
+        }
+        case Expression_Retrieve: {
+            Retrieve_Node* retrieve_in = &expression.data.retrieve;
+            Retrieve_Node retrieve_out = { .location = retrieve_in->location };
+
+            retrieve_out.kind = retrieve_in->kind;
+
+            switch (retrieve_in->kind) {
+                case Retrieve_Assign_Identifier: {
+                    Identifier identifier = retrieve_in->data.identifier;
+
+                    if (identifier.kind == Identifier_Single) {
+                        for (size_t i = 0; i < bindings.count; i++) {
+                            if (strcmp(bindings.elements[i], identifier.data.single) == 0) {
+                                return *values.elements[i]->data.expression;
+                            }
+                        }
+                    }
+
+                    retrieve_out.data.identifier = retrieve_in->data.identifier;
+                    break;
+                }
+                default:
+                    assert(false);
+            }
+
+            result.data.retrieve = retrieve_out;
+            break;
+        }
+        case Expression_Number: {
+            result.data.number = expression.data.number;
+            break;
+        }
+        case Expression_String: {
+            result.data.string = expression.data.string;
+            break;
+        }
+        default:
+            printf("%i\n", expression.kind);
+            assert(false);
+    }
+
+    return result;
+}
+
+Macro_Syntax_Data clone_macro_macro_syntax_data(Macro_Syntax_Data data, Array_String bindings, Array_Macro_Syntax_Data values) {
+    Macro_Syntax_Data result;
+    result.kind = data.kind;
+
+    switch (data.kind) {
+        case Macro_Expression: {
+            result.data.expression = malloc(sizeof(Expression_Node));
+            *result.data.expression = clone_macro_expression(*data.data.expression, bindings, values);
+        }
+    }
+    return data;
+}
+
 void process_expression(Expression_Node* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
@@ -1228,6 +1371,33 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     assert(false);
                 }
             }
+            break;
+        }
+        case Expression_RunMacro: {
+            Run_Macro_Node* run_macro = &expression->data.run_macro;
+
+            Resolved resolved = resolve(&state->generic, run_macro->identifier);
+            assert(resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Macro);
+            Macro_Node* macro = &resolved.data.item->data.macro;
+
+            assert(macro->return_ == Macro_Expression);
+
+            for (size_t i = 0; i < macro->arguments.count; i++) {
+                if (run_macro->arguments.elements[i]->kind != macro->arguments.elements[i]) {
+                    print_error_stub(&run_macro->location);
+                    printf("Macro invocation with wrong type!\n");
+                    exit(1);
+                }
+            }
+
+            // TODO: choose which branch to evaluate
+            Macro_Variant variant = macro->variants.elements[0];
+            Expression_Node cloned = clone_macro_expression(*variant.data.data.expression, variant.bindings, run_macro->arguments);
+
+            run_macro->computed_expression = malloc(sizeof(Expression_Node));
+            *run_macro->computed_expression = cloned;
+
+            process_expression(run_macro->computed_expression, state);
             break;
         }
         case Expression_Retrieve: {
@@ -1638,6 +1808,9 @@ void process_item(Item_Node* item, Process_State* state) {
             state->current_body = procedure->body;
 
             process_expression(procedure->body, state);
+            break;
+        }
+        case Item_Macro: {
             break;
         }
         case Item_Global: {

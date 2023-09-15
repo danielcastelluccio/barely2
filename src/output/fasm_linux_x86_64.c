@@ -1157,6 +1157,11 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             }
             break;
         }
+        case Expression_RunMacro: {
+            Run_Macro_Node* macro = &expression->data.run_macro;
+            output_expression_fasm_linux_x86_64(macro->computed_expression, state);
+            break;
+        }
         case Expression_Retrieve: {
             Retrieve_Node* retrieve = &expression->data.retrieve;
             bool found = false;
@@ -1794,6 +1799,8 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
         case Item_Type:
             break;
         case Item_Use:
+            break;
+        case Item_Macro:
             break;
         default:
             assert(false);

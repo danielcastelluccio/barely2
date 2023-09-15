@@ -11,6 +11,8 @@ Dynamic_Array_Impl(Token, Tokens, tokens_)
 bool is_keyword(char* buffer) {
     if (strcmp(buffer, "proc") == 0) {
         return true;
+    } else if (strcmp(buffer, "macro") == 0) {
+        return true;
     } else if (strcmp(buffer, "type") == 0) {
         return true;
     } else if (strcmp(buffer, "struct") == 0) {

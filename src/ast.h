@@ -144,6 +144,11 @@ Dynamic_Array_Def(Statement_Node*, Array_Statement_Node, array_statement_node_)
 Dynamic_Array_Def(Expression_Node*, Array_Expression_Node, array_expression_node_)
 Dynamic_Array_Def(Declaration, Array_Declaration, array_declaration_)
 
+struct Macro_Syntax_Data;
+typedef struct Macro_Syntax_Data Macro_Syntax_Data;
+
+Dynamic_Array_Def(Macro_Syntax_Data*, Array_Macro_Syntax_Data, array_macro_syntax_data_)
+
 typedef struct {
     Array_Statement_Node statements;
 } Block_Node;
@@ -224,6 +229,14 @@ typedef struct {
 } Identifier;
 
 typedef struct {
+    Identifier identifier;
+    Array_Macro_Syntax_Data arguments;
+    Location location;
+
+    Expression_Node* computed_expression;
+} Run_Macro_Node;
+
+typedef struct {
     enum {
         Retrieve_Assign_Identifier,
         Retrieve_Assign_Parent,
@@ -293,6 +306,7 @@ struct Expression_Node {
         Expression_Number,
         Expression_String,
         Expression_Invoke,
+        Expression_RunMacro,
         Expression_Retrieve,
         Expression_If,
         Expression_While,
@@ -310,6 +324,7 @@ struct Expression_Node {
         Number_Node number;
         String_Node string;
         Invoke_Node invoke;
+        Run_Macro_Node run_macro;
         Retrieve_Node retrieve;
         If_Node if_;
         While_Node while_;
@@ -370,6 +385,31 @@ typedef struct {
     Expression_Node* body;
 } Procedure_Node;
 
+typedef enum {
+    Macro_Expression
+} Macro_Syntax_Kind;
+
+struct Macro_Syntax_Data {
+    Macro_Syntax_Kind kind;
+    union {
+        Expression_Node* expression;
+    } data;
+};
+
+typedef struct {
+    Array_String bindings;
+    Macro_Syntax_Data data;
+} Macro_Variant;
+
+Dynamic_Array_Def(Macro_Variant, Array_Macro_Variant, array_macro_variant_)
+Dynamic_Array_Def(Macro_Syntax_Kind, Array_Macro_Syntax_Kind, array_macro_syntax_kind_)
+
+typedef struct {
+    Array_Macro_Syntax_Kind arguments;
+    Macro_Syntax_Kind return_;
+    Array_Macro_Variant variants;
+} Macro_Node;
+
 typedef struct {
     Type type;
 } Type_Node;
@@ -394,6 +434,7 @@ struct Item_Node {
     Array_Directive directives;
     enum {
         Item_Procedure,
+        Item_Macro,
         Item_Type,
         Item_Global,
         Item_Constant,
@@ -401,6 +442,7 @@ struct Item_Node {
     } kind;
     union {
         Procedure_Node procedure;
+        Macro_Node macro;
         Type_Node type;
         Global_Node global;
         Constant_Node constant;

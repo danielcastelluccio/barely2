@@ -947,6 +947,44 @@ Expression_Node parse_expression_without_operators(Parser_State* state, size_t* 
             result.data.invoke = node;
             continue;
         }
+
+        if (peek(state, index) == Token_Exclamation) {
+            running = true;
+            Run_Macro_Node node = { .arguments = array_macro_syntax_data_new(2) };
+            assert(result.kind == Expression_Retrieve && result.data.retrieve.kind == Retrieve_Assign_Identifier);
+            node.identifier = result.data.retrieve.data.identifier;
+            node.location = state->tokens->elements[index].location;
+
+            consume(state, &index);
+            consume_check(state, &index, Token_LeftParenthesis);
+
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
+                    index++;
+                    continue;
+                }
+
+                Macro_Syntax_Data* data = malloc(sizeof(Macro_Syntax_Data));;
+                char* kind = consume_identifier(state, &index);
+                if (strcmp(kind, "$expr") == 0) {
+                    Expression_Node* expression = malloc(sizeof(Expression_Node));
+                    *expression = parse_expression(state, &index);
+
+                    data->kind = Macro_Expression;
+                    data->data.expression = expression;
+                } else {
+                    assert(false);
+                }
+
+                array_macro_syntax_data_append(&node.arguments, data);
+            }
+
+            consume(state, &index);
+
+            result.kind = Expression_RunMacro;
+            result.data.run_macro = node;
+            continue;
+        }
     }
 
     *index_in = index;
@@ -1043,6 +1081,15 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
     return result;
 }
 
+Macro_Syntax_Kind parse_macro_syntax_kind(Parser_State* state, size_t* index) {
+    char* name = consume_identifier(state, index);
+    if (strcmp(name, "$expr") == 0) {
+        return Macro_Expression;
+    } else {
+        assert(false);
+    }
+}
+
 Item_Node parse_item(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
     Item_Node result = { .directives = array_directive_new(1) };
@@ -1100,6 +1147,63 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
 
         result.kind = Item_Procedure;
         result.data.procedure = node;
+    } else if (strcmp(keyword, "macro") == 0) {
+        char* name = consume_identifier(state, &index);
+        result.name = name;
+
+        consume_check(state, &index, Token_Exclamation);
+
+        Macro_Node node = { .arguments = array_macro_syntax_kind_new(2), .variants = array_macro_variant_new(2) };
+        consume_check(state, &index, Token_LeftParenthesis);
+
+        while (peek(state, index) != Token_RightParenthesis) {
+            if (peek(state, index) == Token_Comma) {
+                index += 1;
+                continue;
+            }
+
+            array_macro_syntax_kind_append(&node.arguments, parse_macro_syntax_kind(state, &index));
+        }
+
+        consume(state, &index);
+        consume_check(state, &index, Token_Colon);
+
+        node.return_ = parse_macro_syntax_kind(state, &index);
+
+        consume_check(state, &index, Token_LeftCurlyBrace);
+
+        while (peek(state, index) != Token_RightCurlyBrace) {
+            Macro_Variant variant = { .bindings = array_string_new(2) };
+            consume_check(state, &index, Token_LeftParenthesis);
+
+            while (peek(state, index) != Token_RightParenthesis) {
+                if (peek(state, index) == Token_Comma) {
+                    consume(state, &index);
+                    continue;
+                }
+
+                array_string_append(&variant.bindings, consume_identifier(state, &index));
+            }
+
+            consume(state, &index);
+
+            if (node.return_ == Macro_Expression) {
+                Expression_Node* node = malloc(sizeof(Expression_Node));
+                *node = parse_expression(state, &index);
+                variant.data.kind = Macro_Expression;
+                variant.data.data.expression = node;
+
+            } else {
+                assert(false);
+            }
+
+            array_macro_variant_append(&node.variants, variant);
+        }
+
+        consume(state, &index);
+
+        result.kind = Item_Macro;
+        result.data.macro = node;
     } else if (strcmp(keyword, "type") == 0) {
         Type_Node node;
 
