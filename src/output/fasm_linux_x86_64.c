@@ -141,6 +141,9 @@ size_t collect_expression_locals_size(Expression_Node* expression, Output_State*
         case Expression_While: {
             return collect_expression_locals_size(expression->data.while_.inside, state);
         }
+        case Expression_RunMacro: {
+            return collect_expression_locals_size(expression->data.run_macro.computed_expression, state);
+        }
         default:
             return 0;
     }
@@ -1821,7 +1824,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         .string_index = 0,
         .flow_index = 0,
         .current_declares = {},
-        .scoped_declares = {},
+        .scoped_declares = array_size_new(8),
         .current_procedure = NULL,
         .in_reference = false,
     };

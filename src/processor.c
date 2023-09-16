@@ -1047,6 +1047,15 @@ Statement_Node clone_macro_statement(Statement_Node statement, Array_String bind
             result.data.declare = declare_out;
             break;
         }
+        case Statement_Expression: {
+            Statement_Expression_Node* expression_in = &statement.data.expression;
+            Statement_Expression_Node expression_out = { .expression = malloc(sizeof(Expression_Node)) };
+
+            *expression_out.expression = clone_macro_expression(*expression_in->expression, bindings, values);
+
+            result.data.expression = expression_out;
+            break;
+        }
         default:
             assert(false);
     }
@@ -1175,6 +1184,14 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             }
 
             result.data.retrieve = retrieve_out;
+            break;
+        }
+        case Expression_Reference: {
+            Reference_Node* reference_in = &expression.data.reference;
+            Reference_Node reference_out = { .inner = malloc(sizeof(Expression_Node)) };
+            *reference_out.inner = clone_macro_expression(*reference_in->inner, bindings, values);
+
+            result.data.reference = reference_out;
             break;
         }
         case Expression_Number: {
@@ -1932,7 +1949,7 @@ void process(Program* program, Array_String* package_names, Array_String* packag
         },
         .stack = stack_type_new(8),
         .current_declares = {},
-        .scoped_declares = {},
+        .scoped_declares = array_size_new(8),
         .current_arguments = {},
         .current_returns = {},
         .current_body = NULL,
