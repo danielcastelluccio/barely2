@@ -1146,6 +1146,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
                         stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
                         stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
+                        stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");
                         stringbuffer_appendstring(&state->instructions, "  and al, bl\n");
                         stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                         stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
@@ -1156,6 +1157,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                         stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
                         stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
                         stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
+                        stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");
                         stringbuffer_appendstring(&state->instructions, "  or al, bl\n");
                         stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                         stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");

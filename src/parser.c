@@ -808,7 +808,7 @@ Expression_Node parse_expression_without_operators(Parser_State* state, size_t* 
             consume(state, &index);
 
             Expression_Node* expression = malloc(sizeof(Expression_Node));
-            *expression = parse_expression(state, &index);
+            *expression = parse_expression_without_operators(state, &index);
             array_expression_node_append(&node.arguments, expression);
 
             result.kind = Expression_Invoke;
