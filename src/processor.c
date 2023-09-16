@@ -183,6 +183,7 @@ bool is_type(Type* wanted, Type* given, Process_State* state) {
     }
 
     if (wanted->kind == Type_TypeOf) {
+        state->wanted_type = NULL;
         process_expression(wanted->data.type_of.expression, state);
         Type type = stack_type_pop(&state->stack);
         return is_type(&type, given, state);
@@ -1036,6 +1037,7 @@ Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data 
 Statement_Node clone_macro_statement(Statement_Node statement, Array_String bindings, Array_Macro_Syntax_Data values) {
     Statement_Node result = {};
     result.directives = array_directive_new(statement.directives.count);
+    result.statement_end_location = statement.statement_end_location;
     for (size_t i = 0; i < statement.directives.count; i++) {
         Directive_Node directive = statement.directives.elements[i];
         Directive_Node directive_result = { .kind = directive.kind };
@@ -1063,7 +1065,7 @@ Statement_Node clone_macro_statement(Statement_Node statement, Array_String bind
 
             for (size_t i = 0; i < declare_in->declarations.count; i++) {
                 Declaration* declaration_in = &declare_in->declarations.elements[i];
-                Declaration declaration_out = { .name = declaration_in->name };
+                Declaration declaration_out = { .name = declaration_in->name, .location = declaration_in->location };
                 declaration_out.type = clone_macro_type(declaration_in->type, bindings, values);
                 array_declaration_append(&declare_out.declarations, declaration_out);
             }
@@ -1082,6 +1084,7 @@ Statement_Node clone_macro_statement(Statement_Node statement, Array_String bind
                 Statement_Assign_Part* assign_part_in = &assign_in->parts.elements[i];
                 Statement_Assign_Part assign_part_out;
                 assign_part_out.kind = assign_part_in->kind;
+                assign_part_out.location = assign_part_in->location;
 
                 switch (assign_part_in->kind) {
                     case Retrieve_Assign_Identifier: {
@@ -1128,21 +1131,21 @@ Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data 
     result.kind = type.kind;
 
     switch (type.kind) {
-        //case Type_Basic: {
-        //    Basic_Type* basic_in = &type.data.pointer;
-        //    Basic_Type basic_out = *basic_in;
+        case Type_Basic: {
+            Basic_Type* basic_in = &type.data.basic;
+            Basic_Type basic_out = *basic_in;
 
-        //    if (basic_out.kind == Type_Single) {
-        //        for (size_t i = 0; i < bindings.count; i++) {
-        //            if (strcmp(bindings.elements[i], basic_out.data.single) == 0) {
-        //                return *values.elements[i]->data.type;
-        //            }
-        //        }
-        //    }
+            //if (basic_out.kind == Type_Single) {
+            //    for (size_t i = 0; i < bindings.count; i++) {
+            //        if (strcmp(bindings.elements[i], basic_out.data.single) == 0) {
+            //            return *values.elements[i]->data.type;
+            //        }
+            //    }
+            //}
 
-        //    result.data.basic = basic_out;
-        //    break;
-        //}
+            result.data.basic = basic_out;
+            break;
+        }
         case Type_Pointer: {
             Pointer_Type* pointer_in = &type.data.pointer;
             Pointer_Type pointer_out = { .child = malloc(sizeof(Type)) };
@@ -1158,9 +1161,10 @@ Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data 
 
             *array_out.element_type = clone_macro_type(*array_in->element_type, bindings, values);
 
-            if (array_in->size_type != NULL) {
+            if (array_in->has_size) {
                 array_out.size_type = malloc(sizeof(Type));
                 *array_out.size_type = clone_macro_type(*array_in->size_type, bindings, values);
+                array_out.has_size = true;
             }
 
             result.data.array = array_out;
@@ -1168,6 +1172,10 @@ Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data 
         }
         case Type_Internal: {
             result.data.internal = type.data.internal;
+            break;
+        }
+        case Type_Number: {
+            result.data.number = type.data.number;
             break;
         }
         case Type_TypeOf: {
@@ -1295,6 +1303,12 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
                     *retrieve_out.data.array.expression_outer = clone_macro_expression(*retrieve_in->data.array.expression_outer, bindings, values);
                     break;
                 }
+                case Retrieve_Assign_Parent: {
+                    retrieve_out.data.parent.expression = malloc(sizeof(Expression_Node));
+                    *retrieve_out.data.parent.expression = clone_macro_expression(*retrieve_in->data.parent.expression, bindings, values);
+                    retrieve_out.data.parent.name = retrieve_in->data.parent.name;
+                    break;
+                }
                 default:
                     assert(false);
             }
@@ -1349,6 +1363,18 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             cast_out.type = clone_macro_type(cast_in->type, bindings, values);
 
             result.data.cast = cast_out;
+            break;
+        }
+        case Expression_Build: {
+            Build_Node* build_in = &expression.data.build;
+            Build_Node build_out = { .arguments = array_expression_node_new(build_in->arguments.count) };
+            build_out.type = clone_macro_type(build_in->type, bindings, values);
+
+            for (size_t i = 0; i < build_in->arguments.count; i++) {
+                array_expression_node_append(&build_out.arguments, build_in->arguments.elements[i]);
+            }
+
+            result.data.build = build_out;
             break;
         }
         case Expression_Number: {

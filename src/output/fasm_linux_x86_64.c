@@ -101,7 +101,6 @@ size_t get_size(Type* type, Output_State* state) {
         default:
             assert(false);
     }
-
     assert(false);
 }
 
@@ -135,8 +134,11 @@ size_t collect_expression_locals_size(Expression_Node* expression, Output_State*
             return size;
         }
         case Expression_If: {
-            // TODO: isn't actually correct
-            return collect_expression_locals_size(expression->data.if_.if_expression, state);
+            size_t total = collect_expression_locals_size(expression->data.if_.if_expression, state);
+            if (expression->data.if_.else_expression != NULL) {
+                total += collect_expression_locals_size(expression->data.if_.else_expression, state);
+            }
+            return total;
         }
         case Expression_While: {
             return collect_expression_locals_size(expression->data.while_.inside, state);
