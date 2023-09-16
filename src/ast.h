@@ -299,6 +299,11 @@ typedef struct {
     Location location;
 } LengthOf_Node;
 
+typedef struct {
+    Type wanted;
+    Type given;
+} IsType_Node;
+
 struct Expression_Node {
     Array_Directive directives;
     enum {
@@ -318,6 +323,7 @@ struct Expression_Node {
         Expression_Build,
         Expression_SizeOf,
         Expression_LengthOf,
+        Expression_IsType,
     } kind;
     union {
         Block_Node block;
@@ -336,6 +342,7 @@ struct Expression_Node {
         Build_Node build;
         SizeOf_Node size_of;
         LengthOf_Node length_of;
+        IsType_Node is_type;
     } data;
 };
 

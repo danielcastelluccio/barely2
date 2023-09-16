@@ -3,6 +3,9 @@
 
 #include "ast.h"
 
+Dynamic_Array_Def(Type, Stack_Type, stack_type_)
+Dynamic_Array_Def(size_t, Array_Size, array_size_)
+
 typedef struct {
     Program* program;
     File_Node* current_file;
@@ -10,8 +13,18 @@ typedef struct {
     Array_String* package_paths;
 } Generic_State;
 
-Dynamic_Array_Def(Type, Stack_Type, stack_type_)
-Dynamic_Array_Def(size_t, Array_Size, array_size_)
+typedef struct {
+    Generic_State generic;
+    Stack_Type stack;
+    Item_Node* current_procedure;
+    Array_Declaration current_declares;
+    Array_Size scoped_declares;
+    Array_Declaration current_arguments;
+    Array_Type current_returns;
+    Expression_Node* current_body;
+    bool in_reference;
+    Type* wanted_type;
+} Process_State;
 
 typedef struct {
     File_Node* file;
@@ -30,7 +43,7 @@ typedef struct {
 } Resolved;
 
 Resolved resolve(Generic_State* state, Identifier data);
-bool is_type(Type* wanted, Type* given);
+bool is_type(Type* wanted, Type* given, Process_State* state);
 bool is_internal_type(Internal_Type wanted, Type* given);
 Type create_internal_type(Internal_Type type);
 Type create_basic_single_type(char* name);

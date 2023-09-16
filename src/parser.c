@@ -648,6 +648,21 @@ Expression_Node parse_expression_without_operators(Parser_State* state, size_t* 
 
                 result.kind = Expression_LengthOf;
                 result.data.length_of = node;
+            } else if (strcmp(name, "@istype") == 0) {
+                IsType_Node node;
+
+                consume_check(state, &index, Token_LeftParenthesis);
+
+                node.wanted = parse_type(state, &index);
+
+                consume_check(state, &index, Token_Comma);
+
+                node.given = parse_type(state, &index);
+
+                consume_check(state, &index, Token_RightParenthesis);
+
+                result.kind = Expression_IsType;
+                result.data.is_type = node;
             } else if (strcmp(name, "@cast") == 0) {
                 Cast_Node node;
                 node.location = location;
@@ -979,16 +994,25 @@ Expression_Node parse_expression_without_operators(Parser_State* state, size_t* 
                     continue;
                 }
 
-                Macro_Syntax_Data* data = malloc(sizeof(Macro_Syntax_Data));;
-                char* kind = consume_identifier(state, &index);
-                if (strcmp(kind, "$expr") == 0) {
-                    Expression_Node* expression = malloc(sizeof(Expression_Node));
-                    *expression = parse_expression(state, &index);
+                Macro_Syntax_Kind syntax_kind = Macro_Expression;
 
-                    data->kind = Macro_Expression;
-                    data->data.expression = expression;
-                } else {
-                    assert(false);
+                Macro_Syntax_Data* data = malloc(sizeof(Macro_Syntax_Data));;
+                if (peek(state, index) == Token_Identifier && strcmp(state->tokens->elements[index].data, "$expr") == 0) {
+                    syntax_kind = Macro_Expression;
+                    consume(state, &index);
+                }
+
+                switch (syntax_kind) {
+                    case Macro_Expression: {
+                        Expression_Node* expression = malloc(sizeof(Expression_Node));
+                        *expression = parse_expression(state, &index);
+
+                        data->kind = Macro_Expression;
+                        data->data.expression = expression;
+                        break;
+                    }
+                    default:
+                        assert(false);
                 }
 
                 array_macro_syntax_data_append(&node.arguments, data);

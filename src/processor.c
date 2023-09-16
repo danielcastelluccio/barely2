@@ -17,19 +17,6 @@ Type stack_type_pop(Stack_Type* stack) {
     return result;
 }
 
-typedef struct {
-    Generic_State generic;
-    Stack_Type stack;
-    Item_Node* current_procedure;
-    Array_Declaration current_declares;
-    Array_Size scoped_declares;
-    Array_Declaration current_arguments;
-    Array_Type current_returns;
-    Expression_Node* current_body;
-    bool in_reference;
-    Type* wanted_type;
-} Process_State;
-
 bool is_number_type(Type* type) {
     if (type->kind == Type_Internal) {
         Internal_Type internal = type->data.internal;
@@ -181,7 +168,9 @@ Type create_pointer_type(Type child) {
     return type;
 }
 
-bool is_type(Type* wanted, Type* given) {
+void process_expression(Expression_Node* expression, Process_State* state);
+
+bool is_type(Type* wanted, Type* given, Process_State* state) {
     if (wanted->kind == Type_RegisterSize || given->kind == Type_RegisterSize) {
         Type* to_check;
         if (wanted->kind == Type_RegisterSize) to_check = given;
@@ -193,12 +182,18 @@ bool is_type(Type* wanted, Type* given) {
         return false;
     }
 
+    if (wanted->kind == Type_TypeOf) {
+        process_expression(wanted->data.type_of.expression, state);
+        Type type = stack_type_pop(&state->stack);
+        return is_type(&type, given, state);
+    }
+
     if (wanted->kind != given->kind) {
         return false;
     }
 
     if (wanted->kind == Type_Pointer) {
-        return is_type(wanted->data.pointer.child, given->data.pointer.child);
+        return is_type(wanted->data.pointer.child, given->data.pointer.child, state);
     }
 
     if (wanted->kind == Type_Basic) {
@@ -210,9 +205,9 @@ bool is_type(Type* wanted, Type* given) {
     if (wanted->kind == Type_Array) {
         if (wanted->data.array.has_size) {
             if (!given->data.array.has_size) return false;
-            if (!is_type(wanted->data.array.size_type, given->data.array.size_type)) return false;
+            if (!is_type(wanted->data.array.size_type, given->data.array.size_type, state)) return false;
         }
-        return is_type(wanted->data.array.element_type, given->data.array.element_type);
+        return is_type(wanted->data.array.element_type, given->data.array.element_type, state);
     }
 
     if (wanted->kind == Type_Internal) {
@@ -229,7 +224,7 @@ bool is_type(Type* wanted, Type* given) {
 
         if (is_valid) {
             for (size_t i = 0; i < wanted_proc->arguments.count; i++) {
-                if (!is_type(array_type_get(&wanted_proc->arguments, i), given_proc->arguments.elements[i])) {
+                if (!is_type(array_type_get(&wanted_proc->arguments, i), given_proc->arguments.elements[i], state)) {
                     is_valid = false;
                 }
             }
@@ -237,7 +232,7 @@ bool is_type(Type* wanted, Type* given) {
 
         if (is_valid) {
             for (size_t i = 0; i < wanted_proc->returns.count; i++) {
-                if (!is_type(wanted_proc->returns.elements[i], given_proc->returns.elements[i])) {
+                if (!is_type(wanted_proc->returns.elements[i], given_proc->returns.elements[i], state)) {
                     is_valid = false;
                 }
             }
@@ -403,6 +398,10 @@ void print_type_inline(Type* type) {
             printf("%zu", type->data.number.value);
             break;
         }
+        case Type_TypeOf: {
+            printf("@typeof");
+            break;
+        }
         default:
             printf("%i\n", type->kind);
             assert(false);
@@ -453,8 +452,6 @@ Type* usize_type() {
     }
     return _usize_type;
 }
-
-void process_expression(Expression_Node* expression, Process_State* state);
 
 Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* state) {
     Type* result = NULL;
@@ -526,7 +523,7 @@ typedef struct {
     } data;
 } Evaluation_Value;
 
-Evaluation_Value evaluate_if_directive_expression(Expression_Node* expression) {
+Evaluation_Value evaluate_if_directive_expression(Expression_Node* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Retrieve: {
             if (expression->data.retrieve.kind == Retrieve_Assign_Identifier && expression->data.retrieve.data.identifier.kind == Identifier_Single) {
@@ -541,10 +538,11 @@ Evaluation_Value evaluate_if_directive_expression(Expression_Node* expression) {
             break;
         }
         case Expression_Invoke: {
-            if (expression->data.invoke.kind == Invoke_Operator) {
-                Operator* operator = &expression->data.invoke.data.operator_.operator_;
-                Evaluation_Value left = evaluate_if_directive_expression(expression->data.invoke.arguments.elements[0]);
-                Evaluation_Value right = evaluate_if_directive_expression(expression->data.invoke.arguments.elements[1]);
+            Invoke_Node* invoke = &expression->data.invoke;
+            if (invoke->kind == Invoke_Operator) {
+                Operator* operator = &invoke->data.operator_.operator_;
+                Evaluation_Value left = evaluate_if_directive_expression(invoke->arguments.elements[0], state);
+                Evaluation_Value right = evaluate_if_directive_expression(invoke->arguments.elements[1], state);
 
                 switch (*operator) {
                     case Operator_Equal: {
@@ -570,14 +568,18 @@ Evaluation_Value evaluate_if_directive_expression(Expression_Node* expression) {
         case Expression_Boolean: {
             return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = expression->data.boolean.value } };
         }
+        case Expression_IsType: {
+            IsType_Node* is_type_node = &expression->data.is_type;
+            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = is_type(&is_type_node->given, &is_type_node->wanted, state) } };
+        }
         default:
             break;
     }
     assert(false);
 }
 
-bool evaluate_if_directive(Directive_If_Node* if_node) {
-    Evaluation_Value value = evaluate_if_directive_expression(if_node->expression);
+bool evaluate_if_directive(Directive_If_Node* if_node, Process_State* state) {
+    Evaluation_Value value = evaluate_if_directive_expression(if_node->expression, state);
     assert(value.kind == Evaluation_Boolean);
     return value.data.boolean;
 }
@@ -720,7 +722,7 @@ void process_assign(Statement_Assign_Node* assign, Process_State* state) {
             }
 
             Type right_side_given_type = stack_type_pop(&state->stack);
-            if (!is_type(element_type, &right_side_given_type)) {
+            if (!is_type(element_type, &right_side_given_type, state)) {
                 print_error_stub(&assign_part->location);
                 printf("Type '");
                 print_type_inline(&right_side_given_type);
@@ -741,7 +743,7 @@ void process_assign(Statement_Assign_Node* assign, Process_State* state) {
             }
 
             Type popped = stack_type_pop(&state->stack);
-            if (!is_type(variable_type, &popped)) {
+            if (!is_type(variable_type, &popped, state)) {
                 print_error_stub(&assign_part->location);
                 printf("Type '");
                 print_type_inline(&popped);
@@ -762,7 +764,7 @@ void process_assign(Statement_Assign_Node* assign, Process_State* state) {
             }
 
             Type right_side_given_type = stack_type_pop(&state->stack);
-            if (!is_type(item_type, &right_side_given_type)) {
+            if (!is_type(item_type, &right_side_given_type, state)) {
                 print_error_stub(&assign_part->location);
                 printf("Type '");
                 print_type_inline(&right_side_given_type);
@@ -778,7 +780,7 @@ void process_assign(Statement_Assign_Node* assign, Process_State* state) {
 void process_statement(Statement_Node* statement, Process_State* state) {
     if (has_directive(&statement->directives, Directive_If)) {
         Directive_If_Node* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
-        if_node->result = evaluate_if_directive(if_node);
+        if_node->result = evaluate_if_directive(if_node, state);
         if (!if_node->result) {
             return;
         }
@@ -816,7 +818,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                     }
 
                     Type popped = stack_type_pop(&state->stack);
-                    if (!is_type(&declaration->type, &popped)) {
+                    if (!is_type(&declaration->type, &popped, state)) {
                         print_error_stub(&declaration->location);
                         printf("Type '");
                         print_type_inline(&popped);
@@ -864,7 +866,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
                 }
 
                 Type given_type = stack_type_pop(&state->stack);
-                if (!is_type(return_type, &given_type)) {
+                if (!is_type(return_type, &given_type, state)) {
                     print_error_stub(&return_->location);
                     printf("Type '");
                     print_type_inline(&given_type);
@@ -888,9 +890,9 @@ void process_statement(Statement_Node* statement, Process_State* state) {
     }
 }
 
-bool is_register_sized(Type* type) {
+bool is_register_sized(Type* type, Process_State* state) {
     Type register_type = (Type) { .kind = Type_RegisterSize, .data = {} };
-    return is_type(&register_type, type);
+    return is_type(&register_type, type, state);
 }
 
 bool is_like_number_literal(Expression_Node* expression) {
@@ -930,8 +932,8 @@ void process_type_expression(Type* type, Process_State* state) {
     }
 }
 
-bool can_operate_together(Type* first, Type* second) {
-    if (is_type(first, second)) {
+bool can_operate_together(Type* first, Type* second, Process_State* state) {
+    if (is_type(first, second, state)) {
         return true;
     }
 
@@ -971,7 +973,7 @@ void process_build_type(Build_Node* build, Type* type, Process_State* state) {
                     process_expression(build->arguments.elements[i], state);
 
                     Type popped = stack_type_pop(&state->stack);
-                    if (!is_type(wanted_type, &popped)) {
+                    if (!is_type(wanted_type, &popped, state)) {
                         print_error_stub(&build->location);
                         printf("Building of struct expected '");
                         print_type_inline(&struct_->items.elements[i]->type);
@@ -1004,7 +1006,7 @@ void process_build_type(Build_Node* build, Type* type, Process_State* state) {
                     process_expression(build->arguments.elements[i], state);
 
                     Type popped = stack_type_pop(&state->stack);
-                    if (!is_type(wanted_type, &popped)) {
+                    if (!is_type(wanted_type, &popped, state)) {
                         print_error_stub(&build->location);
                         printf("Building of array expected '");
                         print_type_inline(array->element_type);
@@ -1030,6 +1032,25 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
 
 Statement_Node clone_macro_statement(Statement_Node statement, Array_String bindings, Array_Macro_Syntax_Data values) {
     Statement_Node result = {};
+    result.directives = array_directive_new(statement.directives.count);
+    for (size_t i = 0; i < statement.directives.count; i++) {
+        Directive_Node directive = statement.directives.elements[i];
+        Directive_Node directive_result = { .kind = directive.kind };
+        switch (directive.kind) {
+            case Directive_If: {
+                Directive_If_Node* if_in = &directive.data.if_;
+                Directive_If_Node if_out = { .expression = malloc(sizeof(Expression_Node)) };
+
+                *if_out.expression = clone_macro_expression(*if_in->expression, bindings, values);
+
+                directive_result.data.if_ = if_out;
+                break;
+            }
+            default:
+                assert(false);
+        }
+        array_directive_append(&result.directives, directive_result);
+    }
     result.kind = statement.kind;
 
     switch (statement.kind) {
@@ -1064,14 +1085,48 @@ Statement_Node clone_macro_statement(Statement_Node statement, Array_String bind
 }
 
 Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data values) {
-    (void) bindings;
-    (void) values;
-
     Type result;
     result.kind = type.kind;
 
     switch (type.kind) {
+        case Type_Pointer: {
+            Pointer_Type* pointer_in = &type.data.pointer;
+            Pointer_Type pointer_out = { .child = malloc(sizeof(Type)) };
+
+            *pointer_out.child = clone_macro_type(*pointer_in->child, bindings, values);
+
+            result.data.pointer = pointer_out;
+            break;
+        }
+        case Type_Array: {
+            BArray_Type* array_in = &type.data.array;
+            BArray_Type array_out = { .element_type = malloc(sizeof(Type)) };
+
+            *array_out.element_type = clone_macro_type(*array_in->element_type, bindings, values);
+
+            if (array_in->size_type != NULL) {
+                array_out.size_type = malloc(sizeof(Type));
+                *array_out.size_type = clone_macro_type(*array_in->size_type, bindings, values);
+            }
+
+            result.data.array = array_out;
+            break;
+        }
+        case Type_Internal: {
+            result.data.internal = type.data.internal;
+            break;
+        }
+        case Type_TypeOf: {
+            TypeOf_Type* type_of_in = &type.data.type_of;
+            TypeOf_Type type_of_out = { .expression = malloc(sizeof(Expression_Node)) };
+
+            *type_of_out.expression = clone_macro_expression(*type_of_in->expression, bindings, values);
+
+            result.data.type_of = type_of_out;
+            break;
+        }
         default:
+            printf("%i\n", type.kind);
             assert(false);
     }
 
@@ -1194,6 +1249,15 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             result.data.reference = reference_out;
             break;
         }
+        case Expression_IsType: {
+            IsType_Node* is_type_in = &expression.data.is_type;
+            IsType_Node is_type_out = {};
+            is_type_out.given = clone_macro_type(is_type_in->given, bindings, values);
+            is_type_out.wanted = clone_macro_type(is_type_in->wanted, bindings, values);
+
+            result.data.is_type = is_type_out;
+            break;
+        }
         case Expression_Number: {
             result.data.number = expression.data.number;
             break;
@@ -1296,7 +1360,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
                             for (size_t i = 0; i < count; i++) {
                                 Type type = stack_type_pop(&state->stack);
-                                if (!is_register_sized(&type)) {
+                                if (!is_register_sized(&type, state)) {
                                     print_error_stub(&invoke->location);
                                     printf("Type '");
                                     print_type_inline(&type);
@@ -1340,7 +1404,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         }
 
                         Type given = stack_type_pop(&state->stack);
-                        if (!is_type(procedure_type->arguments.elements[i], &given)) {
+                        if (!is_type(procedure_type->arguments.elements[i], &given, state)) {
                             print_error_stub(&invoke->location);
                             printf("Type '");
                             print_type_inline(&given);
@@ -1392,7 +1456,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     Type second = stack_type_pop(&state->stack);
                     Type first = stack_type_pop(&state->stack);
 
-                    if (!can_operate_together(&first, &second)) {
+                    if (!can_operate_together(&first, &second, state)) {
                         print_error_stub(&invoke->location);
                         printf("Type '");
                         print_type_inline(&second);
@@ -1413,7 +1477,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     Type first = stack_type_pop(&state->stack);
                     Type second = stack_type_pop(&state->stack);
 
-                    if (!is_type(&first, &second)) {
+                    if (!is_type(&first, &second, state)) {
                         print_error_stub(&invoke->location);
                         printf("Type '");
                         print_type_inline(&second);
@@ -1430,7 +1494,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     Type input = stack_type_pop(&state->stack);
 
                     Type bool_type = create_internal_type(Type_Bool);
-                    if (!is_type(&bool_type, &input)) {
+                    if (!is_type(&bool_type, &input, state)) {
                         print_error_stub(&invoke->location);
                         printf("Type '");
                         print_type_inline(&input);
@@ -1725,7 +1789,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
             Type given = stack_type_pop(&state->stack);
             Type bool_type = create_internal_type(Type_Bool);
-            if (!is_type(&bool_type, &given)) {
+            if (!is_type(&bool_type, &given, state)) {
                 print_error_stub(&node->location);
                 printf("Type '");
                 print_type_inline(&given);
@@ -1752,7 +1816,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
             Type given = stack_type_pop(&state->stack);
             Type bool_type = create_internal_type(Type_Bool);
-            if (!is_type(&bool_type, &given)) {
+            if (!is_type(&bool_type, &given, state)) {
                 print_error_stub(&node->location);
                 printf("Type '");
                 print_type_inline(&given);
@@ -1902,7 +1966,7 @@ Directive_Node* get_directive(Array_Directive* directives, Directive_Kind kind) 
 void process_item(Item_Node* item, Process_State* state) {
     if (has_directive(&item->directives, Directive_If)) {
         Directive_If_Node* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
-        if_node->result = evaluate_if_directive(if_node);
+        if_node->result = evaluate_if_directive(if_node, state);
         if (!if_node->result) {
             return;
         }
