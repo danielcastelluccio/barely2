@@ -498,8 +498,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                             memset(buffer, 0, 128);
 
-                                            sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
-                                            sprintf(buffer + strlen(buffer), "%zu+%zu], rax\n", resolved.file->id, i);
+                                            sprintf(buffer + strlen(buffer), "  mov [%s+%zu], rax\n", item->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             i += 8;
@@ -510,8 +509,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
                                             memset(buffer, 0, 128);
 
-                                            sprintf(buffer + strlen(buffer), "  mov [%s.", item->name);
-                                            sprintf(buffer + strlen(buffer), "%zu+%zu], al\n", resolved.file->id, i);
+                                            sprintf(buffer + strlen(buffer), "  mov [%s+%zu], al\n", item->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             i += 1;
@@ -1444,8 +1442,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                     while (i < size) {
                                         if (size - i >= 8) {
                                             char buffer[128] = {};
-                                            sprintf(buffer + strlen(buffer), "  mov rax, [%s.", item->name);
-                                            sprintf(buffer + strlen(buffer), "%zu+%zu]\n", resolved.file->id, i);
+                                            sprintf(buffer + strlen(buffer), "  mov rax, [%s+%zu]\n", item->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             memset(buffer, 0, 128);
@@ -1456,8 +1453,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                             i += 8;
                                         } else if (size - i >= 1) {
                                             char buffer[128] = {};
-                                            sprintf(buffer + strlen(buffer), "  mov al, [%s.", item->name);
-                                            sprintf(buffer + strlen(buffer), "%zu+%zu]\n", resolved.file->id, i);
+                                            sprintf(buffer + strlen(buffer), "  mov al, [%s+%zu]\n", item->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             memset(buffer, 0, 128);
@@ -1639,7 +1635,18 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             stringbuffer_appendstring(&state->instructions, buffer);
 
             memset(buffer, 0, 128);
-            sprintf(buffer, "  _%zu: db \"%s\", 0\n", state->string_index, string->value);
+            sprintf(buffer, "  _%zu: db ", state->string_index);
+            stringbuffer_appendstring(&state->data, buffer);
+
+            size_t str_len = strlen(string->value);
+            for (size_t i = 0; i < str_len; i++) {
+                char buffer[128] = {};
+                sprintf(buffer, "%i, ", (int) string->value[i]);
+                stringbuffer_appendstring(&state->data, buffer);
+            }
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "0\n");
             stringbuffer_appendstring(&state->data, buffer);
 
             state->string_index++;

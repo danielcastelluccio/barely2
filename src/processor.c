@@ -777,6 +777,26 @@ void process_assign(Statement_Assign_Node* assign, Process_State* state) {
     }
 }
 
+void process_type_expression(Type* type, Process_State* state) {
+    switch (type->kind) {
+        case Type_TypeOf: {
+            TypeOf_Type* type_of = &type->data.type_of;
+            Expression_Node* expression = type_of->expression;
+            size_t stack_initial = state->stack.count;
+            process_expression(expression, state);
+
+            Type* type = malloc(sizeof(Type));
+            *type = stack_type_pop(&state->stack);
+            type_of->computed_result_type = type;
+
+            assert(state->stack.count == stack_initial);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void process_statement(Statement_Node* statement, Process_State* state) {
     if (has_directive(&statement->directives, Directive_If)) {
         Directive_If_Node* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
@@ -810,6 +830,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
                     Declaration* declaration = &declare->declarations.elements[i];
+                    process_type_expression(&declaration->type, state);
 
                     if (state->stack.count == 0) {
                         print_error_stub(&declaration->location);
@@ -832,6 +853,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
             } else {
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
                     Declaration* declaration = &declare->declarations.elements[i];
+                    process_type_expression(&declaration->type, state);
                     array_declaration_append(&state->current_declares, *declaration);
                 }
             }
@@ -910,26 +932,6 @@ Type* get_local_variable_type(Process_State* state, char* name) {
     }
 
     return NULL;
-}
-
-void process_type_expression(Type* type, Process_State* state) {
-    switch (type->kind) {
-        case Type_TypeOf: {
-            TypeOf_Type* type_of = &type->data.type_of;
-            Expression_Node* expression = type_of->expression;
-            size_t stack_initial = state->stack.count;
-            process_expression(expression, state);
-
-            Type* type = malloc(sizeof(Type));
-            *type = stack_type_pop(&state->stack);
-            type_of->computed_result_type = type;
-
-            assert(state->stack.count == stack_initial);
-            break;
-        }
-        default:
-            break;
-    }
 }
 
 bool can_operate_together(Type* first, Type* second, Process_State* state) {
@@ -1029,6 +1031,7 @@ void process_build_type(Build_Node* build, Type* type, Process_State* state) {
 }
 
 Expression_Node clone_macro_expression(Expression_Node expression, Array_String bindings, Array_Macro_Syntax_Data values);
+Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data values);
 
 Statement_Node clone_macro_statement(Statement_Node statement, Array_String bindings, Array_Macro_Syntax_Data values) {
     Statement_Node result = {};
@@ -1059,13 +1062,49 @@ Statement_Node clone_macro_statement(Statement_Node statement, Array_String bind
             Statement_Declare_Node declare_out = { .declarations = array_declaration_new(declare_in->declarations.count) };
 
             for (size_t i = 0; i < declare_in->declarations.count; i++) {
-                array_declaration_append(&declare_out.declarations, declare_in->declarations.elements[i]);
+                Declaration* declaration_in = &declare_in->declarations.elements[i];
+                Declaration declaration_out = { .name = declaration_in->name };
+                declaration_out.type = clone_macro_type(declaration_in->type, bindings, values);
+                array_declaration_append(&declare_out.declarations, declaration_out);
             }
 
             declare_out.expression = malloc(sizeof(Expression_Node));
             *declare_out.expression = clone_macro_expression(*declare_in->expression, bindings, values);
 
             result.data.declare = declare_out;
+            break;
+        }
+        case Statement_Assign: {
+            Statement_Assign_Node* assign_in = &statement.data.assign;
+            Statement_Assign_Node assign_out = { .parts = array_statement_assign_part_new(assign_in->parts.count), .expression = malloc(sizeof(Expression_Node)) };
+
+            for (size_t i = 0; i < assign_in->parts.count; i++) {
+                Statement_Assign_Part* assign_part_in = &assign_in->parts.elements[i];
+                Statement_Assign_Part assign_part_out;
+                assign_part_out.kind = assign_part_in->kind;
+
+                switch (assign_part_in->kind) {
+                    case Retrieve_Assign_Identifier: {
+                        assign_part_out.data.identifier = assign_part_in->data.identifier;
+                        break;
+                    }
+                    case Retrieve_Assign_Array: {
+                        assign_part_out.data.array.expression_inner = malloc(sizeof(Expression_Node));
+                        *assign_part_out.data.array.expression_inner = clone_macro_expression(*assign_part_in->data.array.expression_inner, bindings, values);
+                        assign_part_out.data.array.expression_outer = malloc(sizeof(Expression_Node));
+                        *assign_part_out.data.array.expression_outer = clone_macro_expression(*assign_part_in->data.array.expression_outer, bindings, values);
+                        break;
+                    }
+                    default:
+                        assert(false);
+                }
+
+                array_statement_assign_part_append(&assign_out.parts, assign_part_out);
+            }
+
+            *assign_out.expression = clone_macro_expression(*assign_in->expression, bindings, values);
+
+            result.data.assign = assign_out;
             break;
         }
         case Statement_Expression: {
@@ -1089,6 +1128,21 @@ Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data 
     result.kind = type.kind;
 
     switch (type.kind) {
+        //case Type_Basic: {
+        //    Basic_Type* basic_in = &type.data.pointer;
+        //    Basic_Type basic_out = *basic_in;
+
+        //    if (basic_out.kind == Type_Single) {
+        //        for (size_t i = 0; i < bindings.count; i++) {
+        //            if (strcmp(bindings.elements[i], basic_out.data.single) == 0) {
+        //                return *values.elements[i]->data.type;
+        //            }
+        //        }
+        //    }
+
+        //    result.data.basic = basic_out;
+        //    break;
+        //}
         case Type_Pointer: {
             Pointer_Type* pointer_in = &type.data.pointer;
             Pointer_Type pointer_out = { .child = malloc(sizeof(Type)) };
@@ -1155,7 +1209,7 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
         }
         case Expression_Invoke: {
             Invoke_Node* invoke_in = &expression.data.invoke;
-            Invoke_Node invoke_out = { .kind = invoke_in->kind, .arguments = array_expression_node_new(invoke_in->arguments.count) };
+            Invoke_Node invoke_out = { .kind = invoke_in->kind, .arguments = array_expression_node_new(invoke_in->arguments.count), .location = invoke_in->location };
 
             for (size_t i = 0; i < invoke_in->arguments.count; i++) {
                 Expression_Node* expression = malloc(sizeof(Expression_Node));
@@ -1234,6 +1288,13 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
                     retrieve_out.data.identifier = retrieve_in->data.identifier;
                     break;
                 }
+                case Retrieve_Assign_Array: {
+                    retrieve_out.data.array.expression_inner = malloc(sizeof(Expression_Node));
+                    *retrieve_out.data.array.expression_inner = clone_macro_expression(*retrieve_in->data.array.expression_inner, bindings, values);
+                    retrieve_out.data.array.expression_outer = malloc(sizeof(Expression_Node));
+                    *retrieve_out.data.array.expression_outer = clone_macro_expression(*retrieve_in->data.array.expression_outer, bindings, values);
+                    break;
+                }
                 default:
                     assert(false);
             }
@@ -1249,6 +1310,29 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             result.data.reference = reference_out;
             break;
         }
+        case Expression_If: {
+            If_Node* if_in = &expression.data.if_;
+            If_Node if_out = { .condition = malloc(sizeof(Expression_Node)), .if_expression = malloc(sizeof(Expression_Node)) };
+            *if_out.condition = clone_macro_expression(*if_in->condition, bindings, values);
+            *if_out.if_expression = clone_macro_expression(*if_in->if_expression, bindings, values);
+
+            if (if_in->else_expression != NULL) {
+                if_out.else_expression = malloc(sizeof(Expression_Node));
+                *if_out.else_expression = clone_macro_expression(*if_in->else_expression, bindings, values);
+            }
+
+            result.data.if_ = if_out;
+            break;
+        }
+        case Expression_While: {
+            While_Node* while_in = &expression.data.while_;
+            While_Node while_out = { .condition = malloc(sizeof(Expression_Node)), .inside = malloc(sizeof(Expression_Node)) };
+            *while_out.condition = clone_macro_expression(*while_in->condition, bindings, values);
+            *while_out.inside = clone_macro_expression(*while_in->inside, bindings, values);
+
+            result.data.while_ = while_out;
+            break;
+        }
         case Expression_IsType: {
             IsType_Node* is_type_in = &expression.data.is_type;
             IsType_Node is_type_out = {};
@@ -1256,6 +1340,15 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             is_type_out.wanted = clone_macro_type(is_type_in->wanted, bindings, values);
 
             result.data.is_type = is_type_out;
+            break;
+        }
+        case Expression_Cast: {
+            Cast_Node* cast_in = &expression.data.cast;
+            Cast_Node cast_out = { .expression = malloc(sizeof(Expression_Node)) };
+            *cast_out.expression = clone_macro_expression(*cast_in->expression, bindings, values);
+            cast_out.type = clone_macro_type(cast_in->type, bindings, values);
+
+            result.data.cast = cast_out;
             break;
         }
         case Expression_Number: {

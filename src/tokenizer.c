@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -200,8 +201,19 @@ Tokens tokenize(char* file, char* contents) {
                     col += (i - cached_i);
                     break;
                 default:
-                    i++;
-                    stringbuffer_append(&buffer, character);
+                    if (character == '\\') {
+                        switch (contents[i + 1]) {
+                            case 'n':
+                                stringbuffer_append(&buffer, '\n');
+                                break;
+                            default:
+                                assert(false);
+                        }
+                        i += 2;
+                    } else {
+                        stringbuffer_append(&buffer, character);
+                        i++;
+                    }
             }
         } else {
             switch (character) {
