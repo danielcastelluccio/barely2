@@ -21,7 +21,7 @@ bool is_number_type(Type* type) {
     if (type->kind == Type_Internal) {
         Internal_Type internal = type->data.internal;
 
-        if (internal == Type_USize || internal == Type_U64 || internal == Type_U32 || internal == Type_U86 || internal == Type_U8 || internal == Type_F8) {
+        if (internal == Type_USize || internal == Type_U64 || internal == Type_U32 || internal == Type_U16 || internal == Type_U8 || internal == Type_F8) {
             return true;
         }
     }
@@ -337,7 +337,7 @@ void print_type_inline(Type* type) {
                 case Type_U32:
                     printf("u32");
                     break;
-                case Type_U86:
+                case Type_U16:
                     printf("u16");
                     break;
                 case Type_U8:
@@ -1537,6 +1537,10 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                     process_expression(invoke->arguments.elements[reversed ? 0 : 1], state);
                 } else if (operator == Operator_Not) {
                     process_expression(invoke->arguments.elements[0], state);
+                } else if (operator == Operator_And ||
+                        operator == Operator_Or) {
+                    process_expression(invoke->arguments.elements[0], state);
+                    process_expression(invoke->arguments.elements[1], state);
                 } else {
                     assert(false);
                 }
@@ -1594,6 +1598,24 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                         printf("' is not a boolean\n");
                         exit(1);
                     }
+
+                    stack_type_push(&state->stack, create_internal_type(Type_Bool));
+                } else if (operator == Operator_And ||
+                        operator == Operator_Or) {
+                    Type first = stack_type_pop(&state->stack);
+                    Type second = stack_type_pop(&state->stack);
+
+                    if (!is_internal_type(Type_Bool, &first) || !is_internal_type(Type_Bool, &second)) {
+                        print_error_stub(&invoke->location);
+                        printf("Type '");
+                        print_type_inline(&first);
+                        printf("' and '");
+                        print_type_inline(&second);
+                        printf("'cannot be operated on here\n");
+                        exit(1);
+                    }
+
+                    invoke->data.operator_.computed_operand_type = first;
 
                     stack_type_push(&state->stack, create_internal_type(Type_Bool));
                 } else {
@@ -1961,8 +1983,8 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 Internal_Type output_internal = cast->type.data.internal;
                 Internal_Type input_internal = input.data.internal;
 
-                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U86 || input_internal == Type_U8) &&
-                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U86 || output_internal == Type_U8)) {
+                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) &&
+                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
                     is_valid = true;
                 } else if (input_internal == Type_F8 && output_internal == Type_U64) {
                     is_valid = true;

@@ -345,9 +345,22 @@ Tokens tokenize(char* file, char* contents) {
                     break;
                 case '&':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Ampersand, 0, LOCATION(file, row, col) });
-                    col++;
-                    i++;
+                    if (contents[i + 1] == '&') {
+                        tokens_append(&tokens, (Token) { Token_DoubleAmpersand, 0, LOCATION(file, row, col) });
+                        i += 2;
+                    } else {
+                        tokens_append(&tokens, (Token) { Token_Ampersand, 0, LOCATION(file, row, col) });
+                        i++;
+                    }
+                    break;
+                case '|':
+                    check_append_string_token(&tokens, &buffer, file, &row, &col);
+                    if (contents[i + 1] == '|') {
+                        tokens_append(&tokens, (Token) { Token_DoubleBar, 0, LOCATION(file, row, col) });
+                        i += 2;
+                    } else {
+                        assert(false);
+                    }
                     break;
                 case '{':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);

@@ -61,7 +61,7 @@ size_t get_size(Type* type, Output_State* state) {
                     return 8;
                 case Type_U32:
                     return 4;
-                case Type_U86:
+                case Type_U16:
                     return 2;
                 case Type_U8:
                     return 1;
@@ -623,7 +623,7 @@ void output_unsigned_integer(Internal_Type type, size_t value, Output_State* sta
         char buffer[128] = {};
         sprintf(buffer, "  mov dword [rsp], %zu\n", value);
         stringbuffer_appendstring(&state->instructions, buffer);
-    } else if (type == Type_U86) {
+    } else if (type == Type_U16) {
         stringbuffer_appendstring(&state->instructions, "  sub rsp, 2\n");
         char buffer[128] = {};
         sprintf(buffer, "  mov word [rsp], %zu\n", value);
@@ -871,7 +871,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 4\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], eax\n");
-                        } else if (is_internal_type(Type_U86, &operator_type)) {
+                        } else if (is_internal_type(Type_U16, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  mov bx, [rsp]\n");
                             stringbuffer_appendstring(&state->instructions, "  mov ax, [rsp+2]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 4\n");
@@ -1022,7 +1022,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
-                        } else if (is_internal_type(Type_U86, &operator_type)) {
+                        } else if (is_internal_type(Type_U16, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
                             stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov bx, [rsp]\n");
@@ -1139,6 +1139,26 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             assert(false);
                         }
                         
+                        break;
+                    }
+                    case Operator_And: {
+                        stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
+                        stringbuffer_appendstring(&state->instructions, "  and al, bl\n");
+                        stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
+                        break;
+                    }
+                    case Operator_Or: {
+                        stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
+                        stringbuffer_appendstring(&state->instructions, "  or al, bl\n");
+                        stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                        stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
                         break;
                     }
                     case Operator_Not: {
@@ -1671,8 +1691,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 Internal_Type output_internal = output.data.internal;
                 Internal_Type input_internal = input.data.internal;
 
-                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U86 || input_internal == Type_U8) && 
-                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U86 || output_internal == Type_U8)) {
+                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
+                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
                     size_t input_size = get_size(&cast->computed_input_type, state);
                     if (input_size == 8) {
                         stringbuffer_appendstring(&state->instructions, "  pop rax\n");

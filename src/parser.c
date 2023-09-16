@@ -329,7 +329,7 @@ Type parse_type(Parser_State* state, size_t* index_in) {
                 internal = Type_U32;
                 found = true;
             } else if (strcmp(name, "u16") == 0) {
-                internal = Type_U86;
+                internal = Type_U16;
                 found = true;
             } else if (strcmp(name, "u8") == 0) {
                 internal = Type_U8;
@@ -539,21 +539,27 @@ Statement_Node parse_statement(Parser_State* state, size_t* index_in) {
 }
 
 int get_precedence(Parser_State* state, size_t index) {
-    if (peek(state, index) == Token_Plus ||
-            peek(state, index) == Token_Minus ||
-            peek(state, index) == Token_Percent) {
-        return 2;
-    }
-    if (peek(state, index) == Token_Asterisk ||
-            peek(state, index) == Token_Slash) {
+    Token_Kind kind = peek(state, index);
+
+    if (kind == Token_Plus ||
+            kind == Token_Minus ||
+            kind == Token_Percent) {
         return 3;
     }
-    if (peek(state, index) == Token_DoubleEquals ||
-            peek(state, index) == Token_ExclamationEquals ||
-            peek(state, index) == Token_GreaterThan ||
-            peek(state, index) == Token_LessThan ||
-            peek(state, index) == Token_LessThanEqual ||
-            peek(state, index) == Token_GreaterThanEqual) {
+    if (kind == Token_Asterisk ||
+            kind == Token_Slash) {
+        return 4;
+    }
+    if (kind == Token_DoubleEquals ||
+            kind == Token_ExclamationEquals ||
+            kind == Token_GreaterThan ||
+            kind == Token_LessThan ||
+            kind == Token_LessThanEqual ||
+            kind == Token_GreaterThanEqual) {
+        return 2;
+    }
+    if (kind == Token_DoubleAmpersand ||
+            kind == Token_DoubleBar) {
         return 1;
     }
     return -1;
@@ -1077,6 +1083,12 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
                     break;
                 case Token_LessThanEqual:
                     operator = Operator_LessEqual;
+                    break;
+                case Token_DoubleAmpersand:
+                    operator = Operator_And;
+                    break;
+                case Token_DoubleBar:
+                    operator = Operator_Or;
                     break;
                 default:
                     assert(false);

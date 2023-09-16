@@ -41,7 +41,7 @@ typedef enum {
     Type_USize,
     Type_U64,
     Type_U32,
-    Type_U86,
+    Type_U16,
     Type_U8,
     Type_F8,
     Type_Ptr,
@@ -199,6 +199,8 @@ typedef enum {
     Operator_Less,
     Operator_LessEqual,
     Operator_Not,
+    Operator_And,
+    Operator_Or,
 } Operator;
 
 typedef struct {

@@ -31,6 +31,8 @@ typedef enum {
     Token_Slash,
     Token_Percent,
     Token_Ampersand,
+    Token_DoubleAmpersand,
+    Token_DoubleBar,
     Token_LeftCurlyBrace,
     Token_RightCurlyBrace,
     Token_LeftBracket,
