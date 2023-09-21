@@ -1832,8 +1832,6 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             break;
         case Item_Type:
             break;
-        case Item_Use:
-            break;
         case Item_Macro:
             break;
         default:

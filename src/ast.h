@@ -445,11 +445,6 @@ typedef struct {
     Number_Node expression;
 } Constant_Node;
 
-typedef struct {
-    char* package;
-    char* path;
-} Use_Node;
-
 struct Item_Node {
     char* name;
     Array_Directive directives;
@@ -459,7 +454,6 @@ struct Item_Node {
         Item_Type,
         Item_Global,
         Item_Constant,
-        Item_Use,
     } kind;
     union {
         Procedure_Node procedure;
@@ -467,7 +461,6 @@ struct Item_Node {
         Type_Node type;
         Global_Node global;
         Constant_Node constant;
-        Use_Node use;
     } data;
 };
 

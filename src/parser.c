@@ -1308,22 +1308,6 @@ Item_Node parse_item(Parser_State* state) {
 
         result.kind = Item_Constant;
         result.data.constant = node;
-    } else if (strcmp(keyword, "use") == 0) {
-        Use_Node node = {};
-
-        char* path = consume_string(state);
-        if (string_contains(path, ':')) {
-            int index = string_index(path, ':');
-            node.package = string_substring(path, 0, index);
-            node.path = string_substring(path + 1, index, strlen(path));
-        } else {
-            node.path = path;
-        }
-
-        result.name = "";
-
-        result.kind = Item_Use;
-        result.data.use = node;
     } else {
         print_token_error_stub(&state->tokens->elements[state->index - 1]);
         printf("Unexpected token ");

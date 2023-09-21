@@ -29,51 +29,6 @@ bool is_number_type(Type* type) {
     return false;
 }
 
-bool uses(File_Node* checked, File_Node* tested, Generic_State* state) {
-    char* checked_path = checked->path;
-    size_t checked_path_len = strlen(checked_path);
-    size_t last_slash = 0;
-    for (size_t i = 0; i < checked_path_len; i++) {
-        if (checked_path[i] == '/') {
-            last_slash = i;
-        }
-    }
-
-    for (size_t i = 0; i < checked->items.count; i++) {
-        Item_Node* item = &checked->items.elements[i];
-        if (item->kind == Item_Use) {
-            char* path = item->data.use.path;
-            char* relative_path;
-
-            if (item->data.use.package != NULL) {
-                char* package_path = NULL;
-                for (size_t j = 0; j < state->package_names->count; j++) {
-                    if (strcmp(state->package_names->elements[j], item->data.use.package) == 0) {
-                        package_path = state->package_paths->elements[j];
-                    }
-                }
-
-                if (package_path == NULL) {
-                    return false;
-                }
-
-                relative_path = concatenate_folder_file_path(package_path, item->data.use.path);
-            } else {
-                char* current_folder = string_substring(checked_path, 0, last_slash);
-                relative_path = concatenate_folder_file_path(current_folder, path);
-            }
-
-            char absolute_path[128] = {};
-            realpath(relative_path, absolute_path);
-
-            if (strcmp(tested->path, absolute_path) == 0) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 Resolved resolve(Generic_State* state, Identifier data) {
     Identifier initial_search = {};
     if (data.kind == Identifier_Single) {
@@ -87,14 +42,12 @@ Resolved resolve(Generic_State* state, Identifier data) {
     for (size_t j = 0; j < state->program->count; j++) {
         File_Node* file_node = &state->program->elements[j];
         bool stop = false;
-        if (uses(state->current_file, file_node, state) || state->current_file == file_node) {
-            for (size_t i = 0; i < file_node->items.count; i++) {
-                Item_Node* item = &file_node->items.elements[i];
-                if (initial_search.kind == Identifier_Single && strcmp(item->name, initial_search.data.single) == 0) {
-                    result = (Resolved) { file_node, Resolved_Item, { .item = item } };
-                    stop = true;
-                    break;
-                }
+        for (size_t i = 0; i < file_node->items.count; i++) {
+            Item_Node* item = &file_node->items.elements[i];
+            if (initial_search.kind == Identifier_Single && strcmp(item->name, initial_search.data.single) == 0) {
+                result = (Resolved) { file_node, Resolved_Item, { .item = item } };
+                stop = true;
+                break;
             }
         }
 
@@ -2159,8 +2112,6 @@ void process_item(Item_Node* item, Process_State* state) {
             break;
         }
         case Item_Constant:
-            break;
-        case Item_Use:
             break;
         default:
             assert(false);
