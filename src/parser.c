@@ -565,6 +565,60 @@ int get_precedence(Parser_State* state, size_t index) {
     return -1;
 }
 
+Macro_Syntax_Kind parse_macro_syntax_kind(Parser_State* state, size_t* index) {
+    char* name = consume_identifier(state, index);
+    Macro_Syntax_Kind result;
+    if (strcmp(name, "$expr") == 0) {
+        result = (Macro_Syntax_Kind) { .kind = Macro_Expression };
+    } else {
+        assert(false);
+    }
+
+    if (peek(state, *index) == Token_DoublePeriod) {
+        consume(state, index);
+        Macro_Syntax_Kind* result_allocated = malloc(sizeof(Macro_Syntax_Kind));
+        *result_allocated = result;
+        result = (Macro_Syntax_Kind) { .kind = Macro_Multiple, .data = { .multiple = result_allocated } };
+    }
+    return result;
+}
+
+Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, size_t* index_in, Macro_Syntax_Kind kind) {
+    size_t index = *index_in;
+
+    Macro_Syntax_Data result;
+
+    switch (kind.kind) {
+        case Macro_Expression: {
+            Expression_Node* expression = malloc(sizeof(Expression_Node));
+            *expression = parse_expression(state, &index);
+
+            result.kind.kind = Macro_Expression;
+            result.data.expression = expression;
+            break;
+        }
+        case Macro_Multiple: {
+            Macro_Syntax_Kind* inner = kind.data.multiple;
+
+            result.kind.kind = Macro_Multiple;
+            result.data.multiple = malloc(sizeof(Macro_Syntax_Data));
+
+            *result.data.multiple = parse_macro_syntax_data_inner(state, &index, *inner);
+            break;
+        }
+        default:
+            assert(false);
+    }
+
+    *index_in = index;
+    return result;
+}
+
+Macro_Syntax_Data parse_macro_syntax_data(Parser_State* state, size_t* index_in) {
+    Macro_Syntax_Kind kind = parse_macro_syntax_kind(state, index_in);
+    return parse_macro_syntax_data_inner(state, index_in, kind);
+}
+
 Expression_Node parse_expression_without_operators(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
     Expression_Node result = { .directives = array_directive_new(1) };
@@ -1000,26 +1054,8 @@ Expression_Node parse_expression_without_operators(Parser_State* state, size_t* 
                     continue;
                 }
 
-                Macro_Syntax_Kind syntax_kind = Macro_Expression;
-
                 Macro_Syntax_Data* data = malloc(sizeof(Macro_Syntax_Data));;
-                if (peek(state, index) == Token_Identifier && strcmp(state->tokens->elements[index].data, "$expr") == 0) {
-                    syntax_kind = Macro_Expression;
-                    consume(state, &index);
-                }
-
-                switch (syntax_kind) {
-                    case Macro_Expression: {
-                        Expression_Node* expression = malloc(sizeof(Expression_Node));
-                        *expression = parse_expression(state, &index);
-
-                        data->kind = Macro_Expression;
-                        data->data.expression = expression;
-                        break;
-                    }
-                    default:
-                        assert(false);
-                }
+                *data = parse_macro_syntax_data(state, &index);
 
                 array_macro_syntax_data_append(&node.arguments, data);
             }
@@ -1132,15 +1168,6 @@ Expression_Node parse_expression(Parser_State* state, size_t* index_in) {
     return result;
 }
 
-Macro_Syntax_Kind parse_macro_syntax_kind(Parser_State* state, size_t* index) {
-    char* name = consume_identifier(state, index);
-    if (strcmp(name, "$expr") == 0) {
-        return Macro_Expression;
-    } else {
-        assert(false);
-    }
-}
-
 Item_Node parse_item(Parser_State* state, size_t* index_in) {
     size_t index = *index_in;
     Item_Node result = { .directives = array_directive_new(1) };
@@ -1204,7 +1231,7 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
 
         consume_check(state, &index, Token_Exclamation);
 
-        Macro_Node node = { .arguments = array_macro_syntax_argument_new(2), .variants = array_macro_variant_new(2) };
+        Macro_Node node = { .arguments = array_macro_syntax_kind_new(2), .variants = array_macro_variant_new(2) };
         consume_check(state, &index, Token_LeftParenthesis);
 
         while (peek(state, index) != Token_RightParenthesis) {
@@ -1213,15 +1240,10 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
                 continue;
             }
 
-            Macro_Syntax_Argument argument = {};
-            argument.kind = parse_macro_syntax_kind(state, &index);
+            Macro_Syntax_Kind argument = {};
+            argument = parse_macro_syntax_kind(state, &index);
 
-            if (peek(state, index) == Token_DoublePeriod) {
-                consume(state, &index);
-                argument.repeat = true;
-            }
-
-            array_macro_syntax_argument_append(&node.arguments, argument);
+            array_macro_syntax_kind_append(&node.arguments, argument);
         }
 
         consume(state, &index);
@@ -1255,12 +1277,11 @@ Item_Node parse_item(Parser_State* state, size_t* index_in) {
 
             consume(state, &index);
 
-            if (node.return_ == Macro_Expression) {
+            if (node.return_.kind == Macro_Expression) {
                 Expression_Node* node = malloc(sizeof(Expression_Node));
                 *node = parse_expression(state, &index);
-                variant.data.kind = Macro_Expression;
+                variant.data.kind.kind = Macro_Expression;
                 variant.data.data.expression = node;
-
             } else {
                 assert(false);
             }
