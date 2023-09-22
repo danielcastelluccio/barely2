@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "fasm_linux_x86_64.h"
+#include "util.h"
 
 typedef struct {
     Generic_State generic;
@@ -19,29 +20,11 @@ typedef struct {
     bool in_reference;
 } Output_State;
 
-size_t get_size(Type* type, Output_State* state) {
-    switch (type->kind) {
-        case Type_Basic: {
-            Basic_Type* basic = &type->data.basic;
-            Item_Node* item = basic->resolved_node;
-
-            if (item == NULL) {
-                Identifier identifier = basic->identifier;
-                Resolved resolved = resolve(&state->generic, identifier);
-                if (resolved.kind == Resolved_Item) {
-                    item = resolved.data.item;
-                }
-            }
-
-            if (item != NULL) {
-                Type_Node* type_node = &item->data.type;
-                Type type_result = type_node->type;
-                return get_size(&type_result, state);
-            }
-            break;
-        }
+size_t get_size(Type* type_in, Output_State* state) {
+    Type type = evaluate_output_type(type_in, &state->generic);
+    switch (type.kind) {
         case Type_Array: {
-            BArray_Type* array = &type->data.array;
+            BArray_Type* array = &type.data.array;
 
             if (array->has_size) {
                 assert(array->size_type->kind == Type_Number);
@@ -51,7 +34,7 @@ size_t get_size(Type* type, Output_State* state) {
             break;
         }
         case Type_Internal: {
-            Internal_Type* internal = &type->data.internal;
+            Internal_Type* internal = &type.data.internal;
 
             switch (*internal) {
                 case Type_USize:
@@ -75,7 +58,7 @@ size_t get_size(Type* type, Output_State* state) {
         }
         case Type_Struct: {
             size_t size = 0;
-            Struct_Type* struct_ = &type->data.struct_;
+            Struct_Type* struct_ = &type.data.struct_;
             for (size_t i = 0; i < struct_->items.count; i++) {
                 size += get_size(&struct_->items.elements[i]->type, state);
             }
@@ -83,7 +66,7 @@ size_t get_size(Type* type, Output_State* state) {
         }
         case Type_Union: {
             size_t size = 0;
-            Union_Type* union_ = &type->data.union_;
+            Union_Type* union_ = &type.data.union_;
             for (size_t i = 0; i < union_->items.count; i++) {
                 size_t size_temp = get_size(&union_->items.elements[i]->type, state);
                 if (size_temp > size) {
@@ -94,13 +77,6 @@ size_t get_size(Type* type, Output_State* state) {
         }
         case Type_Enum: {
             return 8;
-        }
-        case Type_TypeOf: {
-            return get_size(type->data.type_of.computed_result_type, state);
-        }
-        case Type_RunMacro: {
-            assert(type->data.run_macro.computed_type != NULL);
-            return get_size(type->data.run_macro.computed_type, state);
         }
         default:
             assert(false);
@@ -676,27 +652,11 @@ void output_zeroes(size_t count, Output_State* state) {
     }
 }
 
-void output_build_type(Build_Node* build, Type* type, Output_State* state) {
-    switch (type->kind) {
-        case Type_Basic: {
-            Resolved resolved = resolve(&state->generic, type->data.basic.identifier);
-            switch (resolved.kind) {
-                case Resolved_Item: {
-                    Item_Node* item = resolved.data.item;
-                    assert(item->kind == Item_Type);
-                    output_build_type(build, &item->data.type.type, state);
-                    break;
-                }
-                case Resolved_Enum_Variant: {
-                    assert(false);
-                }
-                case Unresolved:
-                    assert(false);
-            }
-            break;
-        }
+void output_build_type(Build_Node* build, Type* type_in, Output_State* state) {
+    Type type = evaluate_output_type(type_in, &state->generic);
+    switch (type.kind) {
         case Type_Struct: {
-            Struct_Type* struct_ = &type->data.struct_;
+            Struct_Type* struct_ = &type.data.struct_;
             if (build->arguments.count == struct_->items.count) {
                 for (int i = build->arguments.count - 1; i >= 0; i--) {
                     output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
@@ -705,7 +665,7 @@ void output_build_type(Build_Node* build, Type* type, Output_State* state) {
             break;
         }
         case Type_Array: {
-            BArray_Type* array = &type->data.array;
+            BArray_Type* array = &type.data.array;
             size_t array_size = array->size_type->data.number.value;
 
             if (build->arguments.count == array_size) {
@@ -713,10 +673,6 @@ void output_build_type(Build_Node* build, Type* type, Output_State* state) {
                     output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
                 }
             }
-            break;
-        }
-        case Type_RunMacro: {
-            output_build_type(build, type->data.run_macro.computed_type, state);
             break;
         }
         default:
