@@ -46,67 +46,61 @@ bool is_keyword(char* buffer) {
 void print_token(Token* token, bool newline) {
     switch (token->kind) {
         case Token_LeftParenthesis:
-            printf("LeftParenthesis");
+            printf("{");
             break;
         case Token_RightParenthesis:
-            printf("RightParenthesis");
+            printf("}");
             break;
         case Token_LeftBracket:
-            printf("LeftBracket");
+            printf("[");
             break;
         case Token_RightBracket:
-            printf("RightBracket");
+            printf("]");
             break;
         case Token_Colon:
-            printf("Colon");
+            printf(":");
             break;
         case Token_DoubleColon:
-            printf("DoubleColon");
+            printf("::");
             break;
         case Token_Semicolon:
-            printf("Semicolon");
+            printf(";");
             break;
         case Token_Comma:
-            printf("Comma");
+            printf(",");
             break;
         case Token_Period:
-            printf("Period");
+            printf(".");
             break;
         case Token_DoublePeriod:
-            printf("DoublePeriod");
+            printf("..");
             break;
         case Token_Equals:
-            printf("Equals");
+            printf("=");
             break;
         case Token_DoubleEquals:
-            printf("DoubleEquals");
+            printf("==");
             break;
         case Token_GreaterThan:
-            printf("GreaterThan");
+            printf(">");
             break;
         case Token_LessThan:
-            printf("LessThan");
+            printf("<");
             break;
         case Token_GreaterThanEqual:
-            printf("GreaterThanEqual");
+            printf(">=");
             break;
         case Token_LessThanEqual:
-            printf("LessThanEqual");
+            printf("<=");
             break;
         case Token_LeftCurlyBrace:
-            printf("LeftCurlyBrace");
+            printf("{");
             break;
         case Token_RightCurlyBrace:
-            printf("RightCurlyBrace");
+            printf("}");
             break;
         case Token_Exclamation:
-            printf("Exclamation");
-            break;
-        case Token_NewLine:
-            printf("NewLine");
-            break;
-        case Token_Space:
-            printf("Space");
+            printf("!");
             break;
         case Token_Identifier:
             printf("Identifier { \"%s\" }", token->data);
@@ -404,13 +398,11 @@ Tokens tokenize(char* file, char* contents) {
                     break;
                 case ' ':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    //tokens_append(&tokens, (Token) { Space });
                     col++;
                     i++;
                     break;
                 case '\n':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    //tokens_append(&tokens, (Token) { NewLine });
                     col = 1;
                     row++;
                     i++;

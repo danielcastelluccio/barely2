@@ -52,6 +52,7 @@ void process(Program* program, Array_String* package_names, Array_String* packag
 bool has_directive(Array_Directive* directives, Directive_Kind kind);
 Directive_Node* get_directive(Array_Directive* directives, Directive_Kind kind);
 
-Type apply_generics(Array_String* parameters, Array_Type* inputs, Type type_in, Generic_State* state);
+Type evaluate_type(Type* type);
+Type evaluate_type_complete(Type* type, Generic_State* state);
 
 #endif

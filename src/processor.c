@@ -125,65 +125,97 @@ Type create_pointer_type(Type child) {
     return type;
 }
 
+Type evaluate_type(Type* type) {
+    switch (type->kind) {
+        case Type_TypeOf: {
+            assert(type->data.type_of.computed_result_type);
+            return *type->data.type_of.computed_result_type;
+        }
+        case Type_RunMacro: {
+            assert(type->data.run_macro.result.data.type != NULL);
+            return *type->data.run_macro.result.data.type;
+        }
+        default:
+            return *type;
+    }
+    return *type;
+}
+
+Type evaluate_type_complete(Type* type_in, Generic_State* state) {
+    Type type = evaluate_type(type_in);
+    switch (type.kind) {
+        case Type_Basic: {
+            Basic_Type* basic = &type.data.basic;
+            Item_Node* item = basic->resolved_node;
+
+            if (item == NULL) {
+                Identifier identifier = basic->identifier;
+                Resolved resolved = resolve(state, identifier);
+                if (resolved.kind == Resolved_Item) {
+                    item = resolved.data.item;
+                }
+            }
+
+            if (item != NULL) {
+                assert(item->kind == Item_Type);
+                Type_Node* type_node = &item->data.type;
+                Type type_result = type_node->type;
+                return type_result;
+            }
+            break;
+        }
+        default:
+            return type;
+    }
+    return type;
+}
+
 void process_expression(Expression_Node* expression, Process_State* state);
 
-bool is_type(Type* wanted, Type* given, Process_State* state) {
-    if (wanted->kind == Type_RunMacro) {
-        assert(wanted->data.run_macro.computed_type != NULL);
-        wanted = wanted->data.run_macro.computed_type;
-    }
-    if (given->kind == Type_RunMacro) {
-        assert(given->data.run_macro.computed_type != NULL);
-        given = given->data.run_macro.computed_type;
-    }
+bool is_type(Type* wanted_in, Type* given_in, Process_State* state) {
+    Type wanted = evaluate_type(wanted_in);
+    Type given = evaluate_type(given_in);
 
-    if (wanted->kind == Type_RegisterSize || given->kind == Type_RegisterSize) {
-        Type* to_check;
-        if (wanted->kind == Type_RegisterSize) to_check = given;
-        if (given->kind == Type_RegisterSize) to_check = wanted;
+    if (wanted.kind == Type_RegisterSize || given.kind == Type_RegisterSize) {
+        Type to_check;
+        if (wanted.kind == Type_RegisterSize) to_check = given;
+        if (given.kind == Type_RegisterSize) to_check = wanted;
 
-        if (to_check->kind == Type_Pointer) return true;
-        if (to_check->kind == Type_Internal && (to_check->data.internal == Type_USize || to_check->data.internal == Type_Ptr)) return true;
+        if (to_check.kind == Type_Pointer) return true;
+        if (to_check.kind == Type_Internal && (to_check.data.internal == Type_USize || to_check.data.internal == Type_Ptr)) return true;
 
         return false;
     }
 
-    if (wanted->kind == Type_TypeOf) {
-        state->wanted_type = NULL;
-        process_expression(wanted->data.type_of.expression, state);
-        Type type = stack_type_pop(&state->stack);
-        return is_type(&type, given, state);
-    }
-
-    if (wanted->kind != given->kind) {
+    if (wanted.kind != given.kind) {
         return false;
     }
 
-    if (wanted->kind == Type_Pointer) {
-        return is_type(wanted->data.pointer.child, given->data.pointer.child, state);
+    if (wanted.kind == Type_Pointer) {
+        return is_type(wanted.data.pointer.child, given.data.pointer.child, state);
     }
 
-    if (wanted->kind == Type_Basic) {
-        if (wanted->data.basic.identifier.kind == Identifier_Single && given->data.basic.identifier.kind == Identifier_Single) {
-            return strcmp(wanted->data.basic.identifier.data.single, given->data.basic.identifier.data.single) == 0;
+    if (wanted.kind == Type_Basic) {
+        if (wanted.data.basic.identifier.kind == Identifier_Single && given.data.basic.identifier.kind == Identifier_Single) {
+            return strcmp(wanted.data.basic.identifier.data.single, given.data.basic.identifier.data.single) == 0;
         }
     }
 
-    if (wanted->kind == Type_Array) {
-        if (wanted->data.array.has_size) {
-            if (!given->data.array.has_size) return false;
-            if (!is_type(wanted->data.array.size_type, given->data.array.size_type, state)) return false;
+    if (wanted.kind == Type_Array) {
+        if (wanted.data.array.has_size) {
+            if (!given.data.array.has_size) return false;
+            if (!is_type(wanted.data.array.size_type, given.data.array.size_type, state)) return false;
         }
-        return is_type(wanted->data.array.element_type, given->data.array.element_type, state);
+        return is_type(wanted.data.array.element_type, given.data.array.element_type, state);
     }
 
-    if (wanted->kind == Type_Internal) {
-        return wanted->data.internal == given->data.internal;
+    if (wanted.kind == Type_Internal) {
+        return wanted.data.internal == given.data.internal;
     }
 
-    if (wanted->kind == Type_Procedure) {
-        Procedure_Type* wanted_proc = &wanted->data.procedure;
-        Procedure_Type* given_proc = &given->data.procedure;
+    if (wanted.kind == Type_Procedure) {
+        Procedure_Type* wanted_proc = &wanted.data.procedure;
+        Procedure_Type* given_proc = &given.data.procedure;
 
         bool is_valid = true;
         if (wanted_proc->arguments.count != given_proc->arguments.count) is_valid = false;
@@ -208,9 +240,9 @@ bool is_type(Type* wanted, Type* given, Process_State* state) {
         return is_valid;
     }
 
-    if (wanted->kind == Type_Struct) {
-        Struct_Type* wanted_struct = &wanted->data.struct_;
-        Struct_Type* given_struct = &given->data.struct_;
+    if (wanted.kind == Type_Struct) {
+        Struct_Type* wanted_struct = &wanted.data.struct_;
+        Struct_Type* given_struct = &given.data.struct_;
 
         bool is_valid = true;
         if (wanted_struct->items.count != given_struct->items.count) is_valid = false;
@@ -226,9 +258,9 @@ bool is_type(Type* wanted, Type* given, Process_State* state) {
         return is_valid;
     }
 
-    if (wanted->kind == Type_Enum) {
-        Enum_Type* wanted_enum = &wanted->data.enum_;
-        Enum_Type* given_enum = &given->data.enum_;
+    if (wanted.kind == Type_Enum) {
+        Enum_Type* wanted_enum = &wanted.data.enum_;
+        Enum_Type* given_enum = &given.data.enum_;
 
         bool is_valid = true;
         if (wanted_enum->items.count != given_enum->items.count) is_valid = false;
@@ -243,8 +275,8 @@ bool is_type(Type* wanted, Type* given, Process_State* state) {
         return is_valid;
     }
 
-    if (wanted->kind == Type_Number) {
-        if (wanted->data.number.value == given->data.number.value) return true;
+    if (wanted.kind == Type_Number) {
+        if (wanted.data.number.value == given.data.number.value) return true;
     }
 
     return false;
@@ -428,333 +460,6 @@ Type* usize_type() {
         _usize_type = usize;
     }
     return _usize_type;
-}
-
-Type* get_parent_item_type(Type* parent_type, char* item_name, Generic_State* state) {
-    Type* result = NULL;
-
-    if (strcmp(item_name, "*") == 0) {
-        result = parent_type;
-    } else {
-        switch (parent_type->kind) {
-            case Type_Basic: {
-                Identifier identifier = parent_type->data.basic.identifier;
-
-                Resolved resolved = resolve(state, identifier);
-                switch (resolved.kind) {
-                    case Resolved_Item: {
-                        Item_Node* item = resolved.data.item;
-                        assert(item->kind == Item_Type);
-                        return get_parent_item_type(&item->data.type.type, item_name, state);
-                    }
-                    case Resolved_Enum_Variant: {
-                        assert(false);
-                    }
-                    case Unresolved:
-                        assert(false);
-                }
-                break;
-            }
-            case Type_Struct:
-            case Type_Union: {
-                Array_Declaration_Pointer* items;
-                if (parent_type->kind == Type_Struct) {
-                    Struct_Type* struct_ = &parent_type->data.struct_;
-                    items = &struct_->items;
-                } else if (parent_type->kind == Type_Union) {
-                    Union_Type* union_ = &parent_type->data.union_;
-                    items = &union_->items;
-                } else {
-                    assert(false);
-                }
-
-                for (size_t i = 0; i < items->count; i++) {
-                    Declaration* declaration = items->elements[i];
-                    if (strcmp(declaration->name, item_name) == 0) {
-                        result = &declaration->type;
-                    }
-                }
-                break;
-            }
-            case Type_RunMacro: {
-                return get_parent_item_type(parent_type->data.run_macro.computed_type, item_name, state);
-            }
-            default:
-                assert(false);
-        }
-    }
-
-    return result;
-}
-
-typedef enum {
-    Operating_System_Linux,
-    Operating_System_Windows,
-} Operating_System;
-
-typedef struct {
-    enum {
-        Evaluation_Boolean,
-        Evaluation_Operating_System,
-    } kind;
-    union {
-        bool boolean;
-        Operating_System operating_system;
-    } data;
-} Evaluation_Value;
-
-Evaluation_Value evaluate_if_directive_expression(Expression_Node* expression, Process_State* state) {
-    switch (expression->kind) {
-        case Expression_Retrieve: {
-            if (expression->data.retrieve.kind == Retrieve_Assign_Identifier && expression->data.retrieve.data.identifier.kind == Identifier_Single) {
-                char* identifier = expression->data.retrieve.data.identifier.data.single;
-
-                if (strcmp(identifier, "@os")) {
-                    return (Evaluation_Value) { .kind = Evaluation_Operating_System, .data = { .operating_system = Operating_System_Linux } };
-                } else if (strcmp(identifier, "@linux")) {
-                    return (Evaluation_Value) { .kind = Evaluation_Operating_System, .data = { .operating_system = Operating_System_Linux } };
-                }
-            }
-            break;
-        }
-        case Expression_Invoke: {
-            Invoke_Node* invoke = &expression->data.invoke;
-            if (invoke->kind == Invoke_Operator) {
-                Operator* operator = &invoke->data.operator_.operator_;
-                Evaluation_Value left = evaluate_if_directive_expression(invoke->arguments.elements[0], state);
-                Evaluation_Value right = evaluate_if_directive_expression(invoke->arguments.elements[1], state);
-
-                switch (*operator) {
-                    case Operator_Equal: {
-                        if (left.kind == Evaluation_Operating_System && right.kind == Evaluation_Operating_System) {
-                            bool result = left.data.operating_system == right.data.operating_system;
-                            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = result } };
-                        }
-                        break;
-                    }
-                    case Operator_NotEqual: {
-                        if (left.kind == Evaluation_Operating_System && right.kind == Evaluation_Operating_System) {
-                            bool result = left.data.operating_system != right.data.operating_system;
-                            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = result } };
-                        }
-                        break;
-                    }
-                    default:
-                        assert(false);
-                }
-            }
-            break;
-        }
-        case Expression_Boolean: {
-            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = expression->data.boolean.value } };
-        }
-        case Expression_IsType: {
-            IsType_Node* is_type_node = &expression->data.is_type;
-            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = is_type(&is_type_node->given, &is_type_node->wanted, state) } };
-        }
-        default:
-            break;
-    }
-    assert(false);
-}
-
-bool evaluate_if_directive(Directive_If_Node* if_node, Process_State* state) {
-    Evaluation_Value value = evaluate_if_directive_expression(if_node->expression, state);
-    assert(value.kind == Evaluation_Boolean);
-    return value.data.boolean;
-}
-
-void process_assign(Statement_Assign_Node* assign, Process_State* state) {
-    Array_Type wanted_types = array_type_new(1);
-    for (size_t i = 0; i < assign->parts.count; i++) {
-        Statement_Assign_Part* assign_part = &assign->parts.elements[i];
-        Type* wanted_type = malloc(sizeof(Type));
-        bool found = false;
-
-        if (assign_part->kind == Retrieve_Assign_Array) {
-            process_expression(assign_part->data.array.expression_outer, state);
-            Type array_type = stack_type_pop(&state->stack);
-
-            Type* array_type_raw;
-            if (array_type.kind == Type_Pointer) {
-                array_type_raw = array_type.data.pointer.child;
-            } else {
-                array_type_raw = &array_type;
-            }
-
-            if (array_type_raw->kind != Type_Array) {
-                print_error_stub(&assign_part->location);
-                printf("Type '");
-                print_type_inline(array_type_raw);
-                printf("' is not an array\n");
-                exit(1);
-            }
-
-            wanted_type = array_type_raw->data.array.element_type;
-            found = true;
-        }
-
-        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
-            char* name = assign_part->data.identifier.data.single;
-
-            Type* type = malloc(sizeof(Type));
-            for (size_t j = 0; j < state->current_declares.count; j++) {
-                if (strcmp(state->current_declares.elements[j].name, name) == 0) {
-                    *type = state->current_declares.elements[j].type;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found) {
-                Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
-                if (resolved.kind == Resolved_Item) {
-                    if (resolved.data.item->kind == Item_Global) {
-                        *type = resolved.data.item->data.global.type;
-                        found = true;
-                    }
-                }
-            }
-
-            wanted_type = type;
-        }
-
-        if (assign_part->kind == Retrieve_Assign_Identifier) {
-            Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
-            if (resolved.kind == Resolved_Item) {
-                if (resolved.data.item->kind == Item_Global) {
-                    *wanted_type = resolved.data.item->data.global.type;
-                    found = true;
-                }
-            }
-        }
-
-        if (assign_part->kind == Retrieve_Assign_Parent) {
-            process_expression(assign_part->data.parent.expression, state);
-            Type parent_type = stack_type_pop(&state->stack);
-
-            assign_part->data.parent.computed_parent_type = parent_type;
-
-            Type* parent_type_raw;
-            if (parent_type.kind == Type_Pointer) {
-                parent_type_raw = parent_type.data.pointer.child;
-            } else {
-                parent_type_raw = &parent_type;
-            }
-
-            Type* resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
-            if (resolved != NULL) {
-                *wanted_type = *resolved;
-                found = true;
-            }
-        }
-
-        if (!found) {
-            print_error_stub(&assign_part->location);
-            printf("Assign not found\n");
-            exit(1);
-        }
-
-        array_type_append(&wanted_types, wanted_type);
-    }
-
-    if (assign->expression->kind == Expression_Multi) {
-        size_t assign_index = 0;
-        for (size_t i = 0; i < assign->expression->data.multi.expressions.count; i++) {
-            size_t stack_start = state->stack.count;
-            state->wanted_type = wanted_types.elements[assign_index];
-            process_expression(assign->expression->data.multi.expressions.elements[i], state);
-            assign_index += state->stack.count - stack_start;
-        }
-    } else {
-        state->wanted_type = wanted_types.elements[wanted_types.count - 1];
-        process_expression(assign->expression, state);
-    }
-
-    for (int i = assign->parts.count - 1; i >= 0; i--) {
-        Statement_Assign_Part* assign_part = &assign->parts.elements[i];
-
-        if (assign_part->kind == Retrieve_Assign_Array) {
-            process_expression(assign_part->data.array.expression_outer, state);
-            Type array_type = stack_type_pop(&state->stack);
-
-            Type* element_type = wanted_types.elements[assign->parts.count - i - 1];
-
-            assign_part->data.array.computed_array_type = array_type;
-
-            state->wanted_type = usize_type();
-
-            process_expression(assign_part->data.array.expression_inner, state);
-
-            Type array_index_type = stack_type_pop(&state->stack);
-            if (!is_internal_type(Type_USize, &array_index_type)) {
-                print_error_stub(&assign_part->location);
-                printf("Type '");
-                print_type_inline(&array_index_type);
-                printf("' cannot be used to access array\n");
-                exit(1);
-            }
-
-            if (state->stack.count == 0) {
-                print_error_stub(&assign_part->location);
-                printf("Ran out of values for assignment\n");
-                exit(1);
-            }
-
-            Type right_side_given_type = stack_type_pop(&state->stack);
-            if (!is_type(element_type, &right_side_given_type, state)) {
-                print_error_stub(&assign_part->location);
-                printf("Type '");
-                print_type_inline(&right_side_given_type);
-                printf("' is not assignable to index of array of type '");
-                print_type_inline(element_type);
-                printf("'\n");
-                exit(1);
-            }
-        }
-
-        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
-            Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
-
-            if (state->stack.count == 0) {
-                print_error_stub(&assign_part->location);
-                printf("Ran out of values for declaration assignment\n");
-                exit(1);
-            }
-
-            Type popped = stack_type_pop(&state->stack);
-            if (!is_type(variable_type, &popped, state)) {
-                print_error_stub(&assign_part->location);
-                printf("Type '");
-                print_type_inline(&popped);
-                printf("' is not assignable to variable of type '");
-                print_type_inline(variable_type);
-                printf("'\n");
-                exit(1);
-            }
-        }
-
-        if (assign_part->kind == Retrieve_Assign_Parent) {
-            Type* item_type = wanted_types.elements[assign->parts.count - i - 1];
-
-            if (state->stack.count == 0) {
-                print_error_stub(&assign_part->location);
-                printf("Ran out of values for item assignment\n");
-                exit(1);
-            }
-
-            Type right_side_given_type = stack_type_pop(&state->stack);
-            if (!is_type(item_type, &right_side_given_type, state)) {
-                print_error_stub(&assign_part->location);
-                printf("Type '");
-                print_type_inline(&right_side_given_type);
-                printf("' is not assignable to item of type '");
-                print_type_inline(item_type);
-                printf("'\n");
-                exit(1);
-            }
-        }
-    }
 }
 
 Expression_Node clone_macro_expression(Expression_Node expression, Array_String bindings, Array_Macro_Syntax_Data values);
@@ -987,8 +692,8 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             break;
         }
         case Expression_RunMacro: {
-            Run_Macro_Node* run_macro_in = &expression.data.run_macro;
-            Run_Macro_Node run_macro_out = { .identifier = run_macro_in->identifier, .arguments = array_macro_syntax_data_new(run_macro_in->arguments.count), .location = run_macro_in->location };
+            Run_Macro* run_macro_in = &expression.data.run_macro;
+            Run_Macro run_macro_out = { .identifier = run_macro_in->identifier, .arguments = array_macro_syntax_data_new(run_macro_in->arguments.count), .location = run_macro_in->location };
 
             for (size_t i = 0; i < run_macro_in->arguments.count; i++) {
                 Macro_Syntax_Data* syntax_data = malloc(sizeof(Macro_Syntax_Data));
@@ -1215,7 +920,7 @@ void process_type(Type* type, Process_State* state) {
             break;
         }
         case Type_RunMacro: {
-            Run_Macro_Type* run_macro = &type->data.run_macro;
+            Run_Macro* run_macro = &type->data.run_macro;
 
             Resolved resolved = resolve(&state->generic, run_macro->identifier);
             assert(resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Macro);
@@ -1275,14 +980,327 @@ void process_type(Type* type, Process_State* state) {
 
             Type cloned = clone_macro_type(*variant.data.data.type, variant.bindings, run_macro->arguments);
 
-            run_macro->computed_type = malloc(sizeof(Expression_Node));
-            *run_macro->computed_type = cloned;
+            run_macro->result.kind.kind = Macro_Type;
+            run_macro->result.data.type = malloc(sizeof(Expression_Node));
+            *run_macro->result.data.type = cloned;
 
-            process_type(run_macro->computed_type, state);
+            process_type(run_macro->result.data.type, state);
             break;
         }
         default:
             break;
+    }
+}
+
+Type get_parent_item_type(Type* parent_type_in, char* item_name, Generic_State* state) {
+    Type parent_type = evaluate_type_complete(parent_type_in, state);
+    Type result = { .kind = Type_None };
+
+    if (strcmp(item_name, "*") == 0) {
+        result = parent_type;
+    } else {
+        switch (parent_type.kind) {
+            case Type_Struct:
+            case Type_Union: {
+                Array_Declaration_Pointer* items;
+                if (parent_type.kind == Type_Struct) {
+                    Struct_Type* struct_ = &parent_type.data.struct_;
+                    items = &struct_->items;
+                } else if (parent_type.kind == Type_Union) {
+                    Union_Type* union_ = &parent_type.data.union_;
+                    items = &union_->items;
+                } else {
+                    assert(false);
+                }
+
+                for (size_t i = 0; i < items->count; i++) {
+                    Declaration* declaration = items->elements[i];
+                    if (strcmp(declaration->name, item_name) == 0) {
+                        result = declaration->type;
+                    }
+                }
+                break;
+            }
+            case Type_RunMacro: {
+                return get_parent_item_type(parent_type.data.run_macro.result.data.type, item_name, state);
+            }
+            default:
+                assert(false);
+        }
+    }
+
+    return result;
+}
+
+typedef enum {
+    Operating_System_Linux,
+    Operating_System_Windows,
+} Operating_System;
+
+typedef struct {
+    enum {
+        Evaluation_Boolean,
+        Evaluation_Operating_System,
+    } kind;
+    union {
+        bool boolean;
+        Operating_System operating_system;
+    } data;
+} Evaluation_Value;
+
+Evaluation_Value evaluate_if_directive_expression(Expression_Node* expression, Process_State* state) {
+    switch (expression->kind) {
+        case Expression_Retrieve: {
+            if (expression->data.retrieve.kind == Retrieve_Assign_Identifier && expression->data.retrieve.data.identifier.kind == Identifier_Single) {
+                char* identifier = expression->data.retrieve.data.identifier.data.single;
+
+                if (strcmp(identifier, "@os")) {
+                    return (Evaluation_Value) { .kind = Evaluation_Operating_System, .data = { .operating_system = Operating_System_Linux } };
+                } else if (strcmp(identifier, "@linux")) {
+                    return (Evaluation_Value) { .kind = Evaluation_Operating_System, .data = { .operating_system = Operating_System_Linux } };
+                }
+            }
+            break;
+        }
+        case Expression_Invoke: {
+            Invoke_Node* invoke = &expression->data.invoke;
+            if (invoke->kind == Invoke_Operator) {
+                Operator* operator = &invoke->data.operator_.operator_;
+                Evaluation_Value left = evaluate_if_directive_expression(invoke->arguments.elements[0], state);
+                Evaluation_Value right = evaluate_if_directive_expression(invoke->arguments.elements[1], state);
+
+                switch (*operator) {
+                    case Operator_Equal: {
+                        if (left.kind == Evaluation_Operating_System && right.kind == Evaluation_Operating_System) {
+                            bool result = left.data.operating_system == right.data.operating_system;
+                            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = result } };
+                        }
+                        break;
+                    }
+                    case Operator_NotEqual: {
+                        if (left.kind == Evaluation_Operating_System && right.kind == Evaluation_Operating_System) {
+                            bool result = left.data.operating_system != right.data.operating_system;
+                            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = result } };
+                        }
+                        break;
+                    }
+                    default:
+                        assert(false);
+                }
+            }
+            break;
+        }
+        case Expression_Boolean: {
+            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = expression->data.boolean.value } };
+        }
+        case Expression_IsType: {
+            IsType_Node* is_type_node = &expression->data.is_type;
+            process_type(&is_type_node->given, state);
+            process_type(&is_type_node->wanted, state);
+            return (Evaluation_Value) { .kind = Evaluation_Boolean, .data = { .boolean = is_type(&is_type_node->given, &is_type_node->wanted, state) } };
+        }
+        default:
+            break;
+    }
+    assert(false);
+}
+
+bool evaluate_if_directive(Directive_If_Node* if_node, Process_State* state) {
+    Evaluation_Value value = evaluate_if_directive_expression(if_node->expression, state);
+    assert(value.kind == Evaluation_Boolean);
+    return value.data.boolean;
+}
+
+void process_assign(Statement_Assign_Node* assign, Process_State* state) {
+    Array_Type wanted_types = array_type_new(1);
+    for (size_t i = 0; i < assign->parts.count; i++) {
+        Statement_Assign_Part* assign_part = &assign->parts.elements[i];
+        Type* wanted_type = malloc(sizeof(Type));
+        bool found = false;
+
+        if (assign_part->kind == Retrieve_Assign_Array) {
+            process_expression(assign_part->data.array.expression_outer, state);
+            Type array_type = stack_type_pop(&state->stack);
+
+            Type* array_type_raw;
+            if (array_type.kind == Type_Pointer) {
+                array_type_raw = array_type.data.pointer.child;
+            } else {
+                array_type_raw = &array_type;
+            }
+
+            if (array_type_raw->kind != Type_Array) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(array_type_raw);
+                printf("' is not an array\n");
+                exit(1);
+            }
+
+            wanted_type = array_type_raw->data.array.element_type;
+            found = true;
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
+            char* name = assign_part->data.identifier.data.single;
+
+            Type* type = malloc(sizeof(Type));
+            for (size_t j = 0; j < state->current_declares.count; j++) {
+                if (strcmp(state->current_declares.elements[j].name, name) == 0) {
+                    *type = state->current_declares.elements[j].type;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
+                if (resolved.kind == Resolved_Item) {
+                    if (resolved.data.item->kind == Item_Global) {
+                        *type = resolved.data.item->data.global.type;
+                        found = true;
+                    }
+                }
+            }
+
+            wanted_type = type;
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Identifier) {
+            Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
+            if (resolved.kind == Resolved_Item) {
+                if (resolved.data.item->kind == Item_Global) {
+                    *wanted_type = resolved.data.item->data.global.type;
+                    found = true;
+                }
+            }
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Parent) {
+            process_expression(assign_part->data.parent.expression, state);
+            Type parent_type = stack_type_pop(&state->stack);
+
+            assign_part->data.parent.computed_parent_type = parent_type;
+
+            Type* parent_type_raw;
+            if (parent_type.kind == Type_Pointer) {
+                parent_type_raw = parent_type.data.pointer.child;
+            } else {
+                parent_type_raw = &parent_type;
+            }
+
+            Type resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
+            if (resolved.kind != Type_None) {
+                *wanted_type = resolved;
+                found = true;
+            }
+        }
+
+        if (!found) {
+            print_error_stub(&assign_part->location);
+            printf("Assign not found\n");
+            exit(1);
+        }
+
+        array_type_append(&wanted_types, wanted_type);
+    }
+
+    if (assign->expression->kind == Expression_Multi) {
+        size_t assign_index = 0;
+        for (size_t i = 0; i < assign->expression->data.multi.expressions.count; i++) {
+            size_t stack_start = state->stack.count;
+            state->wanted_type = wanted_types.elements[assign_index];
+            process_expression(assign->expression->data.multi.expressions.elements[i], state);
+            assign_index += state->stack.count - stack_start;
+        }
+    } else {
+        state->wanted_type = wanted_types.elements[wanted_types.count - 1];
+        process_expression(assign->expression, state);
+    }
+
+    for (int i = assign->parts.count - 1; i >= 0; i--) {
+        Statement_Assign_Part* assign_part = &assign->parts.elements[i];
+
+        if (assign_part->kind == Retrieve_Assign_Array) {
+            process_expression(assign_part->data.array.expression_outer, state);
+            Type array_type = stack_type_pop(&state->stack);
+
+            Type* element_type = wanted_types.elements[assign->parts.count - i - 1];
+
+            assign_part->data.array.computed_array_type = array_type;
+
+            state->wanted_type = usize_type();
+
+            process_expression(assign_part->data.array.expression_inner, state);
+
+            Type array_index_type = stack_type_pop(&state->stack);
+            if (!is_internal_type(Type_USize, &array_index_type)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&array_index_type);
+                printf("' cannot be used to access array\n");
+                exit(1);
+            }
+
+            if (state->stack.count == 0) {
+                print_error_stub(&assign_part->location);
+                printf("Ran out of values for assignment\n");
+                exit(1);
+            }
+
+            Type right_side_given_type = stack_type_pop(&state->stack);
+            if (!is_type(element_type, &right_side_given_type, state)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&right_side_given_type);
+                printf("' is not assignable to index of array of type '");
+                print_type_inline(element_type);
+                printf("'\n");
+                exit(1);
+            }
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
+            Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
+
+            if (state->stack.count == 0) {
+                print_error_stub(&assign_part->location);
+                printf("Ran out of values for declaration assignment\n");
+                exit(1);
+            }
+
+            Type popped = stack_type_pop(&state->stack);
+            if (!is_type(variable_type, &popped, state)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&popped);
+                printf("' is not assignable to variable of type '");
+                print_type_inline(variable_type);
+                printf("'\n");
+                exit(1);
+            }
+        }
+
+        if (assign_part->kind == Retrieve_Assign_Parent) {
+            Type* item_type = wanted_types.elements[assign->parts.count - i - 1];
+
+            if (state->stack.count == 0) {
+                print_error_stub(&assign_part->location);
+                printf("Ran out of values for item assignment\n");
+                exit(1);
+            }
+
+            Type right_side_given_type = stack_type_pop(&state->stack);
+            if (!is_type(item_type, &right_side_given_type, state)) {
+                print_error_stub(&assign_part->location);
+                printf("Type '");
+                print_type_inline(&right_side_given_type);
+                printf("' is not assignable to item of type '");
+                print_type_inline(item_type);
+                printf("'\n");
+                exit(1);
+            }
+        }
     }
 }
 
@@ -1515,7 +1533,7 @@ void process_build_type(Build_Node* build, Type* type, Process_State* state) {
             break;
         }
         case Type_RunMacro: {
-            process_build_type(build, type->data.run_macro.computed_type, state);
+            process_build_type(build, type->data.run_macro.result.data.type, state);
             break;
         }
         default:
@@ -1750,7 +1768,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             break;
         }
         case Expression_RunMacro: {
-            Run_Macro_Node* run_macro = &expression->data.run_macro;
+            Run_Macro* run_macro = &expression->data.run_macro;
 
             Resolved resolved = resolve(&state->generic, run_macro->identifier);
             assert(resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Macro);
@@ -1810,10 +1828,11 @@ void process_expression(Expression_Node* expression, Process_State* state) {
 
             Expression_Node cloned = clone_macro_expression(*variant.data.data.expression, variant.bindings, run_macro->arguments);
 
-            run_macro->computed_expression = malloc(sizeof(Expression_Node));
-            *run_macro->computed_expression = cloned;
+            run_macro->result.kind.kind = Macro_Expression;
+            run_macro->result.data.expression = malloc(sizeof(Expression_Node));
+            *run_macro->result.data.expression = cloned;
 
-            process_expression(run_macro->computed_expression, state);
+            process_expression(run_macro->result.data.expression, state);
             break;
         }
         case Expression_Retrieve: {
@@ -1901,9 +1920,9 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 }
 
                 Type item_type;
-                Type* result_type = get_parent_item_type(parent_type_raw, retrieve->data.parent.name, &state->generic);
-                if (result_type != NULL) {
-                    item_type = *result_type;
+                Type result_type = get_parent_item_type(parent_type_raw, retrieve->data.parent.name, &state->generic);
+                if (result_type.kind != Type_None) {
+                    item_type = result_type;
                     found = true;
                 }
 

@@ -434,7 +434,7 @@ Type parse_type(Parser_State* state) {
             result.data.basic = basic;
 
             if (peek(state) == Token_Exclamation) {
-                Run_Macro_Type type = { .arguments = array_macro_syntax_data_new(2) };
+                Run_Macro type = { .arguments = array_macro_syntax_data_new(2) };
                 assert(result.kind == Type_Basic && result.data.basic.identifier.kind == Identifier_Single);
                 type.identifier = result.data.basic.identifier;
                 type.location = state->tokens->elements[state->index].location;
@@ -1064,7 +1064,7 @@ Expression_Node parse_expression_without_operators(Parser_State* state) {
 
         if (peek(state) == Token_Exclamation) {
             running = true;
-            Run_Macro_Node node = { .arguments = array_macro_syntax_data_new(2) };
+            Run_Macro node = { .arguments = array_macro_syntax_data_new(2) };
             assert(result.kind == Expression_Retrieve && result.data.retrieve.kind == Retrieve_Assign_Identifier);
             node.identifier = result.data.retrieve.data.identifier;
             node.location = state->tokens->elements[state->index].location;

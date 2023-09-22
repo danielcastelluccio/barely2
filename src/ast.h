@@ -89,6 +89,34 @@ typedef struct Macro_Syntax_Data Macro_Syntax_Data;
 
 Dynamic_Array_Def(Macro_Syntax_Data*, Array_Macro_Syntax_Data, array_macro_syntax_data_)
 
+struct Macro_Syntax_Kind;
+typedef struct Macro_Syntax_Kind Macro_Syntax_Kind;
+
+struct Macro_Syntax_Kind {
+    enum {
+        Macro_None,
+        Macro_Expression,
+        Macro_Type,
+        Macro_Multiple,
+        Macro_Multiple_Expanded,
+    } kind;
+    union {
+        Macro_Syntax_Kind* multiple;
+    } data;
+};
+
+
+struct Macro_Syntax_Data {
+    Macro_Syntax_Kind kind;
+    union {
+        Expression_Node* expression;
+        Type* type;
+        Macro_Syntax_Data* multiple;
+        Array_Macro_Syntax_Data multiple_expanded;
+    } data;
+};
+
+
 typedef struct {
     Array_Declaration_Pointer items;
 } Struct_Type;
@@ -115,8 +143,8 @@ typedef struct {
     Array_Macro_Syntax_Data arguments;
     Location location;
 
-    Type* computed_type;
-} Run_Macro_Type;
+    Macro_Syntax_Data result;
+} Run_Macro;
 
 struct Type {
     Array_Directive directives;
@@ -146,7 +174,7 @@ struct Type {
         Enum_Type enum_;
         Number_Type number;
         TypeOf_Type type_of;
-        Run_Macro_Type run_macro;
+        Run_Macro run_macro;
     } data;
 };
 
@@ -236,14 +264,6 @@ typedef struct {
     Array_Expression_Node arguments;
     Location location;
 } Invoke_Node;
-
-typedef struct {
-    Identifier identifier;
-    Array_Macro_Syntax_Data arguments;
-    Location location;
-
-    Expression_Node* computed_expression;
-} Run_Macro_Node;
 
 typedef struct {
     enum {
@@ -340,7 +360,7 @@ struct Expression_Node {
         Number_Node number;
         String_Node string;
         Invoke_Node invoke;
-        Run_Macro_Node run_macro;
+        Run_Macro run_macro;
         Retrieve_Node retrieve;
         If_Node if_;
         While_Node while_;
@@ -402,32 +422,6 @@ typedef struct {
     Array_Type returns;
     Expression_Node* body;
 } Procedure_Node;
-
-struct Macro_Syntax_Kind;
-typedef struct Macro_Syntax_Kind Macro_Syntax_Kind;
-
-struct Macro_Syntax_Kind {
-    enum {
-        Macro_None,
-        Macro_Expression,
-        Macro_Type,
-        Macro_Multiple,
-        Macro_Multiple_Expanded,
-    } kind;
-    union {
-        Macro_Syntax_Kind* multiple;
-    } data;
-};
-
-struct Macro_Syntax_Data {
-    Macro_Syntax_Kind kind;
-    union {
-        Expression_Node* expression;
-        Type* type;
-        Macro_Syntax_Data* multiple;
-        Array_Macro_Syntax_Data multiple_expanded;
-    } data;
-};
 
 typedef struct {
     Array_String bindings;

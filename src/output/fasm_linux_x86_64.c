@@ -5,7 +5,6 @@
 #include <unistd.h>
 
 #include "fasm_linux_x86_64.h"
-#include "util.h"
 
 typedef struct {
     Generic_State generic;
@@ -21,7 +20,7 @@ typedef struct {
 } Output_State;
 
 size_t get_size(Type* type_in, Output_State* state) {
-    Type type = evaluate_output_type(type_in, &state->generic);
+    Type type = evaluate_type_complete(type_in, &state->generic);
     switch (type.kind) {
         case Type_Array: {
             BArray_Type* array = &type.data.array;
@@ -124,7 +123,7 @@ size_t collect_expression_locals_size(Expression_Node* expression, Output_State*
             return collect_expression_locals_size(expression->data.while_.inside, state);
         }
         case Expression_RunMacro: {
-            return collect_expression_locals_size(expression->data.run_macro.computed_expression, state);
+            return collect_expression_locals_size(expression->data.run_macro.result.data.expression, state);
         }
         default:
             return 0;
@@ -188,7 +187,7 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                 break;
             }
             case Type_RunMacro: {
-                return get_parent_item_location_size(parent_type->data.run_macro.computed_type, item_name, state);
+                return get_parent_item_location_size(parent_type->data.run_macro.result.data.type, item_name, state);
             }
             default:
                 assert(false);
@@ -653,7 +652,7 @@ void output_zeroes(size_t count, Output_State* state) {
 }
 
 void output_build_type(Build_Node* build, Type* type_in, Output_State* state) {
-    Type type = evaluate_output_type(type_in, &state->generic);
+    Type type = evaluate_type_complete(type_in, &state->generic);
     switch (type.kind) {
         case Type_Struct: {
             Struct_Type* struct_ = &type.data.struct_;
@@ -1168,8 +1167,8 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_RunMacro: {
-            Run_Macro_Node* macro = &expression->data.run_macro;
-            output_expression_fasm_linux_x86_64(macro->computed_expression, state);
+            Run_Macro* macro = &expression->data.run_macro;
+            output_expression_fasm_linux_x86_64(macro->result.data.expression, state);
             break;
         }
         case Expression_Retrieve: {
