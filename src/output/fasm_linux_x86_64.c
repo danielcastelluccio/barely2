@@ -13,17 +13,17 @@ typedef struct {
     String_Buffer bss;
     size_t string_index;
     size_t flow_index;
-    Array_Declaration current_declares;
+    Array_Ast_Declaration current_declares;
     Array_Size scoped_declares;
-    Item_Node* current_procedure;
+    Ast_Item* current_procedure;
     bool in_reference;
 } Output_State;
 
-size_t get_size(Type* type_in, Output_State* state) {
-    Type type = evaluate_type_complete(type_in, &state->generic);
+size_t get_size(Ast_Type* type_in, Output_State* state) {
+    Ast_Type type = evaluate_type_complete(type_in, &state->generic);
     switch (type.kind) {
         case Type_Array: {
-            BArray_Type* array = &type.data.array;
+            Ast_Type_Array* array = &type.data.array;
 
             if (array->has_size) {
                 assert(array->size_type->kind == Type_Number);
@@ -33,7 +33,7 @@ size_t get_size(Type* type_in, Output_State* state) {
             break;
         }
         case Type_Internal: {
-            Internal_Type* internal = &type.data.internal;
+            Ast_Type_Internal* internal = &type.data.internal;
 
             switch (*internal) {
                 case Type_USize:
@@ -57,7 +57,7 @@ size_t get_size(Type* type_in, Output_State* state) {
         }
         case Type_Struct: {
             size_t size = 0;
-            Struct_Type* struct_ = &type.data.struct_;
+            Ast_Type_Struct* struct_ = &type.data.struct_;
             for (size_t i = 0; i < struct_->items.count; i++) {
                 size += get_size(&struct_->items.elements[i]->type, state);
             }
@@ -65,7 +65,7 @@ size_t get_size(Type* type_in, Output_State* state) {
         }
         case Type_Union: {
             size_t size = 0;
-            Union_Type* union_ = &type.data.union_;
+            Ast_Type_Union* union_ = &type.data.union_;
             for (size_t i = 0; i < union_->items.count; i++) {
                 size_t size_temp = get_size(&union_->items.elements[i]->type, state);
                 if (size_temp > size) {
@@ -83,9 +83,9 @@ size_t get_size(Type* type_in, Output_State* state) {
     assert(false);
 }
 
-size_t collect_expression_locals_size(Expression_Node* expression, Output_State* state);
+size_t collect_expression_locals_size(Ast_Expression* expression, Output_State* state);
 
-size_t collect_statement_locals_size(Statement_Node* statement, Output_State* state) {
+size_t collect_statement_locals_size(Ast_Statement* statement, Output_State* state) {
     switch (statement->kind) {
         case Statement_Expression: {
             return collect_expression_locals_size(statement->data.expression.expression, state);
@@ -93,7 +93,7 @@ size_t collect_statement_locals_size(Statement_Node* statement, Output_State* st
         case Statement_Declare: {
             size_t size = 0;
             for (size_t i = 0; i < statement->data.declare.declarations.count; i++) {
-                Type type = statement->data.declare.declarations.elements[i].type;
+                Ast_Type type = statement->data.declare.declarations.elements[i].type;
                 size += get_size(&type, state);
             }
             return size;
@@ -103,12 +103,19 @@ size_t collect_statement_locals_size(Statement_Node* statement, Output_State* st
     }
 }
 
-size_t collect_expression_locals_size(Expression_Node* expression, Output_State* state) {
+size_t collect_expression_locals_size(Ast_Expression* expression, Output_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
             size_t size = 0;
             for (size_t i = 0; i < expression->data.block.statements.count; i++) {
                 size += collect_statement_locals_size(expression->data.block.statements.elements[i], state);
+            }
+            return size;
+        }
+        case Expression_Multiple: {
+            size_t size = 0;
+            for (size_t i = 0; i < expression->data.multiple.expressions.count; i++) {
+                size += collect_expression_locals_size(expression->data.multiple.expressions.elements[i], state);
             }
             return size;
         }
@@ -136,14 +143,14 @@ bool consume_in_reference_output(Output_State* state) {
     return cached;
 }
 
-void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_State* state);
+void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_State* state);
 
 typedef struct {
     size_t size;
     size_t location;
 } Location_Size_Data;
 
-Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_name, Output_State* state) {
+Location_Size_Data get_parent_item_location_size(Ast_Type* parent_type, char* item_name, Output_State* state) {
     Location_Size_Data result = {};
 
     if (strcmp(item_name, "*") == 0) {
@@ -151,20 +158,20 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
     } else {
         switch (parent_type->kind) {
             case Type_Basic: {
-                Identifier identifier = parent_type->data.basic.identifier;
+                Ast_Identifier identifier = parent_type->data.basic.identifier;
                 Resolved resolved = resolve(&state->generic, identifier);
 
                 assert(resolved.kind == Resolved_Item);
 
-                Item_Node* item = resolved.data.item;
+                Ast_Item* item = resolved.data.item;
                 assert(item->kind == Item_Type);
-                Type type = item->data.type.type;
+                Ast_Type type = item->data.type.type;
                 return get_parent_item_location_size(&type, item_name, state);
             }
             case Type_Struct: {
-                Struct_Type* struct_type = &parent_type->data.struct_;
+                Ast_Type_Struct* struct_type = &parent_type->data.struct_;
                 for (size_t i = 0; i < struct_type->items.count; i++) {
-                    Declaration* declaration = struct_type->items.elements[i];
+                    Ast_Declaration* declaration = struct_type->items.elements[i];
                     size_t item_size = get_size(&declaration->type, state);
                     if (strcmp(declaration->name, item_name) == 0) {
                         result.size = item_size;
@@ -175,9 +182,9 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                 break;
             }
             case Type_Union: {
-                Union_Type* union_type = &parent_type->data.union_;
+                Ast_Type_Union* union_type = &parent_type->data.union_;
                 for (size_t i = 0; i < union_type->items.count; i++) {
-                    Declaration* declaration = union_type->items.elements[i];
+                    Ast_Declaration* declaration = union_type->items.elements[i];
                     size_t item_size = get_size(&declaration->type, state);
                     if (strcmp(declaration->name, item_name) == 0) {
                         result.size = item_size;
@@ -199,7 +206,7 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
 
 bool has_local_variable(char* name, Output_State* state) {
     for (int i = state->current_declares.count - 1; i >= 0; i--) {
-        Declaration* declaration = &state->current_declares.elements[i];
+        Ast_Declaration* declaration = &state->current_declares.elements[i];
         if (strcmp(declaration->name, name) == 0) {
             return true;
         }
@@ -214,7 +221,7 @@ Location_Size_Data get_local_variable_location_size(char* name, Output_State* st
     bool found = false;
 
     for (int i = state->current_declares.count - 1; i >= 0; i--) {
-        Declaration* declaration = &state->current_declares.elements[i];
+        Ast_Declaration* declaration = &state->current_declares.elements[i];
         size_t declaration_size = get_size(&declaration->type, state);
 
         if (found) {
@@ -230,9 +237,9 @@ Location_Size_Data get_local_variable_location_size(char* name, Output_State* st
     return result;
 }
 
-void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State* state) {
+void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* state) {
     if (has_directive(&statement->directives, Directive_If)) {
-        Directive_If_Node* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
+        Ast_Directive_If* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
         if (!if_node->result) {
             return;
         }
@@ -240,17 +247,17 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
 
     switch (statement->kind) {
         case Statement_Expression: {
-            Statement_Expression_Node* statement_expression = &statement->data.expression;
+            Ast_Statement_Expression* statement_expression = &statement->data.expression;
             output_expression_fasm_linux_x86_64(statement_expression->expression, state);
             break;
         }
         case Statement_Declare: {
-            Statement_Declare_Node* declare = &statement->data.declare;
+            Ast_Statement_Declare* declare = &statement->data.declare;
             if (declare->expression != NULL) {
                 output_expression_fasm_linux_x86_64(declare->expression, state);
 
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
-                    Declaration declaration = declare->declarations.elements[i];
+                    Ast_Declaration declaration = declare->declarations.elements[i];
                     size_t location = 8;
                     for (size_t j = 0; j < state->current_declares.count; j++) {
                         location += get_size(&state->current_declares.elements[j].type, state);
@@ -288,18 +295,18 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     sprintf(buffer, "  add rsp, %zu\n", size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
-                    array_declaration_append(&state->current_declares, declaration);
+                    array_ast_declaration_append(&state->current_declares, declaration);
                 }
             } else {
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
-                    Declaration declaration = declare->declarations.elements[i];
-                    array_declaration_append(&state->current_declares, declaration);
+                    Ast_Declaration declaration = declare->declarations.elements[i];
+                    array_ast_declaration_append(&state->current_declares, declaration);
                 }
             }
             break;
         }
         case Statement_Assign: {
-            Statement_Assign_Node* assign = &statement->data.assign;
+            Ast_Statement_Assign* assign = &statement->data.assign;
             output_expression_fasm_linux_x86_64(assign->expression, state);
 
             for (int i = assign->parts.count - 1; i >= 0; i--) {
@@ -307,21 +314,21 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 bool found = false;
 
                 if (!found && assign_part->kind == Retrieve_Assign_Array) {
-                    Type array_type = assign_part->data.array.computed_array_type;
+                    Ast_Type array_type = assign_part->data.array.computed_array_type;
 
-                    Type* array_type_raw;
+                    Ast_Type* array_ast_type_raw;
                     if (array_type.kind == Type_Pointer) {
-                        array_type_raw = array_type.data.pointer.child;
+                        array_ast_type_raw = array_type.data.pointer.child;
                     } else {
                         state->in_reference = true;
-                        array_type_raw = &array_type;
+                        array_ast_type_raw = &array_type;
                     }
 
                     output_expression_fasm_linux_x86_64(assign_part->data.array.expression_outer, state);
 
                     output_expression_fasm_linux_x86_64(assign_part->data.array.expression_inner, state);
 
-                    size_t size = get_size(array_type_raw->data.array.element_type, state);
+                    size_t size = get_size(array_ast_type_raw->data.array.element_type, state);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
@@ -367,9 +374,9 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                 }
 
                 if (!found && assign_part->kind == Retrieve_Assign_Parent) {
-                    Type parent_type = assign_part->data.parent.computed_parent_type;
+                    Ast_Type parent_type = assign_part->data.parent.computed_parent_type;
 
-                    Type* parent_type_raw;
+                    Ast_Type* parent_type_raw;
                     if (parent_type.kind == Type_Pointer) {
                         parent_type_raw = parent_type.data.pointer.child;
                     } else {
@@ -467,10 +474,10 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
                     Resolved resolved = resolve(&state->generic, assign_part->data.identifier);
                     switch (resolved.kind) {
                         case Resolved_Item: {
-                            Item_Node* item = resolved.data.item;
+                            Ast_Item* item = resolved.data.item;
                             switch (item->kind) {
                                 case Item_Global: {
-                                    Global_Node* global = &item->data.global;
+                                    Ast_Item_Global* global = &item->data.global;
                                     size_t size = get_size(&global->type, state);
 
                                     size_t i = 0;
@@ -524,11 +531,11 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
             break;
         }
         case Statement_Return: {
-            Statement_Return_Node* return_ = &statement->data.return_;
+            Ast_Statement_Return* return_ = &statement->data.return_;
             output_expression_fasm_linux_x86_64(return_->expression, state);
 
-            Array_Declaration* current_arguments = &state->current_procedure->data.procedure.arguments;
-            Array_Type* current_returns = &state->current_procedure->data.procedure.returns;
+            Array_Ast_Declaration* current_arguments = &state->current_procedure->data.procedure.arguments;
+            Array_Ast_Type* current_returns = &state->current_procedure->data.procedure.returns;
 
             size_t arguments_size = 0;
             for (size_t i = 0; i < current_arguments->count; i++) {
@@ -595,7 +602,7 @@ void output_statement_fasm_linux_x86_64(Statement_Node* statement, Output_State*
     }
 }
 
-void output_unsigned_integer(Internal_Type type, size_t value, Output_State* state) {
+void output_unsigned_integer(Ast_Type_Internal type, size_t value, Output_State* state) {
     if (type == Type_U64 || type == Type_USize) {
         stringbuffer_appendstring(&state->instructions, "  sub rsp, 8\n");
         char buffer[128] = {};
@@ -651,11 +658,11 @@ void output_zeroes(size_t count, Output_State* state) {
     }
 }
 
-void output_build_type(Build_Node* build, Type* type_in, Output_State* state) {
-    Type type = evaluate_type_complete(type_in, &state->generic);
+void output_build_type(Ast_Expression_Build* build, Ast_Type* type_in, Output_State* state) {
+    Ast_Type type = evaluate_type_complete(type_in, &state->generic);
     switch (type.kind) {
         case Type_Struct: {
-            Struct_Type* struct_ = &type.data.struct_;
+            Ast_Type_Struct* struct_ = &type.data.struct_;
             if (build->arguments.count == struct_->items.count) {
                 for (int i = build->arguments.count - 1; i >= 0; i--) {
                     output_expression_fasm_linux_x86_64(build->arguments.elements[i], state);
@@ -664,7 +671,7 @@ void output_build_type(Build_Node* build, Type* type_in, Output_State* state) {
             break;
         }
         case Type_Array: {
-            BArray_Type* array = &type.data.array;
+            Ast_Type_Array* array = &type.data.array;
             size_t array_size = array->size_type->data.number.value;
 
             if (build->arguments.count == array_size) {
@@ -679,7 +686,7 @@ void output_build_type(Build_Node* build, Type* type_in, Output_State* state) {
     }
 }
 
-bool is_enum_type(Type* type, Generic_State* generic_state) {
+bool is_enum_type(Ast_Type* type, Generic_State* generic_state) {
     if (type->kind == Type_Basic) {
         Resolved resolved = resolve(generic_state, type->data.basic.identifier);
         if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type) {
@@ -691,10 +698,10 @@ bool is_enum_type(Type* type, Generic_State* generic_state) {
     return false;
 }
 
-size_t get_length(Type* type) {
+size_t get_length(Ast_Type* type) {
     switch (type->kind) {
         case Type_Array: {
-            BArray_Type* array_type = &type->data.array;
+            Ast_Type_Array* array_type = &type->data.array;
             assert(array_type->has_size);
             return array_type->size_type->data.number.value;
         }
@@ -709,11 +716,11 @@ size_t get_length(Type* type) {
     }
 }
 
-void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_State* state) {
+void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
             array_size_append(&state->scoped_declares, state->current_declares.count);
-            Block_Node* block = &expression->data.block;
+            Ast_Expression_Block* block = &expression->data.block;
             for (size_t i = 0; i < block->statements.count; i++) {
                 output_statement_fasm_linux_x86_64(block->statements.elements[i], state);
             }
@@ -721,21 +728,21 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             state->scoped_declares.count--;
             break;
         }
-        case Expression_Multi: {
-            Multi_Expression_Node* multi = &expression->data.multi;
-            for (size_t i = 0; i < multi->expressions.count; i++) {
-                output_expression_fasm_linux_x86_64(multi->expressions.elements[i], state);
+        case Expression_Multiple: {
+            Ast_Expression_Multiple* multiple = &expression->data.multiple;
+            for (size_t i = 0; i < multiple->expressions.count; i++) {
+                output_expression_fasm_linux_x86_64(multiple->expressions.elements[i], state);
             }
             break;
         }
         case Expression_Invoke: {
-            Invoke_Node* invoke = &expression->data.invoke;
+            Ast_Expression_Invoke* invoke = &expression->data.invoke;
             for (size_t i = 0; i < invoke->arguments.count; i++) {
                 output_expression_fasm_linux_x86_64(invoke->arguments.elements[i], state);
             }
 
             if (invoke->kind == Invoke_Standard) {
-                Expression_Node* procedure = invoke->data.procedure;
+                Ast_Expression* procedure = invoke->data.procedure;
                 bool handled = false;
 
                 if (procedure->kind == Expression_Retrieve) {
@@ -783,7 +790,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_Multiply:
                     case Operator_Divide:
                     case Operator_Modulus: {
-                        Type operator_type = invoke->data.operator_.computed_operand_type;
+                        Ast_Type operator_type = invoke->data.operator_.computed_operand_type;
 
                         if (is_internal_type(Type_U64, &operator_type) || is_internal_type(Type_USize, &operator_type)|| is_internal_type(Type_Ptr, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
@@ -927,7 +934,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     case Operator_GreaterEqual:
                     case Operator_Less:
                     case Operator_LessEqual: {
-                        Type operator_type = invoke->data.operator_.computed_operand_type;
+                        Ast_Type operator_type = invoke->data.operator_.computed_operand_type;
 
                         if (is_internal_type(Type_U64, &operator_type) || is_internal_type(Type_USize, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
@@ -1167,34 +1174,34 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_RunMacro: {
-            Run_Macro* macro = &expression->data.run_macro;
+            Ast_RunMacro* macro = &expression->data.run_macro;
             output_expression_fasm_linux_x86_64(macro->result.data.expression, state);
             break;
         }
         case Expression_Retrieve: {
-            Retrieve_Node* retrieve = &expression->data.retrieve;
+            Ast_Expression_Retrieve* retrieve = &expression->data.retrieve;
             bool found = false;
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Array) {
                     found = true;
-                    Type array_type = retrieve->data.array.computed_array_type;
+                    Ast_Type array_type = retrieve->data.array.computed_array_type;
 
                     bool in_reference = consume_in_reference_output(state);
 
-                    Type* array_type_raw;
+                    Ast_Type* array_ast_type_raw;
                     if (array_type.kind == Type_Pointer) {
-                        array_type_raw = array_type.data.pointer.child;
+                        array_ast_type_raw = array_type.data.pointer.child;
                     } else {
                         state->in_reference = true;
-                        array_type_raw = &array_type;
+                        array_ast_type_raw = &array_type;
                     }
 
                     output_expression_fasm_linux_x86_64(retrieve->data.array.expression_outer, state);
 
                     output_expression_fasm_linux_x86_64(retrieve->data.array.expression_inner, state);
 
-                    size_t element_size = get_size(array_type_raw->data.array.element_type, state);
+                    size_t element_size = get_size(array_ast_type_raw->data.array.element_type, state);
 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
                     stringbuffer_appendstring(&state->instructions, "  pop rcx\n");
@@ -1246,9 +1253,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Parent) {
                     bool in_reference = consume_in_reference_output(state);
-                    Type parent_type = retrieve->data.parent.computed_parent_type;
+                    Ast_Type parent_type = retrieve->data.parent.computed_parent_type;
 
-                    Type* parent_type_raw;
+                    Ast_Type* parent_type_raw;
                     if (parent_type.kind == Type_Pointer) {
                         parent_type_raw = parent_type.data.pointer.child;
                     } else {
@@ -1360,12 +1367,12 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Identifier) {
-                    Array_Declaration* current_arguments = &state->current_procedure->data.procedure.arguments;
+                    Array_Ast_Declaration* current_arguments = &state->current_procedure->data.procedure.arguments;
 
                     size_t location = 8;
                     size_t size = 0;
                     for (int i = current_arguments->count - 1; i >= 0; i--) {
-                        Declaration* declaration = &current_arguments->elements[i];
+                        Ast_Declaration* declaration = &current_arguments->elements[i];
                         size_t declaration_size = get_size(&declaration->type, state);
                         if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
                             size = declaration_size;
@@ -1421,7 +1428,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                 Resolved resolved = resolve(&state->generic, retrieve->data.identifier);
                 switch (resolved.kind) {
                     case Resolved_Item: {
-                        Item_Node* item = resolved.data.item;
+                        Ast_Item* item = resolved.data.item;
                         found = true;
                         switch (item->kind) {
                             case Item_Procedure: {
@@ -1431,7 +1438,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 break;
                             }
                             case Item_Global: {
-                                Global_Node* global = &item->data.global;
+                                Ast_Item_Global* global = &item->data.global;
                                 if (consume_in_reference_output(state)) {
                                     char buffer[128] = {};
                                     sprintf(buffer + strlen(buffer), "  lea rax, [%s.", item->name);
@@ -1476,10 +1483,10 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                                 break;
                             }
                             case Item_Constant: {
-                                Constant_Node* constant = &item->data.constant;
-                                Number_Node number = constant->expression;
+                                Ast_Item_Constant* constant = &item->data.constant;
+                                Ast_Expression_Number number = constant->expression;
                                 number.type = &retrieve->computed_result_type;
-                                Expression_Node expression_temp = { .kind = Expression_Number, .data = { .number = number } };
+                                Ast_Expression expression_temp = { .kind = Expression_Number, .data = { .number = number } };
                                 output_expression_fasm_linux_x86_64(&expression_temp, state);
                                 break;
                             }
@@ -1490,9 +1497,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                     }
                     case Resolved_Enum_Variant: {
                         size_t index = 0;
-                        Enum_Type* enum_ = resolved.data.enum_.enum_;
+                        Ast_Type_Enum* enum_ = resolved.data.enum_.enum_;
                         if (enum_ == NULL) {
-                            Enum_Type* enum_2 = &retrieve->computed_result_type.data.enum_;
+                            Ast_Type_Enum* enum_2 = &retrieve->computed_result_type.data.enum_;
 
                             char* variant = resolved.data.enum_.variant;
                             while (strcmp(enum_2->items.elements[index], variant) != 0) {
@@ -1519,7 +1526,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_If: {
-            If_Node* node = &expression->data.if_;
+            Ast_Expression_If* node = &expression->data.if_;
 
             size_t end = state->flow_index;
             state->flow_index++;
@@ -1564,7 +1571,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             size_t start = state->flow_index;
             state->flow_index++;
 
-            While_Node* node = &expression->data.while_;
+            Ast_Expression_While* node = &expression->data.while_;
             char buffer[128] = {};
             sprintf(buffer, "  __%zu:\n", start);
             stringbuffer_appendstring(&state->instructions, buffer);
@@ -1593,10 +1600,10 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_Number: {
-            Number_Node* number = &expression->data.number;
+            Ast_Expression_Number* number = &expression->data.number;
 
             assert(number->type != NULL);
-            Internal_Type type = number->type->data.internal;
+            Ast_Type_Internal type = number->type->data.internal;
             if (type == Type_F8) {
                 union { double d; size_t s; } value;
                 switch (number->kind) {
@@ -1632,7 +1639,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_Boolean: {
-            Boolean_Node* boolean = &expression->data.boolean;
+            Ast_Expression_Boolean* boolean = &expression->data.boolean;
             output_boolean(boolean->value, state);
             break;
         }
@@ -1641,7 +1648,7 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_String: {
-            String_Node* string = &expression->data.string;
+            Ast_Expression_String* string = &expression->data.string;
             char buffer[128] = {};
             sprintf(buffer, "  push _%zu\n", state->string_index);
             stringbuffer_appendstring(&state->instructions, buffer);
@@ -1665,23 +1672,23 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_Reference: {
-            Reference_Node* reference = &expression->data.reference;
+            Ast_Expression_Reference* reference = &expression->data.reference;
             state->in_reference = true;
 
             output_expression_fasm_linux_x86_64(reference->inner, state);
             break;
         }
         case Expression_Cast: {
-            Cast_Node* cast = &expression->data.cast;
+            Ast_Expression_Cast* cast = &expression->data.cast;
 
             output_expression_fasm_linux_x86_64(cast->expression, state);
 
-            Type input = cast->computed_input_type;
-            Type output = cast->type;
+            Ast_Type input = cast->computed_input_type;
+            Ast_Type output = cast->type;
 
             if (cast->type.kind == Type_Internal && cast->computed_input_type.kind == Type_Internal) {
-                Internal_Type output_internal = output.data.internal;
-                Internal_Type input_internal = input.data.internal;
+                Ast_Type_Internal output_internal = output.data.internal;
+                Ast_Type_Internal input_internal = input.data.internal;
 
                 if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) && 
                         (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
@@ -1730,27 +1737,27 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
             break;
         }
         case Expression_Init: {
-            Init_Node* init = &expression->data.init;
+            Ast_Expression_Init* init = &expression->data.init;
 
-            Type* type = &init->type;
+            Ast_Type* type = &init->type;
             output_zeroes(get_size(type, state), state);
             break;
         }
         case Expression_Build: {
-            Build_Node* build = &expression->data.build;
+            Ast_Expression_Build* build = &expression->data.build;
 
-            Type* type = &build->type;
+            Ast_Type* type = &build->type;
             output_build_type(build, type, state);
             break;
         }
         case Expression_SizeOf: {
-            SizeOf_Node* size_of = &expression->data.size_of;
+            Ast_Expression_SizeOf* size_of = &expression->data.size_of;
 
             output_unsigned_integer(size_of->computed_result_type.data.internal, get_size(&size_of->type, state), state);
             break;
         }
         case Expression_LengthOf: {
-            LengthOf_Node* length_of = &expression->data.length_of;
+            Ast_Expression_LengthOf* length_of = &expression->data.length_of;
 
             output_unsigned_integer(length_of->computed_result_type.data.internal, get_length(&length_of->type), state);
             break;
@@ -1760,9 +1767,9 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
     }
 }
 
-void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
+void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
     if (has_directive(&item->directives, Directive_If)) {
-        Directive_If_Node* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
+        Ast_Directive_If* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
         if (!if_node->result) {
             return;
         }
@@ -1770,10 +1777,10 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
 
     switch (item->kind) {
         case Item_Procedure: {
-            Procedure_Node* procedure = &item->data.procedure;
+            Ast_Item_Procedure* procedure = &item->data.procedure;
             // TODO: use some sort of annotation to specify entry procedure
 
-            state->current_declares = array_declaration_new(4);
+            state->current_declares = array_ast_declaration_new(4);
             state->current_procedure = item;
 
             char buffer[128] = {};
@@ -1808,7 +1815,7 @@ void output_item_fasm_linux_x86_64(Item_Node* item, Output_State* state) {
             break;
         }
         case Item_Global: {
-            Global_Node* global = &item->data.global;
+            Ast_Item_Global* global = &item->data.global;
             size_t size = get_size(&global->type, state);
 
             char buffer[128] = {};
@@ -1847,11 +1854,11 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
     };
 
     for (size_t j = 0; j < program->count; j++) {
-        File_Node* file_node = &program->elements[j];
+        Ast_File* file_node = &program->elements[j];
         state.generic.current_file = file_node;
 
         for (size_t i = 0; i < file_node->items.count; i++) {
-            Item_Node* item = &file_node->items.elements[i];
+            Ast_Item* item = &file_node->items.elements[i];
             output_item_fasm_linux_x86_64(item, &state);
         }
     }

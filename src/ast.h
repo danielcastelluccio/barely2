@@ -6,20 +6,20 @@
 
 #include "string_util.h"
 
-struct Type;
-typedef struct Type Type;
+struct Ast_Type;
+typedef struct Ast_Type Ast_Type;
 
-Dynamic_Array_Def(Type*, Array_Type, array_type_)
+Dynamic_Array_Def(Ast_Type*, Array_Ast_Type, array_ast_type_)
 
-Dynamic_Array_Def(Array_Type, Array_Array_Type, array_array_type_)
+Dynamic_Array_Def(Array_Ast_Type, Array_Array_Ast_Type, array_array_ast_type_)
 
-struct Expression_Node;
-typedef struct Expression_Node Expression_Node;
+struct Ast_Expression;
+typedef struct Ast_Expression Ast_Expression;
 
 typedef struct {
-    Expression_Node* expression;
+    Ast_Expression* expression;
     bool result;
-} Directive_If_Node;
+} Ast_Directive_If;
 
 typedef enum {
     Directive_If,
@@ -28,25 +28,25 @@ typedef enum {
 typedef struct {
     Directive_Kind kind;
     union {
-        Directive_If_Node if_;
+        Ast_Directive_If if_;
     } data;
-} Directive_Node;
+} Ast_Directive;
 
-Dynamic_Array_Def(Directive_Node, Array_Directive, array_directive_)
+Dynamic_Array_Def(Ast_Directive, Array_Ast_Directive, array_ast_directive_)
 
-struct Item_Node;
-typedef struct Item_Node Item_Node;
+struct Ast_Item;
+typedef struct Ast_Item Ast_Item;
 
 typedef struct {
     enum {
         Identifier_Single,
-        Identifier_Multi,
+        Identifier_Multiple,
     } kind;
     union {
         char* single;
-        Array_String multi;
+        Array_String multiple;
     } data;
-} Identifier;
+} Ast_Identifier;
 
 typedef enum {
     Type_USize,
@@ -57,42 +57,42 @@ typedef enum {
     Type_F8,
     Type_Ptr,
     Type_Bool,
-} Internal_Type;
+} Ast_Type_Internal;
 
 typedef struct {
-    Identifier identifier;
-    Item_Node* resolved_node;
-} Basic_Type;
+    Ast_Identifier identifier;
+    Ast_Item* resolved_node;
+} Ast_Type_Basic;
 
 typedef struct {
-    Type* child;
-} Pointer_Type;
+    Ast_Type* child;
+} Ast_Type_Pointer;
 
 typedef struct {
-    Array_Type arguments;
-    Array_Type returns;
-} Procedure_Type;
+    Array_Ast_Type arguments;
+    Array_Ast_Type returns;
+} Ast_Type_Procedure;
 
 typedef struct {
-    Type* size_type;
+    Ast_Type* size_type;
     bool has_size;
-    Type* element_type;
-} BArray_Type;
+    Ast_Type* element_type;
+} Ast_Type_Array;
 
-struct Declaration;
-typedef struct Declaration Declaration;
+struct Ast_Declaration;
+typedef struct Ast_Declaration Ast_Declaration;
 
-Dynamic_Array_Def(Declaration*, Array_Declaration_Pointer, array_declaration_pointer_)
+Dynamic_Array_Def(Ast_Declaration*, Array_Ast_Declaration_Pointer, array_ast_declaration_pointer_)
 
-struct Macro_Syntax_Data;
-typedef struct Macro_Syntax_Data Macro_Syntax_Data;
+struct Ast_Macro_SyntaxData;
+typedef struct Ast_Macro_SyntaxData Ast_Macro_SyntaxData;
 
-Dynamic_Array_Def(Macro_Syntax_Data*, Array_Macro_Syntax_Data, array_macro_syntax_data_)
+Dynamic_Array_Def(Ast_Macro_SyntaxData*, Array_Ast_Macro_SyntaxData, array_ast_macro_syntax_data_)
 
-struct Macro_Syntax_Kind;
-typedef struct Macro_Syntax_Kind Macro_Syntax_Kind;
+struct Ast_Macro_SyntaxKind;
+typedef struct Ast_Macro_SyntaxKind Ast_Macro_SyntaxKind;
 
-struct Macro_Syntax_Kind {
+struct Ast_Macro_SyntaxKind {
     enum {
         Macro_None,
         Macro_Expression,
@@ -101,53 +101,51 @@ struct Macro_Syntax_Kind {
         Macro_Multiple_Expanded,
     } kind;
     union {
-        Macro_Syntax_Kind* multiple;
+        Ast_Macro_SyntaxKind* multiple;
     } data;
 };
 
-
-struct Macro_Syntax_Data {
-    Macro_Syntax_Kind kind;
+struct Ast_Macro_SyntaxData {
+    Ast_Macro_SyntaxKind kind;
     union {
-        Expression_Node* expression;
-        Type* type;
-        Macro_Syntax_Data* multiple;
-        Array_Macro_Syntax_Data multiple_expanded;
+        Ast_Expression* expression;
+        Ast_Type* type;
+        Ast_Macro_SyntaxData* multiple;
+        Array_Ast_Macro_SyntaxData multiple_expanded;
     } data;
 };
 
+typedef struct {
+    Array_Ast_Declaration_Pointer items;
+} Ast_Type_Struct;
 
 typedef struct {
-    Array_Declaration_Pointer items;
-} Struct_Type;
-
-typedef struct {
-    Array_Declaration_Pointer items;
-} Union_Type;
+    Array_Ast_Declaration_Pointer items;
+} Ast_Type_Union;
 
 typedef struct {
     Array_String items;
-} Enum_Type;
+} Ast_Type_Enum;
 
 typedef struct {
     size_t value;
-} Number_Type;
+} Ast_Type_Number;
 
 typedef struct {
-    Expression_Node* expression;
-    Type* computed_result_type;
-} TypeOf_Type;
+    Ast_Expression* expression;
+    Ast_Type* computed_result_type;
+} Ast_Type_TypeOf;
 
 typedef struct {
-    Identifier identifier;
-    Array_Macro_Syntax_Data arguments;
+    Ast_Identifier identifier;
+    Array_Ast_Macro_SyntaxData arguments;
     Location location;
 
-    Macro_Syntax_Data result;
-} Run_Macro;
+    Ast_Macro_SyntaxData result;
+} Ast_RunMacro;
 
-struct Type {
-    Array_Directive directives;
+struct Ast_Type {
+    Array_Ast_Directive directives;
     enum {
         Type_None,
         Type_Basic,
@@ -164,36 +162,36 @@ struct Type {
         Type_RunMacro,
     } kind;
     union {
-        Basic_Type basic;
-        Pointer_Type pointer;
-        Procedure_Type procedure;
-        BArray_Type array;
-        Internal_Type internal;
-        Struct_Type struct_;
-        Union_Type union_;
-        Enum_Type enum_;
-        Number_Type number;
-        TypeOf_Type type_of;
-        Run_Macro run_macro;
+        Ast_Type_Basic basic;
+        Ast_Type_Pointer pointer;
+        Ast_Type_Procedure procedure;
+        Ast_Type_Array array;
+        Ast_Type_Internal internal;
+        Ast_Type_Struct struct_;
+        Ast_Type_Union union_;
+        Ast_Type_Enum enum_;
+        Ast_Type_Number number;
+        Ast_Type_TypeOf type_of;
+        Ast_RunMacro run_macro;
     } data;
 };
 
-struct Statement_Node;
-typedef struct Statement_Node Statement_Node;
+struct Ast_Statement;
+typedef struct Ast_Statement Ast_Statement;
 
-struct Declaration {
+struct Ast_Declaration {
     char* name;
-    Type type;
+    Ast_Type type;
     Location location;
 };
 
-Dynamic_Array_Def(Statement_Node*, Array_Statement_Node, array_statement_node_)
-Dynamic_Array_Def(Expression_Node*, Array_Expression_Node, array_expression_node_)
-Dynamic_Array_Def(Declaration, Array_Declaration, array_declaration_)
+Dynamic_Array_Def(Ast_Statement*, Array_Ast_Statement, array_ast_statement_)
+Dynamic_Array_Def(Ast_Expression*, Array_Ast_Expression, array_ast_expression_)
+Dynamic_Array_Def(Ast_Declaration, Array_Ast_Declaration, array_ast_declaration_)
 
 typedef struct {
-    Array_Statement_Node statements;
-} Block_Node;
+    Array_Ast_Statement statements;
+} Ast_Expression_Block;
 
 typedef struct {
     enum {
@@ -204,33 +202,33 @@ typedef struct {
         size_t integer;
         double decimal;
     } value;
-    Type* type;
-} Number_Node;
+    Ast_Type* type;
+} Ast_Expression_Number;
 
 typedef struct {
     char* value;
-} String_Node;
+} Ast_Expression_String;
 
 typedef struct {
     bool value;
-} Boolean_Node;
+} Ast_Expression_Boolean;
 
 typedef struct {
-    Type* type;
-} Null_Node;
+    Ast_Type* type;
+} Ast_Expression_Null;
 
 typedef struct {
-    Expression_Node* condition;
-    Expression_Node* if_expression;
-    Expression_Node* else_expression;
+    Ast_Expression* condition;
+    Ast_Expression* if_expression;
+    Ast_Expression* else_expression;
     Location location;
-} If_Node;
+} Ast_Expression_If;
 
 typedef struct {
-    Expression_Node* condition;
-    Expression_Node* inside;
+    Ast_Expression* condition;
+    Ast_Expression* inside;
     Location location;
-} While_Node;
+} Ast_Expression_While;
 
 typedef enum {
     Operator_Add,
@@ -255,15 +253,15 @@ typedef struct {
         Invoke_Operator,
     } kind;
     union {
-        Expression_Node* procedure;
+        Ast_Expression* procedure;
         struct {
             Operator operator_;
-            Type computed_operand_type;
+            Ast_Type computed_operand_type;
         } operator_;
     } data;
-    Array_Expression_Node arguments;
+    Array_Ast_Expression arguments;
     Location location;
-} Invoke_Node;
+} Ast_Expression_Invoke;
 
 typedef struct {
     enum {
@@ -272,69 +270,69 @@ typedef struct {
         Retrieve_Assign_Array,
     } kind;
     union {
-        Identifier identifier;
+        Ast_Identifier identifier;
         struct {
-            Expression_Node* expression;
+            Ast_Expression* expression;
             char* name;
-            Type computed_parent_type;
+            Ast_Type computed_parent_type;
         } parent;
         struct {
-            Expression_Node* expression_outer;
-            Expression_Node* expression_inner;
-            Type computed_array_type;
+            Ast_Expression* expression_outer;
+            Ast_Expression* expression_inner;
+            Ast_Type computed_array_type;
         } array;
     } data;
-    Type computed_result_type;
+    Ast_Type computed_result_type;
     Location location;
 } Retrieve_Assign_Node;
 
-typedef Retrieve_Assign_Node Retrieve_Node;
+typedef Retrieve_Assign_Node Ast_Expression_Retrieve;
 
 typedef struct {
-    Array_Expression_Node expressions;
-} Multi_Expression_Node;
+    Array_Ast_Expression expressions;
+} Ast_Expression_Multiple;
 
 typedef struct {
-    Expression_Node* inner;
-} Reference_Node;
+    Ast_Expression* inner;
+} Ast_Expression_Reference;
 
 typedef struct {
-    Type type;
-    Expression_Node* expression;
-    Type computed_input_type;
+    Ast_Type type;
+    Ast_Expression* expression;
+    Ast_Type computed_input_type;
     Location location;
-} Cast_Node;
+} Ast_Expression_Cast;
 
 typedef struct {
-    Type type;
-    Array_Expression_Node arguments;
+    Ast_Type type;
+    Array_Ast_Expression arguments;
     Location location;
-} Build_Node;
+} Ast_Expression_Build;
 
 typedef struct {
-    Type type;
+    Ast_Type type;
     Location location;
-} Init_Node;
+} Ast_Expression_Init;
 
 typedef struct {
-    Type type;
-    Type computed_result_type;
+    Ast_Type type;
+    Ast_Type computed_result_type;
     Location location;
-} SizeOf_Node;
+} Ast_Expression_SizeOf;
 
 typedef struct {
-    Type type;
-    Type computed_result_type;
+    Ast_Type type;
+    Ast_Type computed_result_type;
     Location location;
-} LengthOf_Node;
+} Ast_Expression_LengthOf;
 
 typedef struct {
-    Type wanted;
-    Type given;
-} IsType_Node;
+    Ast_Type wanted;
+    Ast_Type given;
+} Ast_Expression_IsType;
 
-struct Expression_Node {
-    Array_Directive directives;
+struct Ast_Expression {
+    Array_Ast_Directive directives;
     enum {
         Expression_Block,
         Expression_Number,
@@ -344,7 +342,7 @@ struct Expression_Node {
         Expression_Retrieve,
         Expression_If,
         Expression_While,
-        Expression_Multi,
+        Expression_Multiple,
         Expression_Reference,
         Expression_Boolean,
         Expression_Null,
@@ -356,35 +354,35 @@ struct Expression_Node {
         Expression_IsType,
     } kind;
     union {
-        Block_Node block;
-        Number_Node number;
-        String_Node string;
-        Invoke_Node invoke;
-        Run_Macro run_macro;
-        Retrieve_Node retrieve;
-        If_Node if_;
-        While_Node while_;
-        Multi_Expression_Node multi;
-        Reference_Node reference;
-        Boolean_Node boolean;
-        Null_Node null;
-        Cast_Node cast;
-        Init_Node init;
-        Build_Node build;
-        SizeOf_Node size_of;
-        LengthOf_Node length_of;
-        IsType_Node is_type;
+        Ast_Expression_Block block;
+        Ast_Expression_Number number;
+        Ast_Expression_String string;
+        Ast_Expression_Invoke invoke;
+        Ast_RunMacro run_macro;
+        Ast_Expression_Retrieve retrieve;
+        Ast_Expression_If if_;
+        Ast_Expression_While while_;
+        Ast_Expression_Multiple multiple;
+        Ast_Expression_Reference reference;
+        Ast_Expression_Boolean boolean;
+        Ast_Expression_Null null;
+        Ast_Expression_Cast cast;
+        Ast_Expression_Init init;
+        Ast_Expression_Build build;
+        Ast_Expression_SizeOf size_of;
+        Ast_Expression_LengthOf length_of;
+        Ast_Expression_IsType is_type;
     } data;
 };
 
 typedef struct {
-    Expression_Node* expression;
-} Statement_Expression_Node;
+    Ast_Expression* expression;
+} Ast_Statement_Expression;
 
 typedef struct {
-    Array_Declaration declarations;
-    Expression_Node* expression;
-} Statement_Declare_Node;
+    Array_Ast_Declaration declarations;
+    Ast_Expression* expression;
+} Ast_Statement_Declare;
 
 typedef Retrieve_Assign_Node Statement_Assign_Part;
 
@@ -392,16 +390,16 @@ Dynamic_Array_Def(Statement_Assign_Part, Array_Statement_Assign_Part, array_stat
 
 typedef struct {
     Array_Statement_Assign_Part parts;
-    Expression_Node* expression;
-} Statement_Assign_Node;
+    Ast_Expression* expression;
+} Ast_Statement_Assign;
 
 typedef struct {
-    Expression_Node* expression;
+    Ast_Expression* expression;
     Location location;
-} Statement_Return_Node;
+} Ast_Statement_Return;
 
-struct Statement_Node {
-    Array_Directive directives;
+struct Ast_Statement {
+    Array_Ast_Directive directives;
     enum {
         Statement_Expression,
         Statement_Declare,
@@ -409,51 +407,51 @@ struct Statement_Node {
         Statement_Return,
     } kind;
     union {
-        Statement_Expression_Node expression;
-        Statement_Declare_Node declare;
-        Statement_Assign_Node assign;
-        Statement_Return_Node return_;
+        Ast_Statement_Expression expression;
+        Ast_Statement_Declare declare;
+        Ast_Statement_Assign assign;
+        Ast_Statement_Return return_;
     } data;
     Location statement_end_location;
 };
 
 typedef struct {
-    Array_Declaration arguments;
-    Array_Type returns;
-    Expression_Node* body;
-} Procedure_Node;
+    Array_Ast_Declaration arguments;
+    Array_Ast_Type returns;
+    Ast_Expression* body;
+} Ast_Item_Procedure;
 
 typedef struct {
     Array_String bindings;
-    Macro_Syntax_Data data;
-} Macro_Variant;
+    Ast_Macro_SyntaxData data;
+} Ast_Macro_Variant;
 
-Dynamic_Array_Def(Macro_Variant, Array_Macro_Variant, array_macro_variant_)
-Dynamic_Array_Def(Macro_Syntax_Kind, Array_Macro_Syntax_Kind, array_macro_syntax_kind_)
-
-typedef struct {
-    Array_Macro_Syntax_Kind arguments;
-    Macro_Syntax_Kind return_;
-    Array_Macro_Variant variants;
-} Macro_Node;
+Dynamic_Array_Def(Ast_Macro_Variant, Array_Ast_Macro_Variant, array_ast_macro_variant_)
+Dynamic_Array_Def(Ast_Macro_SyntaxKind, Array_Ast_Macro_SyntaxKind, array_ast_macro_syntax_kind_)
 
 typedef struct {
-    Type type;
-} Type_Node;
-
-Dynamic_Array_Def(Item_Node, Array_Item_Node, array_item_node_)
-
-typedef struct {
-    Type type;
-} Global_Node;
+    Array_Ast_Macro_SyntaxKind arguments;
+    Ast_Macro_SyntaxKind return_;
+    Array_Ast_Macro_Variant variants;
+} Ast_Item_Macro;
 
 typedef struct {
-    Number_Node expression;
-} Constant_Node;
+    Ast_Type type;
+} Ast_Item_Type;
 
-struct Item_Node {
+Dynamic_Array_Def(Ast_Item, Array_Ast_Item, array_ast_item_)
+
+typedef struct {
+    Ast_Type type;
+} Ast_Item_Global;
+
+typedef struct {
+    Ast_Expression_Number expression;
+} Ast_Item_Constant;
+
+struct Ast_Item {
     char* name;
-    Array_Directive directives;
+    Array_Ast_Directive directives;
     enum {
         Item_Procedure,
         Item_Macro,
@@ -462,20 +460,20 @@ struct Item_Node {
         Item_Constant,
     } kind;
     union {
-        Procedure_Node procedure;
-        Macro_Node macro;
-        Type_Node type;
-        Global_Node global;
-        Constant_Node constant;
+        Ast_Item_Procedure procedure;
+        Ast_Item_Macro macro;
+        Ast_Item_Type type;
+        Ast_Item_Global global;
+        Ast_Item_Constant constant;
     } data;
 };
 
 typedef struct {
     char* path;
     size_t id;
-    Array_Item_Node items;
-} File_Node;
+    Array_Ast_Item items;
+} Ast_File;
 
-Dynamic_Array_Def(File_Node, Program, program_)
+Dynamic_Array_Def(Ast_File, Program, program_)
 
 #endif
