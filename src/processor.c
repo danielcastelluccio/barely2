@@ -29,6 +29,10 @@ bool is_number_type(Type* type) {
     return false;
 }
 
+bool is_pointer_type(Type* type) {
+    return (type->kind == Type_Internal && type->data.internal == Type_Ptr) || type->kind == Type_Pointer;
+}
+
 Resolved resolve(Generic_State* state, Identifier data) {
     Identifier initial_search = {};
     if (data.kind == Identifier_Single) {
@@ -1044,6 +1048,12 @@ Statement_Node clone_macro_statement(Statement_Node statement, Array_String bind
                         assign_part_out.data.identifier = assign_part_in->data.identifier;
                         break;
                     }
+                    case Retrieve_Assign_Parent: {
+                        assign_part_out.data.parent.expression = malloc(sizeof(Expression_Node));
+                        *assign_part_out.data.parent.expression = clone_macro_expression(*assign_part_in->data.parent.expression, bindings, values);
+                        assign_part_out.data.parent.name = assign_part_in->data.parent.name;
+                        break;
+                    }
                     case Retrieve_Assign_Array: {
                         assign_part_out.data.array.expression_inner = malloc(sizeof(Expression_Node));
                         *assign_part_out.data.array.expression_inner = clone_macro_expression(*assign_part_in->data.array.expression_inner, bindings, values);
@@ -1088,13 +1098,13 @@ Type clone_macro_type(Type type, Array_String bindings, Array_Macro_Syntax_Data 
             Basic_Type* basic_in = &type.data.basic;
             Basic_Type basic_out = *basic_in;
 
-            //if (basic_out.kind == Type_Single) {
-            //    for (size_t i = 0; i < bindings.count; i++) {
-            //        if (strcmp(bindings.elements[i], basic_out.data.single) == 0) {
-            //            return *values.elements[i]->data.type;
-            //        }
-            //    }
-            //}
+            if (basic_out.kind == Type_Single) {
+                for (size_t i = 0; i < bindings.count; i++) {
+                    if (strcmp(bindings.elements[i], basic_out.data.single) == 0) {
+                        return *values.elements[i]->data.type;
+                    }
+                }
+            }
 
             result.data.basic = basic_out;
             break;
@@ -1309,6 +1319,14 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             result.data.is_type = is_type_out;
             break;
         }
+        case Expression_SizeOf: {
+            SizeOf_Node* size_of_in = &expression.data.size_of;
+            SizeOf_Node size_of_out = {};
+            size_of_out.type = clone_macro_type(size_of_in->type, bindings, values);
+
+            result.data.size_of = size_of_out;
+            break;
+        }
         case Expression_Cast: {
             Cast_Node* cast_in = &expression.data.cast;
             Cast_Node cast_out = { .expression = malloc(sizeof(Expression_Node)) };
@@ -1339,7 +1357,6 @@ Expression_Node clone_macro_expression(Expression_Node expression, Array_String 
             break;
         }
         default:
-            printf("%i\n", expression.kind);
             assert(false);
     }
 
@@ -1957,6 +1974,21 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 *usize = create_internal_type(Type_USize);
                 stack_type_push(&state->stack, *usize);
                 number->type = usize;
+            }
+            break;
+        }
+        case Expression_Null: {
+            Null_Node* null = &expression->data.null;
+            Type* wanted = state->wanted_type;
+
+            if (wanted != NULL && is_pointer_type(wanted)) {
+                stack_type_push(&state->stack, *wanted);
+                null->type = wanted;
+            } else {
+                Type* usize = malloc(sizeof(Type));
+                *usize = create_internal_type(Type_USize);
+                stack_type_push(&state->stack, *usize);
+                null->type = usize;
             }
             break;
         }

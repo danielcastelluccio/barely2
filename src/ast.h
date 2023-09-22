@@ -174,6 +174,10 @@ typedef struct {
 } Boolean_Node;
 
 typedef struct {
+    Type* type;
+} Null_Node;
+
+typedef struct {
     Expression_Node* condition;
     Expression_Node* if_expression;
     Expression_Node* else_expression;
@@ -320,6 +324,7 @@ struct Expression_Node {
         Expression_Multi,
         Expression_Reference,
         Expression_Boolean,
+        Expression_Null,
         Expression_Cast,
         Expression_Init,
         Expression_Build,
@@ -339,6 +344,7 @@ struct Expression_Node {
         Multi_Expression_Node multi;
         Reference_Node reference;
         Boolean_Node boolean;
+        Null_Node null;
         Cast_Node cast;
         Init_Node init;
         Build_Node build;
@@ -399,7 +405,9 @@ typedef struct Macro_Syntax_Kind Macro_Syntax_Kind;
 
 struct Macro_Syntax_Kind {
     enum {
+        Macro_None,
         Macro_Expression,
+        Macro_Type,
         Macro_Multiple,
         Macro_Multiple_Expanded,
     } kind;
@@ -412,6 +420,7 @@ struct Macro_Syntax_Data {
     Macro_Syntax_Kind kind;
     union {
         Expression_Node* expression;
+        Type* type;
         Macro_Syntax_Data* multiple;
         Array_Macro_Syntax_Data multiple_expanded;
     } data;

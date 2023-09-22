@@ -46,6 +46,7 @@ typedef enum {
     Token_Number,
     Token_String,
     Token_Boolean,
+    Token_Null,
 } Token_Kind;
 
 typedef struct {

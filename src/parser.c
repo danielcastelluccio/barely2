@@ -582,6 +582,14 @@ Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, Macro_Synta
             result.data.expression = expression;
             break;
         }
+        case Macro_Type: {
+            Type* type = malloc(sizeof(Expression_Node));
+            *type = parse_type(state);
+
+            result.kind.kind = Macro_Type;
+            result.data.type = type;
+            break;
+        }
         case Macro_Multiple: {
             Macro_Syntax_Kind* inner = kind.data.multiple;
 
@@ -663,6 +671,11 @@ Expression_Node parse_expression_without_operators(Parser_State* state) {
 
             result.kind = Expression_Boolean;
             result.data.boolean = node;
+            break;
+        }
+        case Token_Null: {
+            result.kind = Expression_Null;
+            consume(state);
             break;
         }
         case Token_Identifier: {

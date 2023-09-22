@@ -120,6 +120,9 @@ void print_token(Token* token, bool newline) {
         case Token_Number:
             printf("Number { \"%s\" }", token->data);
             break;
+        case Token_Null:
+            printf("Null");
+            break;
         case Token_String:
             printf("String { \"%s\" }", token->data);
             break;
@@ -149,6 +152,8 @@ void check_append_string_token(Tokens* tokens, String_Buffer* buffer, char* file
         kind = Token_Number;
     } else if (strcmp(buffer_contents, "true") == 0 || strcmp(buffer_contents, "false") == 0) {
         kind = Token_Boolean;
+    } else if (strcmp(buffer_contents, "null") == 0) {
+        kind = Token_Null;
     } else {
         kind = Token_Identifier;
     }
@@ -304,9 +309,11 @@ Tokens tokenize(char* file, char* contents) {
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '=') {
                         tokens_append(&tokens, (Token) { Token_ExclamationEquals, 0, LOCATION(file, row, col) });
+                        col += 2;
                         i += 2;
                     } else {
                         tokens_append(&tokens, (Token) { Token_Exclamation, 0, LOCATION(file, row, col) });
+                        col++;
                         i++;
                     }
                     break;
@@ -332,9 +339,11 @@ Tokens tokenize(char* file, char* contents) {
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '/') {
                         in_comment = true;
+                        col += 2;
                         i += 2;
                     } else {
                         tokens_append(&tokens, (Token) { Token_Slash, 0, LOCATION(file, row, col) });
+                        col++;
                         i++;
                     }
                     break;
@@ -348,9 +357,11 @@ Tokens tokenize(char* file, char* contents) {
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '&') {
                         tokens_append(&tokens, (Token) { Token_DoubleAmpersand, 0, LOCATION(file, row, col) });
+                        col += 2;
                         i += 2;
                     } else {
                         tokens_append(&tokens, (Token) { Token_Ampersand, 0, LOCATION(file, row, col) });
+                        col++;
                         i++;
                     }
                     break;
@@ -358,6 +369,7 @@ Tokens tokenize(char* file, char* contents) {
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '|') {
                         tokens_append(&tokens, (Token) { Token_DoubleBar, 0, LOCATION(file, row, col) });
+                        col += 2;
                         i += 2;
                     } else {
                         assert(false);

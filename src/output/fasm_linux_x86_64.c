@@ -1137,6 +1137,24 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
+                        } else if (is_internal_type(Type_Ptr, &operator_type) || operator_type.kind == Type_Pointer) {
+                            stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  pop rbx\n");
+                            stringbuffer_appendstring(&state->instructions, "  pop rax\n");
+                            stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+                            switch (invoke->data.operator_.operator_) {
+                                case Operator_Equal:
+                                    stringbuffer_appendstring(&state->instructions, "  cmove rcx, rdx\n");
+                                    break;
+                                case Operator_NotEqual:
+                                    stringbuffer_appendstring(&state->instructions, "  cmovne rcx, rdx\n");
+                                    break;
+                                default:
+                                    assert(false);
+                            }
+                            stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
+                            stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
                         } else {
                             assert(false);
                         }
@@ -1650,6 +1668,10 @@ void output_expression_fasm_linux_x86_64(Expression_Node* expression, Output_Sta
         case Expression_Boolean: {
             Boolean_Node* boolean = &expression->data.boolean;
             output_boolean(boolean->value, state);
+            break;
+        }
+        case Expression_Null: {
+            stringbuffer_appendstring(&state->instructions, "  push 0\n");
             break;
         }
         case Expression_String: {
