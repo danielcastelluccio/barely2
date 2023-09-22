@@ -26,7 +26,7 @@ size_t get_size(Type* type, Output_State* state) {
             Item_Node* item = basic->resolved_node;
 
             if (item == NULL) {
-                Identifier identifier = basic_type_to_identifier(*basic);
+                Identifier identifier = basic->identifier;
                 Resolved resolved = resolve(&state->generic, identifier);
                 if (resolved.kind == Resolved_Item) {
                     item = resolved.data.item;
@@ -97,6 +97,10 @@ size_t get_size(Type* type, Output_State* state) {
         }
         case Type_TypeOf: {
             return get_size(type->data.type_of.computed_result_type, state);
+        }
+        case Type_RunMacro: {
+            assert(type->data.run_macro.computed_type != NULL);
+            return get_size(type->data.run_macro.computed_type, state);
         }
         default:
             assert(false);
@@ -172,7 +176,7 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
     } else {
         switch (parent_type->kind) {
             case Type_Basic: {
-                Identifier identifier = basic_type_to_identifier(parent_type->data.basic);
+                Identifier identifier = parent_type->data.basic.identifier;
                 Resolved resolved = resolve(&state->generic, identifier);
 
                 assert(resolved.kind == Resolved_Item);
@@ -206,6 +210,9 @@ Location_Size_Data get_parent_item_location_size(Type* parent_type, char* item_n
                     }
                 }
                 break;
+            }
+            case Type_RunMacro: {
+                return get_parent_item_location_size(parent_type->data.run_macro.computed_type, item_name, state);
             }
             default:
                 assert(false);
@@ -672,7 +679,7 @@ void output_zeroes(size_t count, Output_State* state) {
 void output_build_type(Build_Node* build, Type* type, Output_State* state) {
     switch (type->kind) {
         case Type_Basic: {
-            Resolved resolved = resolve(&state->generic, basic_type_to_identifier(type->data.basic));
+            Resolved resolved = resolve(&state->generic, type->data.basic.identifier);
             switch (resolved.kind) {
                 case Resolved_Item: {
                     Item_Node* item = resolved.data.item;
@@ -715,7 +722,7 @@ void output_build_type(Build_Node* build, Type* type, Output_State* state) {
 
 bool is_enum_type(Type* type, Generic_State* generic_state) {
     if (type->kind == Type_Basic) {
-        Resolved resolved = resolve(generic_state, basic_type_to_identifier(type->data.basic));
+        Resolved resolved = resolve(generic_state, type->data.basic.identifier);
         if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type) {
             return is_enum_type(&resolved.data.item->data.type.type, generic_state);
         }

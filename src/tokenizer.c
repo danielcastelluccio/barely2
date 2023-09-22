@@ -99,11 +99,8 @@ void print_token(Token* token, bool newline) {
         case Token_RightCurlyBrace:
             printf("RightCurlyBrace");
             break;
-        case Token_QuestionMark:
-            printf("QuestionMark");
-            break;
-        case Token_DoubleQuestionMark:
-            printf("DoubleQuestionMark");
+        case Token_Exclamation:
+            printf("Exclamation");
             break;
         case Token_NewLine:
             printf("NewLine");
@@ -404,16 +401,6 @@ Tokens tokenize(char* file, char* contents) {
                     in_string = true;
                     cached_i = i;
                     i++;
-                    break;
-                case '?':
-                    check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    if (contents[i + 1] == '?') {
-                        tokens_append(&tokens, (Token) { Token_DoubleQuestionMark, 0, LOCATION(file, row, col) });
-                        i += 2;
-                    } else {
-                        tokens_append(&tokens, (Token) { Token_QuestionMark, 0, LOCATION(file, row, col) });
-                        i++;
-                    }
                     break;
                 case ' ':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);

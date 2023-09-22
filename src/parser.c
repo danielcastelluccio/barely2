@@ -149,6 +149,72 @@ void filter_add_directive(Parser_State* state, Array_Directive* directives, Dire
     }
 }
 
+Macro_Syntax_Kind parse_macro_syntax_kind(Parser_State* state, Macro_Syntax_Kind default_kind) {
+    Macro_Syntax_Kind result = default_kind;
+    if (peek(state) == Token_Identifier) {
+        char* name = state->tokens->elements[state->index].data;
+        if (strcmp(name, "$expr") == 0) {
+            result = (Macro_Syntax_Kind) { .kind = Macro_Expression };
+            consume(state);
+        } else if (strcmp(name, "$type") == 0) {
+            result = (Macro_Syntax_Kind) { .kind = Macro_Type };
+            consume(state);
+        }
+    }
+
+    assert(result.kind != Macro_None);
+
+    if (peek(state) == Token_DoublePeriod) {
+        consume(state);
+        Macro_Syntax_Kind* result_allocated = malloc(sizeof(Macro_Syntax_Kind));
+        *result_allocated = result;
+        result = (Macro_Syntax_Kind) { .kind = Macro_Multiple, .data = { .multiple = result_allocated } };
+    }
+    return result;
+}
+
+Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, Macro_Syntax_Kind kind) {
+    Macro_Syntax_Data result;
+
+    switch (kind.kind) {
+        case Macro_Expression: {
+            Expression_Node* expression = malloc(sizeof(Expression_Node));
+            *expression = parse_expression(state);
+
+            result.kind.kind = Macro_Expression;
+            result.data.expression = expression;
+            break;
+        }
+        case Macro_Type: {
+            Type* type = malloc(sizeof(Expression_Node));
+            *type = parse_type(state);
+
+            result.kind.kind = Macro_Type;
+            result.data.type = type;
+            break;
+        }
+        case Macro_Multiple: {
+            Macro_Syntax_Kind* inner = kind.data.multiple;
+
+            result.kind.kind = Macro_Multiple;
+            result.kind.data.multiple = kind.data.multiple;
+            result.data.multiple = malloc(sizeof(Macro_Syntax_Data));
+
+            *result.data.multiple = parse_macro_syntax_data_inner(state, *inner);
+            break;
+        }
+        default:
+            assert(false);
+    }
+
+    return result;
+}
+
+Macro_Syntax_Data parse_macro_syntax_data(Parser_State* state, Macro_Syntax_Kind default_kind) {
+    Macro_Syntax_Kind kind = parse_macro_syntax_kind(state, default_kind);
+    return parse_macro_syntax_data_inner(state, kind);
+}
+
 Type parse_type(Parser_State* state) {
     Type result = { .directives = array_directive_new(1) };
 
@@ -348,24 +414,51 @@ Type parse_type(Parser_State* state) {
 
         if (!found) {
             Basic_Type basic = {};
-            basic.kind = Type_Single;
+            basic.identifier.kind = Identifier_Single;
 
-            basic.data.single = name;
+            basic.identifier.data.single = name;
 
             if (peek(state) == Token_DoubleColon) {
                 Array_String names = array_string_new(2);
-                array_string_append(&names, basic.data.single);
+                array_string_append(&names, basic.identifier.data.single);
                 while (peek(state) == Token_DoubleColon) {
                     consume(state);
                     array_string_append(&names, consume_identifier(state));
                 }
 
-                basic.kind = Type_Multi;
-                basic.data.multi = names;
+                basic.identifier.kind = Identifier_Multi;
+                basic.identifier.data.multi = names;
             }
 
             result.kind = Type_Basic;
             result.data.basic = basic;
+
+            if (peek(state) == Token_Exclamation) {
+                Run_Macro_Type type = { .arguments = array_macro_syntax_data_new(2) };
+                assert(result.kind == Type_Basic && result.data.basic.identifier.kind == Identifier_Single);
+                type.identifier = result.data.basic.identifier;
+                type.location = state->tokens->elements[state->index].location;
+
+                consume(state);
+                consume_check(state, Token_LeftParenthesis);
+
+                while (peek(state) != Token_RightParenthesis) {
+                    if (peek(state) == Token_Comma) {
+                        consume(state);
+                        continue;
+                    }
+
+                    Macro_Syntax_Data* data = malloc(sizeof(Macro_Syntax_Data));;
+                    *data = parse_macro_syntax_data(state, (Macro_Syntax_Kind) { .kind = Macro_Type });
+
+                    array_macro_syntax_data_append(&type.arguments, data);
+                }
+
+                consume(state);
+
+                result.kind = Type_RunMacro;
+                result.data.run_macro = type;
+            }
         }
     }
 
@@ -550,72 +643,6 @@ int get_precedence(Parser_State* state) {
         return 1;
     }
     return -1;
-}
-
-Macro_Syntax_Kind parse_macro_syntax_kind(Parser_State* state, Macro_Syntax_Kind default_kind) {
-    Macro_Syntax_Kind result = default_kind;
-    if (peek(state) == Token_Identifier) {
-        char* name = state->tokens->elements[state->index].data;
-        if (strcmp(name, "$expr") == 0) {
-            result = (Macro_Syntax_Kind) { .kind = Macro_Expression };
-            consume(state);
-        } else if (strcmp(name, "$type") == 0) {
-            result = (Macro_Syntax_Kind) { .kind = Macro_Type };
-            consume(state);
-        }
-    }
-
-    assert(result.kind != Macro_None);
-
-    if (peek(state) == Token_DoublePeriod) {
-        consume(state);
-        Macro_Syntax_Kind* result_allocated = malloc(sizeof(Macro_Syntax_Kind));
-        *result_allocated = result;
-        result = (Macro_Syntax_Kind) { .kind = Macro_Multiple, .data = { .multiple = result_allocated } };
-    }
-    return result;
-}
-
-Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, Macro_Syntax_Kind kind) {
-    Macro_Syntax_Data result;
-
-    switch (kind.kind) {
-        case Macro_Expression: {
-            Expression_Node* expression = malloc(sizeof(Expression_Node));
-            *expression = parse_expression(state);
-
-            result.kind.kind = Macro_Expression;
-            result.data.expression = expression;
-            break;
-        }
-        case Macro_Type: {
-            Type* type = malloc(sizeof(Expression_Node));
-            *type = parse_type(state);
-
-            result.kind.kind = Macro_Type;
-            result.data.type = type;
-            break;
-        }
-        case Macro_Multiple: {
-            Macro_Syntax_Kind* inner = kind.data.multiple;
-
-            result.kind.kind = Macro_Multiple;
-            result.kind.data.multiple = kind.data.multiple;
-            result.data.multiple = malloc(sizeof(Macro_Syntax_Data));
-
-            *result.data.multiple = parse_macro_syntax_data_inner(state, *inner);
-            break;
-        }
-        default:
-            assert(false);
-    }
-
-    return result;
-}
-
-Macro_Syntax_Data parse_macro_syntax_data(Parser_State* state, Macro_Syntax_Kind default_kind) {
-    Macro_Syntax_Kind kind = parse_macro_syntax_kind(state, default_kind);
-    return parse_macro_syntax_data_inner(state, kind);
 }
 
 Expression_Node parse_expression_without_operators(Parser_State* state) {
@@ -968,12 +995,6 @@ Expression_Node parse_expression_without_operators(Parser_State* state) {
             if (peek(state) == Token_Asterisk) {
                 consume(state);
                 node.data.parent.name = "*";
-            } else if (peek(state) == Token_QuestionMark) {
-                consume(state);
-                node.data.parent.name = "?";
-            } else if (peek(state) == Token_DoubleQuestionMark) {
-                consume(state);
-                node.data.parent.name = "??";
             } else {
                 node.data.parent.name = consume_identifier(state);
             }
@@ -1281,6 +1302,11 @@ Item_Node parse_item(Parser_State* state) {
                 *node = parse_expression(state);
                 variant.data.kind.kind = Macro_Expression;
                 variant.data.data.expression = node;
+            } else if (node.return_.kind == Macro_Type) {
+                Type* type = malloc(sizeof(Type));
+                *type = parse_type(state);
+                variant.data.kind.kind = Macro_Type;
+                variant.data.data.type = type;
             } else {
                 assert(false);
             }

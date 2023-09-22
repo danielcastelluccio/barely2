@@ -37,6 +37,17 @@ Dynamic_Array_Def(Directive_Node, Array_Directive, array_directive_)
 struct Item_Node;
 typedef struct Item_Node Item_Node;
 
+typedef struct {
+    enum {
+        Identifier_Single,
+        Identifier_Multi,
+    } kind;
+    union {
+        char* single;
+        Array_String multi;
+    } data;
+} Identifier;
+
 typedef enum {
     Type_USize,
     Type_U64,
@@ -49,14 +60,7 @@ typedef enum {
 } Internal_Type;
 
 typedef struct {
-    enum {
-        Type_Single,
-        Type_Multi,
-    } kind;
-    union {
-        char* single;
-        Array_String multi;
-    } data;
+    Identifier identifier;
     Item_Node* resolved_node;
 } Basic_Type;
 
@@ -80,6 +84,11 @@ typedef struct Declaration Declaration;
 
 Dynamic_Array_Def(Declaration*, Array_Declaration_Pointer, array_declaration_pointer_)
 
+struct Macro_Syntax_Data;
+typedef struct Macro_Syntax_Data Macro_Syntax_Data;
+
+Dynamic_Array_Def(Macro_Syntax_Data*, Array_Macro_Syntax_Data, array_macro_syntax_data_)
+
 typedef struct {
     Array_Declaration_Pointer items;
 } Struct_Type;
@@ -101,6 +110,14 @@ typedef struct {
     Type* computed_result_type;
 } TypeOf_Type;
 
+typedef struct {
+    Identifier identifier;
+    Array_Macro_Syntax_Data arguments;
+    Location location;
+
+    Type* computed_type;
+} Run_Macro_Type;
+
 struct Type {
     Array_Directive directives;
     enum {
@@ -116,6 +133,7 @@ struct Type {
         Type_Number,
         Type_TypeOf,
         Type_RegisterSize,
+        Type_RunMacro,
     } kind;
     union {
         Basic_Type basic;
@@ -128,6 +146,7 @@ struct Type {
         Enum_Type enum_;
         Number_Type number;
         TypeOf_Type type_of;
+        Run_Macro_Type run_macro;
     } data;
 };
 
@@ -143,11 +162,6 @@ struct Declaration {
 Dynamic_Array_Def(Statement_Node*, Array_Statement_Node, array_statement_node_)
 Dynamic_Array_Def(Expression_Node*, Array_Expression_Node, array_expression_node_)
 Dynamic_Array_Def(Declaration, Array_Declaration, array_declaration_)
-
-struct Macro_Syntax_Data;
-typedef struct Macro_Syntax_Data Macro_Syntax_Data;
-
-Dynamic_Array_Def(Macro_Syntax_Data*, Array_Macro_Syntax_Data, array_macro_syntax_data_)
 
 typedef struct {
     Array_Statement_Node statements;
@@ -222,17 +236,6 @@ typedef struct {
     Array_Expression_Node arguments;
     Location location;
 } Invoke_Node;
-
-typedef struct {
-    enum {
-        Identifier_Single,
-        Identifier_Multi,
-    } kind;
-    union {
-        char* single;
-        Array_String multi;
-    } data;
-} Identifier;
 
 typedef struct {
     Identifier identifier;
