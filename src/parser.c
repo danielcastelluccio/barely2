@@ -552,14 +552,20 @@ int get_precedence(Parser_State* state) {
     return -1;
 }
 
-Macro_Syntax_Kind parse_macro_syntax_kind(Parser_State* state) {
-    char* name = consume_identifier(state);
-    Macro_Syntax_Kind result;
-    if (strcmp(name, "$expr") == 0) {
-        result = (Macro_Syntax_Kind) { .kind = Macro_Expression };
-    } else {
-        assert(false);
+Macro_Syntax_Kind parse_macro_syntax_kind(Parser_State* state, Macro_Syntax_Kind default_kind) {
+    Macro_Syntax_Kind result = default_kind;
+    if (peek(state) == Token_Identifier) {
+        char* name = state->tokens->elements[state->index].data;
+        if (strcmp(name, "$expr") == 0) {
+            result = (Macro_Syntax_Kind) { .kind = Macro_Expression };
+            consume(state);
+        } else if (strcmp(name, "$type") == 0) {
+            result = (Macro_Syntax_Kind) { .kind = Macro_Type };
+            consume(state);
+        }
     }
+
+    assert(result.kind != Macro_None);
 
     if (peek(state) == Token_DoublePeriod) {
         consume(state);
@@ -607,8 +613,8 @@ Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, Macro_Synta
     return result;
 }
 
-Macro_Syntax_Data parse_macro_syntax_data(Parser_State* state) {
-    Macro_Syntax_Kind kind = parse_macro_syntax_kind(state);
+Macro_Syntax_Data parse_macro_syntax_data(Parser_State* state, Macro_Syntax_Kind default_kind) {
+    Macro_Syntax_Kind kind = parse_macro_syntax_kind(state, default_kind);
     return parse_macro_syntax_data_inner(state, kind);
 }
 
@@ -1052,7 +1058,7 @@ Expression_Node parse_expression_without_operators(Parser_State* state) {
                 }
 
                 Macro_Syntax_Data* data = malloc(sizeof(Macro_Syntax_Data));;
-                *data = parse_macro_syntax_data(state);
+                *data = parse_macro_syntax_data(state, (Macro_Syntax_Kind) { .kind = Macro_Expression });
 
                 array_macro_syntax_data_append(&node.arguments, data);
             }
@@ -1234,7 +1240,7 @@ Item_Node parse_item(Parser_State* state) {
             }
 
             Macro_Syntax_Kind argument = {};
-            argument = parse_macro_syntax_kind(state);
+            argument = parse_macro_syntax_kind(state, (Macro_Syntax_Kind) { .kind = Macro_None });
 
             array_macro_syntax_kind_append(&node.arguments, argument);
         }
@@ -1242,7 +1248,7 @@ Item_Node parse_item(Parser_State* state) {
         consume(state);
         consume_check(state, Token_Colon);
 
-        node.return_ = parse_macro_syntax_kind(state);
+        node.return_ = parse_macro_syntax_kind(state, (Macro_Syntax_Kind) { .kind = Macro_None });
 
         consume_check(state, Token_LeftCurlyBrace);
 
