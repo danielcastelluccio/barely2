@@ -13,4 +13,4 @@ proc main() {
 
     var d: usize = 2 - 1;
     var _: usize = @syscall3(1, 1, "abcdefgh", d);
-};
+}

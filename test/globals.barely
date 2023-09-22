@@ -1,8 +1,8 @@
 //@out: abcd
 
-global a : usize;
+global a : usize
 
 proc main() {
     a = 4;
     var _: usize = @syscall3(1, 1, "abcdefgh", a);
-};
+}

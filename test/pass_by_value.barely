@@ -3,7 +3,7 @@
 type A : struct {
     a: usize,
     b: usize
-};
+}
 
 proc main() {
     var a: A;
@@ -11,11 +11,11 @@ proc main() {
     a.b = 5;
 
     c(a);
-};
+}
 
 proc c(a: A) {
     var b: A = a;
 
     var _: usize = @syscall3(1, 1, "abcdefh", b.a);
     var _: usize = @syscall3(1, 1, "abcdefh", b.b);
-};
+}

@@ -35,12 +35,7 @@ bool is_pointer_type(Ast_Type* type) {
 
 Resolved resolve(Generic_State* state, Ast_Identifier data) {
     Ast_Identifier initial_search = {};
-    if (data.kind == Identifier_Single) {
-        initial_search = data;
-    } else if (data.kind == Identifier_Multiple) {
-        initial_search.kind = Identifier_Single;
-        initial_search.data.single = data.data.multiple.elements[0];
-    }
+    initial_search = data;
 
     Resolved result = { NULL, Unresolved, {} };
     for (size_t j = 0; j < state->program->count; j++) {
@@ -48,7 +43,7 @@ Resolved resolve(Generic_State* state, Ast_Identifier data) {
         bool stop = false;
         for (size_t i = 0; i < file_node->items.count; i++) {
             Ast_Item* item = &file_node->items.elements[i];
-            if (initial_search.kind == Identifier_Single && strcmp(item->name, initial_search.data.single) == 0) {
+            if (strcmp(item->name, initial_search.name) == 0) {
                 result = (Resolved) { file_node, Resolved_Item, { .item = item } };
                 stop = true;
                 break;
@@ -60,27 +55,12 @@ Resolved resolve(Generic_State* state, Ast_Identifier data) {
         }
     }
 
-    if (data.kind == Identifier_Multiple) {
-        if (strcmp(data.data.multiple.elements[0], "") == 0) {
-            result = (Resolved) { result.file, Resolved_Enum_Variant, { .enum_ = { .enum_ = NULL, .variant = data.data.multiple.elements[1]} } };
-        } else {
-            size_t identifier_index = 1;
-            if (result.kind == Resolved_Item && result.data.item->kind == Item_Type && result.data.item->data.type.type.kind == Type_Enum) {
-                char* wanted_name = data.data.multiple.elements[identifier_index];
-                result = (Resolved) { result.file, Resolved_Enum_Variant, { .enum_ = { .enum_ = &result.data.item->data.type.type.data.enum_, .variant = wanted_name} } };
-            }
-        }
-    }
-
     return result;
 }
 
 Ast_Type create_basic_single_type(char* name) {
     Ast_Type type = { .directives = array_ast_directive_new(1) };
-    Ast_Type_Basic basic = {};
-
-    basic.identifier.kind = Identifier_Single;
-    basic.identifier.data.single = name;
+    Ast_Type_Basic basic = { .identifier = { .name = name } };
 
     type.kind = Type_Basic;
     type.data.basic = basic;
@@ -196,9 +176,7 @@ bool is_type(Ast_Type* wanted_in, Ast_Type* given_in, Process_State* state) {
     }
 
     if (wanted.kind == Type_Basic) {
-        if (wanted.data.basic.identifier.kind == Identifier_Single && given.data.basic.identifier.kind == Identifier_Single) {
-            return strcmp(wanted.data.basic.identifier.data.single, given.data.basic.identifier.data.single) == 0;
-        }
+        return strcmp(wanted.data.basic.identifier.name, given.data.basic.identifier.name) == 0;
     }
 
     if (wanted.kind == Type_Array) {
@@ -291,16 +269,7 @@ void print_type_inline(Ast_Type* type) {
         case Type_Basic: {
             Ast_Type_Basic* basic = &type->data.basic;
 
-            if (basic->identifier.kind == Identifier_Single) {
-                printf("%s", basic->identifier.data.single);
-            } else {
-                for (size_t i = 0; i < basic->identifier.data.multiple.count; i++) {
-                    printf("%s", basic->identifier.data.multiple.elements[i]);
-                    if (i < basic->identifier.data.multiple.count - 1) {
-                        printf("::");
-                    }
-                }
-            }
+            printf("%s", basic->identifier.name);
             break;
         }
         case Type_Pointer: {
@@ -440,14 +409,7 @@ bool consume_in_reference(Process_State* state) {
 }
 
 Ast_Type_Basic identifier_to_basic_type(Ast_Identifier identifier) {
-    Ast_Type_Basic basic;
-    if (identifier.kind == Identifier_Single) {
-        basic.identifier.data.single = identifier.data.single;
-        basic.identifier.kind = Identifier_Single;
-    } else {
-        basic.identifier.data.multiple = identifier.data.multiple;
-        basic.identifier.kind = Identifier_Multiple;
-    }
+    Ast_Type_Basic basic = { .identifier = { .name = identifier.name } };
     return basic;
 }
 
@@ -572,11 +534,9 @@ Ast_Type clone_macro_type(Ast_Type type, Array_String bindings, Array_Ast_Macro_
             Ast_Type_Basic* basic_in = &type.data.basic;
             Ast_Type_Basic basic_out = *basic_in;
 
-            if (basic_out.identifier.kind == Identifier_Single) {
-                for (size_t i = 0; i < bindings.count; i++) {
-                    if (strcmp(bindings.elements[i], basic_out.identifier.data.single) == 0) {
-                        return *values.elements[i]->data.type;
-                    }
+            for (size_t i = 0; i < bindings.count; i++) {
+                if (strcmp(bindings.elements[i], basic_out.identifier.name) == 0) {
+                    return *values.elements[i]->data.type;
                 }
             }
 
@@ -721,30 +681,28 @@ Ast_Expression clone_macro_expression(Ast_Expression expression, Array_String bi
                 case Retrieve_Assign_Identifier: {
                     Ast_Identifier identifier = retrieve_in->data.identifier;
 
-                    if (identifier.kind == Identifier_Single) {
-                        for (size_t i = 0; i < bindings.count; i++) {
-                            if (strcmp(bindings.elements[i], identifier.data.single) == 0) {
-                                if (strcmp(bindings.elements[i], "..") == 0) {
-                                    Ast_Expression expression = {};
+                    for (size_t i = 0; i < bindings.count; i++) {
+                        if (strcmp(bindings.elements[i], identifier.name) == 0) {
+                            if (strcmp(bindings.elements[i], "..") == 0) {
+                                Ast_Expression expression = {};
 
-                                    Ast_Expression_Multiple multiple = { .expressions = array_ast_expression_new(2) };
+                                Ast_Expression_Multiple multiple = { .expressions = array_ast_expression_new(2) };
 
-                                    for (size_t j = i; j < values.count; j++) {
-                                        array_ast_expression_append(&multiple.expressions, values.elements[j]->data.expression);
-                                    }
-
-                                    expression.kind = Expression_Multiple;
-                                    expression.data.multiple = multiple;
-
-                                    return expression;
-                                } else {
-                                    return *values.elements[i]->data.expression;
+                                for (size_t j = i; j < values.count; j++) {
+                                    array_ast_expression_append(&multiple.expressions, values.elements[j]->data.expression);
                                 }
+
+                                expression.kind = Expression_Multiple;
+                                expression.data.multiple = multiple;
+
+                                return expression;
+                            } else {
+                                return *values.elements[i]->data.expression;
                             }
                         }
                     }
 
-                    retrieve_out.data.identifier = retrieve_in->data.identifier;
+                    retrieve_out.data.identifier = identifier;
                     break;
                 }
                 case Retrieve_Assign_Array: {
@@ -1063,8 +1021,8 @@ typedef struct {
 Evaluation_Value evaluate_if_directive_expression(Ast_Expression* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Retrieve: {
-            if (expression->data.retrieve.kind == Retrieve_Assign_Identifier && expression->data.retrieve.data.identifier.kind == Identifier_Single) {
-                char* identifier = expression->data.retrieve.data.identifier.data.single;
+            if (expression->data.retrieve.kind == Retrieve_Assign_Identifier) {
+                char* identifier = expression->data.retrieve.data.identifier.name;
 
                 if (strcmp(identifier, "@os")) {
                     return (Evaluation_Value) { .kind = Evaluation_Operating_System, .data = { .operating_system = Operating_System_Linux } };
@@ -1153,8 +1111,8 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
             found = true;
         }
 
-        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
-            char* name = assign_part->data.identifier.data.single;
+        if (assign_part->kind == Retrieve_Assign_Identifier) {
+            char* name = assign_part->data.identifier.name;
 
             Ast_Type* type = malloc(sizeof(Ast_Type));
             for (size_t j = 0; j < state->current_declares.count; j++) {
@@ -1272,7 +1230,7 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
             }
         }
 
-        if (assign_part->kind == Retrieve_Assign_Identifier && assign_part->data.identifier.kind == Identifier_Single) {
+        if (assign_part->kind == Retrieve_Assign_Identifier) {
             Ast_Type* variable_type = wanted_types.elements[assign->parts.count - i - 1];
 
             if (state->stack.count == 0) {
@@ -1476,9 +1434,6 @@ void process_build_type(Ast_Expression_Build* build, Ast_Type* type, Process_Sta
                     process_build_type(build, &item->data.type.type, state);
                     break;
                 }
-                case Resolved_Enum_Variant: {
-                    assert(false);
-                }
                 case Unresolved:
                     assert(false);
             }
@@ -1581,8 +1536,8 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
 
                 if (procedure->kind == Expression_Retrieve) {
                     bool is_internal = false;
-                    if (procedure->data.retrieve.kind == Retrieve_Assign_Identifier && procedure->data.retrieve.data.identifier.kind == Identifier_Single) {
-                        char* name = procedure->data.retrieve.data.identifier.data.single;
+                    if (procedure->data.retrieve.kind == Retrieve_Assign_Identifier) {
+                        char* name = procedure->data.retrieve.data.identifier.name;
 
                         if (strcmp(name, "@syscall6") == 0 || strcmp(name, "@syscall5") == 0 || strcmp(name, "@syscall4") == 0 || strcmp(name, "@syscall3") == 0 || strcmp(name, "@syscall2") == 0 || strcmp(name, "@syscall1") == 0 || strcmp(name, "@syscall0") == 0) {
                             is_internal = true;
@@ -1590,7 +1545,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                     }
 
                     if (is_internal) {
-                        char* name = procedure->data.retrieve.data.identifier.data.single;
+                        char* name = procedure->data.retrieve.data.identifier.name;
 
                         for (size_t i = 0; i < invoke->arguments.count; i++) {
                             state->wanted_type = usize_type();
@@ -1884,8 +1839,8 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 found = true;
             }
 
-            if (!found && retrieve->kind == Retrieve_Assign_Identifier && retrieve->data.identifier.kind == Identifier_Single) {
-                Ast_Type* variable_type = get_local_variable_type(state, retrieve->data.identifier.data.single);
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
+                Ast_Type* variable_type = get_local_variable_type(state, retrieve->data.identifier.name);
 
                 if (variable_type != NULL) {
                     found = true;
@@ -1897,11 +1852,11 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 }
             }
 
-            if (!found && retrieve->kind == Retrieve_Assign_Identifier && retrieve->data.identifier.kind == Identifier_Single) {
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
                 Ast_Type type = { .directives = array_ast_directive_new(1) };
                 for (size_t i = 0; i < state->current_arguments.count; i++) {
                     Ast_Declaration* declaration = &state->current_arguments.elements[state->current_arguments.count - i - 1];
-                    if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
+                    if (strcmp(declaration->name, retrieve->data.identifier.name) == 0) {
                         type = declaration->type;
                         found = true;
                         break;
@@ -1946,15 +1901,17 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
-                if (retrieve->data.identifier.kind == Identifier_Multiple && strcmp(retrieve->data.identifier.data.multiple.elements[0], "") == 0) {
-                    assert(state->wanted_type->kind == Type_Enum);
+                Ast_Type* wanted_type = state->wanted_type;
+                Ast_Type evaluated_wanted_type = evaluate_type_complete(wanted_type, &state->generic);
+                if (evaluated_wanted_type.kind == Type_Enum) {
+                    char* enum_variant = retrieve->data.identifier.name;
 
-                    char* enum_variant = retrieve->data.identifier.data.multiple.elements[1];
-
-                    Ast_Type_Enum* enum_type = &state->wanted_type->data.enum_;
+                    Ast_Type_Enum* enum_type = &evaluated_wanted_type.data.enum_;
                     for (size_t i = 0; i < enum_type->items.count; i++) {
                         if (strcmp(enum_variant, enum_type->items.elements[i]) == 0) {
-                            retrieve->computed_result_type = *state->wanted_type;
+                            Ast_Type* evaluated_wanted_type_allocated = malloc(sizeof(Ast_Type));
+                            *evaluated_wanted_type_allocated = evaluated_wanted_type;
+                            retrieve->computed_result_type = evaluated_wanted_type_allocated;
                             stack_type_push(&state->stack, *state->wanted_type);
                             found = true;
                         }
@@ -2007,7 +1964,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                                     wanted_type = usize_type();
                                 }
 
-                                retrieve->computed_result_type = *wanted_type;
+                                retrieve->computed_result_type = wanted_type;
 
                                 stack_type_push(&state->stack, *wanted_type);
                                 break;
@@ -2015,24 +1972,6 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                             default:
                                 assert(false);
                         }
-                        break;
-                    }
-                    case Resolved_Enum_Variant: {
-                        found = true;
-                        Ast_Type type;
-                        type.kind = Type_Basic;
-                        Ast_Type_Basic basic = identifier_to_basic_type(retrieve->data.identifier);
-
-                        // Kinda a hack, probably should make a more robust way to handling enumerations
-                        if (basic.identifier.data.multiple.count > 2) {
-                            basic.identifier.data.multiple.count--;
-                        } else {
-                            basic.identifier.kind = Identifier_Single;
-                            basic.identifier.data.single = basic.identifier.data.multiple.elements[0];
-                        }
-
-                        type.data.basic = basic;
-                        stack_type_push(&state->stack, type);
                         break;
                     }
                     case Unresolved:

@@ -414,28 +414,15 @@ Ast_Type parse_type(Parser_State* state) {
 
         if (!found) {
             Ast_Type_Basic basic = {};
-            basic.identifier.kind = Identifier_Single;
 
-            basic.identifier.data.single = name;
-
-            if (peek(state) == Token_DoubleColon) {
-                Array_String names = array_string_new(2);
-                array_string_append(&names, basic.identifier.data.single);
-                while (peek(state) == Token_DoubleColon) {
-                    consume(state);
-                    array_string_append(&names, consume_identifier(state));
-                }
-
-                basic.identifier.kind = Identifier_Multiple;
-                basic.identifier.data.multiple = names;
-            }
+            basic.identifier.name = name;
 
             result.kind = Type_Basic;
             result.data.basic = basic;
 
             if (peek(state) == Token_Exclamation) {
                 Ast_RunMacro type = { .arguments = array_ast_macro_syntax_data_new(2) };
-                assert(result.kind == Type_Basic && result.data.basic.identifier.kind == Identifier_Single);
+                assert(result.kind == Type_Basic);
                 type.identifier = result.data.basic.identifier;
                 type.location = state->tokens->elements[state->index].location;
 
@@ -604,12 +591,12 @@ int get_precedence(Parser_State* state) {
     Token_Kind kind = peek(state);
 
     if (kind == Token_Plus ||
-            kind == Token_Minus ||
-            kind == Token_Percent) {
+            kind == Token_Minus) {
         return 3;
     }
     if (kind == Token_Asterisk ||
-            kind == Token_Slash) {
+            kind == Token_Slash ||
+            kind == Token_Percent) {
         return 4;
     }
     if (kind == Token_DoubleEquals ||
@@ -805,20 +792,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                 node.location = location;
                 node.kind = Retrieve_Assign_Identifier;
                 Ast_Identifier identifier = {};
-                identifier.kind = Identifier_Single;
-                identifier.data.single = name;
-
-                if (peek(state) == Token_DoubleColon) {
-                    identifier.kind = Identifier_Multiple;
-                    Array_String names = array_string_new(2);
-                    array_string_append(&names, name);
-                    while (peek(state) == Token_DoubleColon) {
-                        consume(state);
-
-                        array_string_append(&names, consume_identifier(state));
-                    }
-                    identifier.data.multiple = names;
-                }
+                identifier.name = name;
 
                 node.kind = Retrieve_Assign_Identifier;
                 node.data.identifier = identifier;
@@ -833,30 +807,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
             Ast_Expression_Retrieve node = {};
             node.kind = Retrieve_Assign_Identifier;
             Ast_Identifier identifier = {};
-            identifier.kind = Identifier_Single;
-            identifier.data.single = "..";
-
-            node.kind = Retrieve_Assign_Identifier;
-            node.data.identifier = identifier;
-            result.kind = Expression_Retrieve;
-            result.data.retrieve = node;
-            break;
-        }
-        case Token_DoubleColon: {
-            Ast_Expression_Retrieve node = {};
-            node.location = state->tokens->elements[state->index].location;
-            node.kind = Retrieve_Assign_Identifier;
-            Ast_Identifier identifier = {};
-
-            identifier.kind = Identifier_Multiple;
-            Array_String names = array_string_new(2);
-            array_string_append(&names, "");
-            while (peek(state) == Token_DoubleColon) {
-                consume(state);
-
-                array_string_append(&names, consume_identifier(state));
-            }
-            identifier.data.multiple = names;
+            identifier.name = "..";
 
             node.kind = Retrieve_Assign_Identifier;
             node.data.identifier = identifier;

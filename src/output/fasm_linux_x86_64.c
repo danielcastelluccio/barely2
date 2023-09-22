@@ -428,7 +428,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
                 }
 
                 if (!found && assign_part->kind == Retrieve_Assign_Identifier) {
-                    char* name = assign_part->data.identifier.data.single;
+                    char* name = assign_part->data.identifier.name;
 
                     if (has_local_variable(name, state)) {
                         found = true;
@@ -746,7 +746,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                 bool handled = false;
 
                 if (procedure->kind == Expression_Retrieve) {
-                    char* name = procedure->data.retrieve.data.identifier.data.single;
+                    char* name = procedure->data.retrieve.data.identifier.name;
 
                     if (strncmp(name, "@syscall", 8) == 0) {
                         handled = true;
@@ -1316,7 +1316,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
 
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Identifier) {
-                    char* name = retrieve->data.identifier.data.single;
+                    char* name = retrieve->data.identifier.name;
                     if (has_local_variable(name, state)) {
                         found = true;
 
@@ -1374,7 +1374,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                     for (int i = current_arguments->count - 1; i >= 0; i--) {
                         Ast_Declaration* declaration = &current_arguments->elements[i];
                         size_t declaration_size = get_size(&declaration->type, state);
-                        if (strcmp(declaration->name, retrieve->data.identifier.data.single) == 0) {
+                        if (strcmp(declaration->name, retrieve->data.identifier.name) == 0) {
                             size = declaration_size;
                             found = true;
                             break;
@@ -1422,6 +1422,21 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                         }
                     }
                 }
+            }
+
+            if (!found && retrieve->computed_result_type != NULL) {
+                size_t index = 0;
+                Ast_Type_Enum* enum_ = &retrieve->computed_result_type->data.enum_;
+                char* variant = retrieve->data.identifier.name;
+                while (strcmp(enum_->items.elements[index], variant) != 0) {
+                    index++;
+                }
+
+                char buffer[128] = {};
+                sprintf(buffer, "  push %zu\n", index);
+                stringbuffer_appendstring(&state->instructions, buffer);
+
+                found = true;
             }
 
             if (!found) {
@@ -1485,7 +1500,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                             case Item_Constant: {
                                 Ast_Item_Constant* constant = &item->data.constant;
                                 Ast_Expression_Number number = constant->expression;
-                                number.type = &retrieve->computed_result_type;
+                                number.type = retrieve->computed_result_type;
                                 Ast_Expression expression_temp = { .kind = Expression_Number, .data = { .number = number } };
                                 output_expression_fasm_linux_x86_64(&expression_temp, state);
                                 break;
@@ -1493,28 +1508,6 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                             default:
                                 assert(false);
                         }
-                        break;
-                    }
-                    case Resolved_Enum_Variant: {
-                        size_t index = 0;
-                        Ast_Type_Enum* enum_ = resolved.data.enum_.enum_;
-                        if (enum_ == NULL) {
-                            Ast_Type_Enum* enum_2 = &retrieve->computed_result_type.data.enum_;
-
-                            char* variant = resolved.data.enum_.variant;
-                            while (strcmp(enum_2->items.elements[index], variant) != 0) {
-                                index++;
-                            }
-                        } else {
-                            char* variant = resolved.data.enum_.variant;
-                            while (strcmp(enum_->items.elements[index], variant) != 0) {
-                                index++;
-                            }
-                        }
-
-                        char buffer[128] = {};
-                        sprintf(buffer, "  push %zu\n", index);
-                        stringbuffer_appendstring(&state->instructions, buffer);
                         break;
                     }
                     default:

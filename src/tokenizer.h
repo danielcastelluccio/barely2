@@ -12,7 +12,6 @@ typedef enum {
     Token_LeftParenthesis,
     Token_RightParenthesis,
     Token_Colon,
-    Token_DoubleColon,
     Token_Semicolon,
     Token_Comma,
     Token_Period,

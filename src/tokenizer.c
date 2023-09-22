@@ -60,9 +60,6 @@ void print_token(Token* token, bool newline) {
         case Token_Colon:
             printf(":");
             break;
-        case Token_DoubleColon:
-            printf("::");
-            break;
         case Token_Semicolon:
             printf(";");
             break;
@@ -228,15 +225,9 @@ Tokens tokenize(char* file, char* contents) {
                     break;
                 case ':':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    if (contents[i + 1] == ':') {
-                        tokens_append(&tokens, (Token) { Token_DoubleColon, 0, LOCATION(file, row, col) });
-                        col += 2;
-                        i += 2;
-                    } else {
-                        tokens_append(&tokens, (Token) { Token_Colon, 0, LOCATION(file, row, col) });
-                        col++;
-                        i++;
-                    }
+                    tokens_append(&tokens, (Token) { Token_Colon, 0, LOCATION(file, row, col) });
+                    col++;
+                    i++;
                     break;
                 case ';':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);

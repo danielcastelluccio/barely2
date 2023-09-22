@@ -31,14 +31,9 @@ typedef struct {
     enum {
         Unresolved,
         Resolved_Item,
-        Resolved_Enum_Variant,
     } kind;
     union {
         Ast_Item* item;
-        struct {
-            Ast_Type_Enum* enum_;
-            char* variant;
-        } enum_;
     } data;
 } Resolved;
 

@@ -38,14 +38,7 @@ struct Ast_Item;
 typedef struct Ast_Item Ast_Item;
 
 typedef struct {
-    enum {
-        Identifier_Single,
-        Identifier_Multiple,
-    } kind;
-    union {
-        char* single;
-        Array_String multiple;
-    } data;
+    char* name;
 } Ast_Identifier;
 
 typedef enum {
@@ -282,7 +275,7 @@ typedef struct {
             Ast_Type computed_array_type;
         } array;
     } data;
-    Ast_Type computed_result_type;
+    Ast_Type* computed_result_type;
     Location location;
 } Retrieve_Assign_Node;
 

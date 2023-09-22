@@ -3,14 +3,14 @@
 type A : enum {
     A,
     B
-};
+}
 
 proc main() {
-    var a: A = A::A;
-    if a == A::A {
+    var a: A = A;
+    if a == A {
         var _: usize = @syscall3(1, 1, "a", 1);
     };
-    if a == A::B {
+    if a == B {
         var _: usize = @syscall3(1, 1, "a", 1);
     };
-};
+}
