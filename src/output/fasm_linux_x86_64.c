@@ -715,6 +715,10 @@ void output_build_type(Build_Node* build, Type* type, Output_State* state) {
             }
             break;
         }
+        case Type_RunMacro: {
+            output_build_type(build, type->data.run_macro.computed_type, state);
+            break;
+        }
         default:
             assert(false);
     }

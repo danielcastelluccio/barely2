@@ -128,6 +128,15 @@ Type create_pointer_type(Type child) {
 void process_expression(Expression_Node* expression, Process_State* state);
 
 bool is_type(Type* wanted, Type* given, Process_State* state) {
+    if (wanted->kind == Type_RunMacro) {
+        assert(wanted->data.run_macro.computed_type != NULL);
+        wanted = wanted->data.run_macro.computed_type;
+    }
+    if (given->kind == Type_RunMacro) {
+        assert(given->data.run_macro.computed_type != NULL);
+        given = given->data.run_macro.computed_type;
+    }
+
     if (wanted->kind == Type_RegisterSize || given->kind == Type_RegisterSize) {
         Type* to_check;
         if (wanted->kind == Type_RegisterSize) to_check = given;
@@ -191,6 +200,24 @@ bool is_type(Type* wanted, Type* given, Process_State* state) {
         if (is_valid) {
             for (size_t i = 0; i < wanted_proc->returns.count; i++) {
                 if (!is_type(wanted_proc->returns.elements[i], given_proc->returns.elements[i], state)) {
+                    is_valid = false;
+                }
+            }
+        }
+
+        return is_valid;
+    }
+
+    if (wanted->kind == Type_Struct) {
+        Struct_Type* wanted_struct = &wanted->data.struct_;
+        Struct_Type* given_struct = &given->data.struct_;
+
+        bool is_valid = true;
+        if (wanted_struct->items.count != given_struct->items.count) is_valid = false;
+
+        if (is_valid) {
+            for (size_t i = 0; i < wanted_struct->items.count; i++) {
+                if (!is_type(&wanted_struct->items.elements[i]->type, &given_struct->items.elements[i]->type, state)) {
                     is_valid = false;
                 }
             }
@@ -358,6 +385,10 @@ void print_type_inline(Type* type) {
         }
         case Type_TypeOf: {
             printf("@typeof");
+            break;
+        }
+        case Type_RunMacro: {
+            printf("RunMacro");
             break;
         }
         default:
@@ -1168,7 +1199,7 @@ bool macro_syntax_kind_equal(Macro_Syntax_Kind wanted, Macro_Syntax_Kind given) 
     return false;
 }
 
-void process_type_expression(Type* type, Process_State* state) {
+void process_type(Type* type, Process_State* state) {
     switch (type->kind) {
         case Type_TypeOf: {
             TypeOf_Type* type_of = &type->data.type_of;
@@ -1247,7 +1278,7 @@ void process_type_expression(Type* type, Process_State* state) {
             run_macro->computed_type = malloc(sizeof(Expression_Node));
             *run_macro->computed_type = cloned;
 
-            process_type_expression(run_macro->computed_type, state);
+            process_type(run_macro->computed_type, state);
             break;
         }
         default:
@@ -1288,7 +1319,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
 
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
                     Declaration* declaration = &declare->declarations.elements[i];
-                    process_type_expression(&declaration->type, state);
+                    process_type(&declaration->type, state);
 
                     if (state->stack.count == 0) {
                         print_error_stub(&declaration->location);
@@ -1311,7 +1342,7 @@ void process_statement(Statement_Node* statement, Process_State* state) {
             } else {
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
                     Declaration* declaration = &declare->declarations.elements[i];
-                    process_type_expression(&declaration->type, state);
+                    process_type(&declaration->type, state);
                     array_declaration_append(&state->current_declares, *declaration);
                 }
             }
@@ -1481,6 +1512,10 @@ void process_build_type(Build_Node* build, Type* type, Process_State* state) {
                 printf("Building of array doesn't provide all index values\n");
                 exit(1);
             }
+            break;
+        }
+        case Type_RunMacro: {
+            process_build_type(build, type->data.run_macro.computed_type, state);
             break;
         }
         default:
@@ -2124,6 +2159,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
         case Expression_Init: {
             Init_Node* init = &expression->data.init;
             Type* type = &init->type;
+            process_type(type, state);
             stack_type_append(&state->stack, *type);
             break;
         }
@@ -2131,6 +2167,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
             Build_Node* build = &expression->data.build;
 
             Type* type = &build->type;
+            process_type(type, state);
             process_build_type(build, type, state);
 
             stack_type_append(&state->stack, *type);
@@ -2143,7 +2180,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 wanted_type = usize_type();
             }
 
-            process_type_expression(&size_of->type, state);
+            process_type(&size_of->type, state);
 
             size_of->computed_result_type = *wanted_type;
             stack_type_append(&state->stack, *wanted_type);
@@ -2156,7 +2193,7 @@ void process_expression(Expression_Node* expression, Process_State* state) {
                 wanted_type = usize_type();
             }
 
-            process_type_expression(&length_of->type, state);
+            process_type(&length_of->type, state);
 
             length_of->computed_result_type = *wanted_type;
             stack_type_append(&state->stack, *wanted_type);
@@ -2204,7 +2241,7 @@ void process_item(Item_Node* item, Process_State* state) {
             state->current_body = procedure->body;
 
             for (size_t i = 0; i < procedure->arguments.count; i++) {
-                process_type_expression(&procedure->arguments.elements[i].type, state);
+                process_type(&procedure->arguments.elements[i].type, state);
             }
 
             process_expression(procedure->body, state);
