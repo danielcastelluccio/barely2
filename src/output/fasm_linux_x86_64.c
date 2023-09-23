@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "fasm_linux_x86_64.h"
+#include "../ast_walk.h"
 
 typedef struct {
     Generic_State generic;
@@ -83,57 +84,24 @@ size_t get_size(Ast_Type* type_in, Output_State* state) {
     assert(false);
 }
 
-size_t collect_expression_locals_size(Ast_Expression* expression, Output_State* state);
+typedef struct {
+    size_t total;
+    Output_State* output_state;
+} Locals_Walk_State;
 
-size_t collect_statement_locals_size(Ast_Statement* statement, Output_State* state) {
+void collect_statement_locals_size(Ast_Statement* statement, void* state_in) {
+    Locals_Walk_State* state = state_in;
     switch (statement->kind) {
-        case Statement_Expression: {
-            return collect_expression_locals_size(statement->data.expression.expression, state);
-        }
         case Statement_Declare: {
             size_t size = 0;
             for (size_t i = 0; i < statement->data.declare.declarations.count; i++) {
                 Ast_Type type = statement->data.declare.declarations.elements[i].type;
-                size += get_size(&type, state);
+                size += get_size(&type, state->output_state);
             }
-            return size;
-        } 
-        default:
-            return 0;
-    }
-}
-
-size_t collect_expression_locals_size(Ast_Expression* expression, Output_State* state) {
-    switch (expression->kind) {
-        case Expression_Block: {
-            size_t size = 0;
-            for (size_t i = 0; i < expression->data.block.statements.count; i++) {
-                size += collect_statement_locals_size(expression->data.block.statements.elements[i], state);
-            }
-            return size;
-        }
-        case Expression_Multiple: {
-            size_t size = 0;
-            for (size_t i = 0; i < expression->data.multiple.expressions.count; i++) {
-                size += collect_expression_locals_size(expression->data.multiple.expressions.elements[i], state);
-            }
-            return size;
-        }
-        case Expression_If: {
-            size_t total = collect_expression_locals_size(expression->data.if_.if_expression, state);
-            if (expression->data.if_.else_expression != NULL) {
-                total += collect_expression_locals_size(expression->data.if_.else_expression, state);
-            }
-            return total;
-        }
-        case Expression_While: {
-            return collect_expression_locals_size(expression->data.while_.inside, state);
-        }
-        case Expression_RunMacro: {
-            return collect_expression_locals_size(expression->data.run_macro.result.data.expression, state);
+            state->total += size;
         }
         default:
-            return 0;
+            break;
     }
 }
 
@@ -547,7 +515,17 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
                 returns_size += get_size(current_returns->elements[i], state);
             }
 
-            size_t locals_size = 8 + collect_expression_locals_size(state->current_procedure->data.procedure.body, state);
+            Locals_Walk_State locals_state = {
+                .total = 8,
+                .output_state = state,
+            };
+            Ast_Walk_State walk_state = {
+                .expression_func = NULL,
+                .statement_func = collect_statement_locals_size,
+                .internal_state = &locals_state,
+            };
+            walk_expression(state->current_procedure->data.procedure.body, &walk_state);
+            size_t locals_size = locals_state.total;
 
             // rdx = old rip
             char buffer[128] = {};
@@ -1783,7 +1761,17 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
             stringbuffer_appendstring(&state->instructions, "  push rbp\n");
             stringbuffer_appendstring(&state->instructions, "  mov rbp, rsp\n");
 
-            size_t locals_size = 8 + collect_expression_locals_size(procedure->body, state);
+            Locals_Walk_State locals_state = {
+                .total = 8,
+                .output_state = state,
+            };
+            Ast_Walk_State walk_state = {
+                .expression_func = NULL,
+                .statement_func = collect_statement_locals_size,
+                .internal_state = &locals_state,
+            };
+            walk_expression(procedure->body, &walk_state);
+            size_t locals_size = locals_state.total;
 
             memset(buffer, 0, 128);
             sprintf(buffer, "  sub rsp, %zu\n", locals_size);
