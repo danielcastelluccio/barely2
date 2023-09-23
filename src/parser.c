@@ -159,6 +159,9 @@ Ast_Macro_SyntaxKind parse_macro_syntax_kind(Parser_State* state, Ast_Macro_Synt
         } else if (strcmp(name, "$type") == 0) {
             result = (Ast_Macro_SyntaxKind) { .kind = Macro_Type };
             consume(state);
+        } else if (strcmp(name, "$item") == 0) {
+            result = (Ast_Macro_SyntaxKind) { .kind = Macro_Item };
+            consume(state);
         }
     }
 
@@ -1128,90 +1131,187 @@ Ast_Item parse_item(Parser_State* state) {
     parse_directives(state);
     filter_add_directive(state, &result.directives, Directive_If);
 
-    char* keyword = consume_keyword(state);
-    if (strcmp(keyword, "proc") == 0) {
-        char* name = consume_identifier(state);
-        result.name = name;
+    switch (peek(state)) {
+        case Token_Keyword: {
+            char* keyword = consume_keyword(state);
+            if (strcmp(keyword, "proc") == 0) {
+                char* name = consume_identifier(state);
+                result.name = name;
 
-        Ast_Item_Procedure node;
-        consume_check(state, Token_LeftParenthesis);
+                Ast_Item_Procedure node;
+                consume_check(state, Token_LeftParenthesis);
 
-        Array_Ast_Declaration arguments = array_ast_declaration_new(4);
-        while (peek(state) != Token_RightParenthesis) {
-            if (peek(state) == Token_Comma) {
-                consume(state);
-                continue;
-            }
+                Array_Ast_Declaration arguments = array_ast_declaration_new(4);
+                while (peek(state) != Token_RightParenthesis) {
+                    if (peek(state) == Token_Comma) {
+                        consume(state);
+                        continue;
+                    }
 
-            Location location = state->tokens->elements[state->index].location;
-            char* name = consume_identifier(state);
-            consume_check(state, Token_Colon);
-            Ast_Type type = parse_type(state);
-            array_ast_declaration_append(&arguments, (Ast_Declaration) { name, type, location });
-        }
-        node.arguments = arguments;
-        consume_check(state, Token_RightParenthesis);
-
-        node.returns = array_ast_type_new(1);
-        if (peek(state) == Token_Colon) {
-            consume(state);
-
-            bool running = true;
-            while (running) {
-                Ast_Type type = parse_type(state);
-                Ast_Type* type_allocated = malloc(sizeof(Ast_Type));
-                *type_allocated = type;
-
-                array_ast_type_append(&node.returns, type_allocated);
-                running = false;
-                if (peek(state) == Token_Comma) {
-                    running = true;
-                    consume(state);
+                    Location location = state->tokens->elements[state->index].location;
+                    char* name = consume_identifier(state);
+                    consume_check(state, Token_Colon);
+                    Ast_Type type = parse_type(state);
+                    array_ast_declaration_append(&arguments, (Ast_Declaration) { name, type, location });
                 }
-            }
-        }
+                node.arguments = arguments;
+                consume_check(state, Token_RightParenthesis);
 
-        Ast_Expression body = parse_expression(state);
-        Ast_Expression* body_allocated = malloc(sizeof(Ast_Expression));
-        *body_allocated = body;
-        node.body = body_allocated;
+                node.returns = array_ast_type_new(1);
+                if (peek(state) == Token_Colon) {
+                    consume(state);
 
-        result.kind = Item_Procedure;
-        result.data.procedure = node;
-    } else if (strcmp(keyword, "macro") == 0) {
-        char* name = consume_identifier(state);
-        result.name = name;
+                    bool running = true;
+                    while (running) {
+                        Ast_Type type = parse_type(state);
+                        Ast_Type* type_allocated = malloc(sizeof(Ast_Type));
+                        *type_allocated = type;
 
-        consume_check(state, Token_Exclamation);
+                        array_ast_type_append(&node.returns, type_allocated);
+                        running = false;
+                        if (peek(state) == Token_Comma) {
+                            running = true;
+                            consume(state);
+                        }
+                    }
+                }
 
-        Ast_Item_Macro node = { .arguments = array_ast_macro_syntax_kind_new(2), .variants = array_ast_macro_variant_new(2) };
-        consume_check(state, Token_LeftParenthesis);
+                Ast_Expression body = parse_expression(state);
+                Ast_Expression* body_allocated = malloc(sizeof(Ast_Expression));
+                *body_allocated = body;
+                node.body = body_allocated;
 
-        while (peek(state) != Token_RightParenthesis) {
-            if (peek(state) == Token_Comma) {
+                result.kind = Item_Procedure;
+                result.data.procedure = node;
+            } else if (strcmp(keyword, "macro") == 0) {
+                char* name = consume_identifier(state);
+                result.name = name;
+
+                consume_check(state, Token_Exclamation);
+
+                Ast_Item_Macro node = { .arguments = array_ast_macro_syntax_kind_new(2), .variants = array_ast_macro_variant_new(2) };
+                consume_check(state, Token_LeftParenthesis);
+
+                while (peek(state) != Token_RightParenthesis) {
+                    if (peek(state) == Token_Comma) {
+                        consume(state);
+                        continue;
+                    }
+
+                    Ast_Macro_SyntaxKind argument = {};
+                    argument = parse_macro_syntax_kind(state, (Ast_Macro_SyntaxKind) { .kind = Macro_None });
+
+                    array_ast_macro_syntax_kind_append(&node.arguments, argument);
+                }
+
                 consume(state);
-                continue;
-            }
+                consume_check(state, Token_Colon);
 
-            Ast_Macro_SyntaxKind argument = {};
-            argument = parse_macro_syntax_kind(state, (Ast_Macro_SyntaxKind) { .kind = Macro_None });
+                node.return_ = parse_macro_syntax_kind(state, (Ast_Macro_SyntaxKind) { .kind = Macro_None });
 
-            array_ast_macro_syntax_kind_append(&node.arguments, argument);
-        }
+                consume_check(state, Token_LeftCurlyBrace);
 
-        consume(state);
-        consume_check(state, Token_Colon);
+                while (peek(state) != Token_RightCurlyBrace) {
+                    if (peek(state) == Token_Comma) {
+                        consume(state);
+                    }
 
-        node.return_ = parse_macro_syntax_kind(state, (Ast_Macro_SyntaxKind) { .kind = Macro_None });
+                    Ast_Macro_Variant variant = { .bindings = array_string_new(2) };
+                    consume_check(state, Token_LeftParenthesis);
 
-        consume_check(state, Token_LeftCurlyBrace);
+                    while (peek(state) != Token_RightParenthesis) {
+                        if (peek(state) == Token_Comma) {
+                            consume(state);
+                            continue;
+                        }
 
-        while (peek(state) != Token_RightCurlyBrace) {
-            if (peek(state) == Token_Comma) {
+                        if (peek(state) == Token_DoublePeriod) {
+                            array_string_append(&variant.bindings, "..");
+                            consume(state);
+                        } else {
+                            array_string_append(&variant.bindings, consume_identifier(state));
+                        }
+                    }
+
+                    consume(state);
+
+                    if (node.return_.kind == Macro_Expression) {
+                        Ast_Expression* node = malloc(sizeof(Ast_Expression));
+                        *node = parse_expression(state);
+                        variant.data.kind.kind = Macro_Expression;
+                        variant.data.data.expression = node;
+                    } else if (node.return_.kind == Macro_Type) {
+                        Ast_Type* type = malloc(sizeof(Ast_Type));
+                        *type = parse_type(state);
+                        variant.data.kind.kind = Macro_Type;
+                        variant.data.data.type = type;
+                    } else if (node.return_.kind == Macro_Item) {
+                        Ast_Item* item = malloc(sizeof(Ast_Item));
+                        *item = parse_item(state);
+                        variant.data.kind.kind = Macro_Item;
+                        variant.data.data.item = item;
+                    } else {
+                        assert(false);
+                    }
+
+                    array_ast_macro_variant_append(&node.variants, variant);
+                }
+
                 consume(state);
-            }
 
-            Ast_Macro_Variant variant = { .bindings = array_string_new(2) };
+                result.kind = Item_Macro;
+                result.data.macro = node;
+            } else if (strcmp(keyword, "type") == 0) {
+                Ast_Item_Type node;
+
+                char* name = consume_identifier(state);
+                result.name = name;
+
+                consume_check(state, Token_Colon);
+
+                node.type = parse_type(state);
+
+                result.kind = Item_Type;
+                result.data.type = node;
+            } else if (strcmp(keyword, "global") == 0) {
+                Ast_Item_Global node;
+
+                result.name = consume_identifier(state);
+                consume_check(state, Token_Colon);
+
+                node.type = parse_type(state);
+
+                result.kind = Item_Global;
+                result.data.global = node;
+            } else if (strcmp(keyword, "const") == 0) {
+                Ast_Item_Constant node;
+
+                result.name = consume_identifier(state);
+                consume_check(state, Token_Colon);
+
+                Ast_Expression expression = parse_expression(state);
+                assert(expression.kind == Expression_Number);
+
+                node.expression = expression.data.number;
+
+                result.kind = Item_Constant;
+                result.data.constant = node;
+            } else {
+                print_token_error_stub(&state->tokens->elements[state->index - 1]);
+                printf("Unexpected token ");
+                print_token(&state->tokens->elements[state->index - 1], false);
+                printf("\n");
+                exit(1);
+            }
+            break;
+        }
+        case Token_Identifier: {
+            char* name = consume_identifier(state);
+            Ast_RunMacro item = { .arguments = array_ast_macro_syntax_data_new(2) };
+            item.identifier = (Ast_Identifier) { .name = name };
+            item.location = state->tokens->elements[state->index].location;
+
+            consume_check(state, Token_Exclamation);
             consume_check(state, Token_LeftParenthesis);
 
             while (peek(state) != Token_RightParenthesis) {
@@ -1220,78 +1320,20 @@ Ast_Item parse_item(Parser_State* state) {
                     continue;
                 }
 
-                if (peek(state) == Token_DoublePeriod) {
-                    array_string_append(&variant.bindings, "..");
-                    consume(state);
-                } else {
-                    array_string_append(&variant.bindings, consume_identifier(state));
-                }
+                Ast_Macro_SyntaxData* data = malloc(sizeof(Ast_Macro_SyntaxData));;
+                *data = parse_macro_syntax_data(state, (Ast_Macro_SyntaxKind) { .kind = Macro_Item });
+
+                array_ast_macro_syntax_data_append(&item.arguments, data);
             }
 
             consume(state);
 
-            if (node.return_.kind == Macro_Expression) {
-                Ast_Expression* node = malloc(sizeof(Ast_Expression));
-                *node = parse_expression(state);
-                variant.data.kind.kind = Macro_Expression;
-                variant.data.data.expression = node;
-            } else if (node.return_.kind == Macro_Type) {
-                Ast_Type* type = malloc(sizeof(Ast_Type));
-                *type = parse_type(state);
-                variant.data.kind.kind = Macro_Type;
-                variant.data.data.type = type;
-            } else {
-                assert(false);
-            }
-
-            array_ast_macro_variant_append(&node.variants, variant);
+            result.kind = Item_RunMacro;
+            result.data.run_macro = item;
+            break;
         }
-
-        consume(state);
-
-        result.kind = Item_Macro;
-        result.data.macro = node;
-    } else if (strcmp(keyword, "type") == 0) {
-        Ast_Item_Type node;
-
-        char* name = consume_identifier(state);
-        result.name = name;
-
-        consume_check(state, Token_Colon);
-
-        node.type = parse_type(state);
-
-        result.kind = Item_Type;
-        result.data.type = node;
-    } else if (strcmp(keyword, "global") == 0) {
-        Ast_Item_Global node;
-
-        result.name = consume_identifier(state);
-        consume_check(state, Token_Colon);
-
-        node.type = parse_type(state);
-
-        result.kind = Item_Global;
-        result.data.global = node;
-    } else if (strcmp(keyword, "const") == 0) {
-        Ast_Item_Constant node;
-
-        result.name = consume_identifier(state);
-        consume_check(state, Token_Colon);
-
-        Ast_Expression expression = parse_expression(state);
-        assert(expression.kind == Expression_Number);
-
-        node.expression = expression.data.number;
-
-        result.kind = Item_Constant;
-        result.data.constant = node;
-    } else {
-        print_token_error_stub(&state->tokens->elements[state->index - 1]);
-        printf("Unexpected token ");
-        print_token(&state->tokens->elements[state->index - 1], false);
-        printf("\n");
-        exit(1);
+        default:
+            assert(false);
     }
 
     return result;

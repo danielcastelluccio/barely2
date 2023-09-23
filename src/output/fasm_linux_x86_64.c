@@ -1804,6 +1804,10 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
             stringbuffer_appendstring(&state->bss, buffer);
             break;
         }
+        case Item_RunMacro: {
+            output_item_fasm_linux_x86_64(item->data.run_macro.result.data.item, state);
+            break;
+        }
         case Item_Constant:
             break;
         case Item_Type:

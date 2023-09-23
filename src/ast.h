@@ -90,6 +90,7 @@ struct Ast_Macro_SyntaxKind {
         Macro_None,
         Macro_Expression,
         Macro_Type,
+        Macro_Item,
         Macro_Multiple,
         Macro_Multiple_Expanded,
     } kind;
@@ -103,6 +104,7 @@ struct Ast_Macro_SyntaxData {
     union {
         Ast_Expression* expression;
         Ast_Type* type;
+        Ast_Item* item;
         Ast_Macro_SyntaxData* multiple;
         Array_Ast_Macro_SyntaxData multiple_expanded;
     } data;
@@ -451,6 +453,7 @@ struct Ast_Item {
         Item_Type,
         Item_Global,
         Item_Constant,
+        Item_RunMacro,
     } kind;
     union {
         Ast_Item_Procedure procedure;
@@ -458,6 +461,7 @@ struct Ast_Item {
         Ast_Item_Type type;
         Ast_Item_Global global;
         Ast_Item_Constant constant;
+        Ast_RunMacro run_macro;
     } data;
 };
 

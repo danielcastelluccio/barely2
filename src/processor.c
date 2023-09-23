@@ -47,6 +47,9 @@ Resolved resolve(Generic_State* state, Ast_Identifier data) {
             Ast_Item* item = &file_node->items.elements[i];
             if (strcmp(item->name, initial_search.name) == 0) {
                 result = (Resolved) { file_node, Resolved_Item, { .item = item } };
+                if (item->kind == Item_RunMacro) {
+                    result.data.item = item->data.run_macro.result.data.item;
+                }
                 stop = true;
                 break;
             }
@@ -595,7 +598,7 @@ void process_type(Ast_Type* type, Process_State* state) {
             walk_type(&cloned, &walk_state);
 
             run_macro->result.kind.kind = Macro_Type;
-            run_macro->result.data.type = malloc(sizeof(Ast_Expression));
+            run_macro->result.data.type = malloc(sizeof(Ast_Type));
             *run_macro->result.data.type = cloned;
 
             process_type(run_macro->result.data.type, state);
@@ -1555,9 +1558,8 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 stack_type_push(&state->stack, item_type);
             }
 
-            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
-                Ast_Type* wanted_type = state->wanted_type;
-                Ast_Type evaluated_wanted_type = evaluate_type_complete(wanted_type, &state->generic);
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier && state->wanted_type != NULL) {
+                Ast_Type evaluated_wanted_type = evaluate_type_complete(state->wanted_type, &state->generic);
                 if (evaluated_wanted_type.kind == Type_Enum) {
                     char* enum_variant = retrieve->data.identifier.name;
 
@@ -1871,6 +1873,87 @@ void process_item(Ast_Item* item, Process_State* state) {
             }
 
             process_expression(procedure->body, state);
+            break;
+        }
+        case Item_RunMacro: {
+            Ast_RunMacro* run_macro = &item->data.run_macro;
+
+            Resolved resolved = resolve(&state->generic, run_macro->identifier);
+            assert(resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Macro);
+            Ast_Item_Macro* macro = &resolved.data.item->data.macro;
+
+            assert(macro->return_.kind == Macro_Item);
+
+            size_t current_macro_argument_index = 0;
+            for (size_t i = 0; i < run_macro->arguments.count; i++) {
+                Ast_Macro_SyntaxKind current_macro_argument = macro->arguments.elements[current_macro_argument_index];
+                Ast_Macro_SyntaxKind given_argument = run_macro->arguments.elements[i]->kind;
+                if (!macro_syntax_kind_equal(current_macro_argument, given_argument)) {
+                    print_error_stub(&run_macro->location);
+                    printf("Macro invocation with wrong type!\n");
+                    exit(1);
+                }
+
+                if (current_macro_argument.kind != Macro_Multiple) {
+                    current_macro_argument_index++;
+                }
+            }
+
+            Ast_Macro_Variant variant;
+            bool matched = false;
+            for (size_t i = 0; i < macro->variants.count; i++) {
+                bool matches = true;
+
+                size_t argument_index = 0;
+                for (size_t j = 0; j < macro->variants.elements[i].bindings.count; j++) {
+                    if (strcmp(macro->variants.elements[i].bindings.elements[j], "..") == 0) {
+                        if (argument_index == run_macro->arguments.count) {
+                            matches = false;
+                            break;
+                        }
+                        argument_index = run_macro->arguments.count;
+                    } else {
+                        if (argument_index == run_macro->arguments.count) {
+                            matches = false;
+                            break;
+                        }
+                        argument_index++;
+                    }
+                }
+
+                if (argument_index < run_macro->arguments.count) {
+                    matches = false;
+                }
+
+                if (matches) {
+                    matched = true;
+                    variant = macro->variants.elements[i];
+                    break;
+                }
+            }
+
+            assert(matched);
+
+            Ast_Item cloned = clone_item(*variant.data.data.item);
+
+            Apply_Macro_Walk_State locals_state = {
+                .bindings = variant.bindings,
+                .values = run_macro->arguments,
+            };
+            Ast_Walk_State walk_state = {
+                .expression_func = apply_macro_values_expression,
+                .type_func = apply_macro_values_type,
+                .internal_state = &locals_state,
+            };
+            walk_item(&cloned, &walk_state);
+
+            run_macro->result.kind.kind = Macro_Item;
+            run_macro->result.data.item = malloc(sizeof(Ast_Item));
+            *run_macro->result.data.item = cloned;
+
+            process_item(run_macro->result.data.item, state);
+
+            item->name = run_macro->result.data.item->name;
             break;
         }
         case Item_Macro: {

@@ -2,12 +2,10 @@
 
 #include "ast_clone.h"
 
-Ast_Statement clone_statement(Ast_Statement statement) {
-    Ast_Statement result = {};
-    result.directives = array_ast_directive_new(statement.directives.count);
-    result.statement_end_location = statement.statement_end_location;
-    for (size_t i = 0; i < statement.directives.count; i++) {
-        Ast_Directive directive = statement.directives.elements[i];
+Array_Ast_Directive clone_directives(Array_Ast_Directive directives) {
+    Array_Ast_Directive result = array_ast_directive_new(directives.count);
+    for (size_t i = 0; i < directives.count; i++) {
+        Ast_Directive directive = directives.elements[i];
         Ast_Directive directive_result = { .kind = directive.kind };
         switch (directive.kind) {
             case Directive_If: {
@@ -22,8 +20,51 @@ Ast_Statement clone_statement(Ast_Statement statement) {
             default:
                 assert(false);
         }
-        array_ast_directive_append(&result.directives, directive_result);
+        array_ast_directive_append(&result, directive_result);
     }
+    return result;
+}
+
+Ast_Item clone_item(Ast_Item item) {
+    Ast_Item result = {};
+    result.name = item.name;
+    result.directives = clone_directives(item.directives);
+    result.kind = item.kind;
+
+    switch (item.kind) {
+        case Item_Procedure: {
+            Ast_Item_Procedure* procedure_in = &item.data.procedure;
+            Ast_Item_Procedure procedure_out = { .arguments = array_ast_declaration_new(procedure_in->arguments.count), .returns = array_ast_type_new(procedure_in->returns.count) };
+
+            for (size_t i = 0; i < procedure_in->arguments.count; i++) {
+                Ast_Declaration* declaration_in = &procedure_in->arguments.elements[i];
+                Ast_Declaration declaration_out = { .name = declaration_in->name, .location = declaration_in->location };
+                declaration_out.type = clone_type(declaration_in->type);
+                array_ast_declaration_append(&procedure_out.arguments, declaration_out);
+            }
+
+            for (size_t i = 0; i < procedure_in->returns.count; i++) {
+                Ast_Type* result_type = malloc(sizeof(Ast_Type));
+                *result_type = clone_type(*procedure_in->returns.elements[i]);
+                array_ast_type_append(&procedure_out.returns, result_type);
+            }
+
+            procedure_out.body = malloc(sizeof(Ast_Expression));
+            *procedure_out.body = clone_expression(*procedure_in->body);
+
+            result.data.procedure = procedure_out;
+            break;
+        }
+        default:
+            assert(false);
+    }
+
+    return result;
+}
+
+Ast_Statement clone_statement(Ast_Statement statement) {
+    Ast_Statement result = {};
+    result.directives = clone_directives(statement.directives);
     result.kind = statement.kind;
 
     switch (statement.kind) {
@@ -246,28 +287,6 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             switch (retrieve_in->kind) {
                 case Retrieve_Assign_Identifier: {
                     Ast_Identifier identifier = retrieve_in->data.identifier;
-
-                    //for (size_t i = 0; i < bindings.count; i++) {
-                    //    if (strcmp(bindings.elements[i], identifier.name) == 0) {
-                    //        if (strcmp(bindings.elements[i], "..") == 0) {
-                    //            Ast_Expression expression = {};
-
-                    //            Ast_Expression_Multiple multiple = { .expressions = array_ast_expression_new(2) };
-
-                    //            for (size_t j = i; j < values.count; j++) {
-                    //                array_ast_expression_append(&multiple.expressions, values.elements[j]->data.expression);
-                    //            }
-
-                    //            expression.kind = Expression_Multiple;
-                    //            expression.data.multiple = multiple;
-
-                    //            return expression;
-                    //        } else {
-                    //            return *values.elements[i]->data.expression;
-                    //        }
-                    //    }
-                    //}
-
                     retrieve_out.data.identifier = identifier;
                     break;
                 }

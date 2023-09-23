@@ -7,6 +7,7 @@ typedef struct {
     void* internal_state;
 } Ast_Walk_State;
 
+void walk_item(Ast_Item* item, Ast_Walk_State* state);
 void walk_expression(Ast_Expression* expression, Ast_Walk_State* state);
 void walk_statement(Ast_Statement* statement, Ast_Walk_State* state);
 void walk_type(Ast_Type* type, Ast_Walk_State* state);

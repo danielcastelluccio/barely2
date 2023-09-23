@@ -1,5 +1,26 @@
 #include "ast_walk.h"
 
+void walk_item(Ast_Item* item, Ast_Walk_State* state) {
+    switch (item->kind) {
+        case Item_Procedure: {
+            Ast_Item_Procedure* procedure = &item->data.procedure;
+
+            for (size_t i = 0; i < procedure->arguments.count; i++) {
+                walk_type(&procedure->arguments.elements[i].type, state);
+            }
+
+            for (size_t i = 0; i < procedure->returns.count; i++) {
+                walk_type(procedure->returns.elements[i], state);
+            }
+
+            walk_expression(procedure->body, state);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void walk_type(Ast_Type* type, Ast_Walk_State* state) {
     if (state->type_func != NULL) {
         state->type_func(type, state->internal_state);
