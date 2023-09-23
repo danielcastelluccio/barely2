@@ -27,14 +27,13 @@ Array_Ast_Directive clone_directives(Array_Ast_Directive directives) {
 
 Ast_Item clone_item(Ast_Item item) {
     Ast_Item result = {};
-    result.name = item.name;
     result.directives = clone_directives(item.directives);
     result.kind = item.kind;
 
     switch (item.kind) {
         case Item_Procedure: {
             Ast_Item_Procedure* procedure_in = &item.data.procedure;
-            Ast_Item_Procedure procedure_out = { .arguments = array_ast_declaration_new(procedure_in->arguments.count), .returns = array_ast_type_new(procedure_in->returns.count) };
+            Ast_Item_Procedure procedure_out = { .name = procedure_in->name, .arguments = array_ast_declaration_new(procedure_in->arguments.count), .returns = array_ast_type_new(procedure_in->returns.count) };
 
             for (size_t i = 0; i < procedure_in->arguments.count; i++) {
                 Ast_Declaration* declaration_in = &procedure_in->arguments.elements[i];
@@ -53,6 +52,28 @@ Ast_Item clone_item(Ast_Item item) {
             *procedure_out.body = clone_expression(*procedure_in->body);
 
             result.data.procedure = procedure_out;
+            break;
+        }
+        case Item_Type: {
+            Ast_Item_Type* type_in = &item.data.type;
+            Ast_Item_Type type_out = { .name = type_in->name };
+
+            type_out.type = clone_type(type_in->type);
+
+            result.data.type = type_out;
+            break;
+        }
+        case Item_RunMacro: {
+            Ast_RunMacro* run_macro_in = &item.data.run_macro;
+            Ast_RunMacro run_macro_out = { .identifier = run_macro_in->identifier, .arguments = array_ast_macro_syntax_data_new(run_macro_in->arguments.count), .location = run_macro_in->location };
+
+            for (size_t i = 0; i < run_macro_in->arguments.count; i++) {
+                Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
+                *syntax_data = clone_syntax_data(*run_macro_in->arguments.elements[i]);
+                array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data);
+            }
+
+            result.data.run_macro = run_macro_out;
             break;
         }
         default:
@@ -206,6 +227,19 @@ Ast_Type clone_type(Ast_Type type) {
             *type_of_out.expression = clone_expression(*type_of_in->expression);
 
             result.data.type_of = type_of_out;
+            break;
+        }
+        case Type_RunMacro: {
+            Ast_RunMacro* run_macro_in = &type.data.run_macro;
+            Ast_RunMacro run_macro_out = { .identifier = run_macro_in->identifier, .arguments = array_ast_macro_syntax_data_new(run_macro_in->arguments.count), .location = run_macro_in->location };
+
+            for (size_t i = 0; i < run_macro_in->arguments.count; i++) {
+                Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
+                *syntax_data = clone_syntax_data(*run_macro_in->arguments.elements[i]);
+                array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data);
+            }
+
+            result.data.run_macro = run_macro_out;
             break;
         }
         default:
@@ -414,6 +448,16 @@ Ast_Macro_SyntaxData clone_syntax_data(Ast_Macro_SyntaxData data) {
         case Macro_Expression: {
             result.data.expression = malloc(sizeof(Ast_Expression));
             *result.data.expression = clone_expression(*data.data.expression);
+            break;
+        }
+        case Macro_Type: {
+            result.data.type = malloc(sizeof(Ast_Type));
+            *result.data.type = clone_type(*data.data.type);
+            break;
+        }
+        case Macro_Item: {
+            result.data.item = malloc(sizeof(Ast_Item));
+            *result.data.item = clone_item(*data.data.item);
             break;
         }
         case Macro_Multiple: {

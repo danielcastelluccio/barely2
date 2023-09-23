@@ -108,6 +108,8 @@ char* consume_identifier(Parser_State* state) {
 }
 
 Ast_Type parse_type(Parser_State* state);
+Ast_Item parse_item(Parser_State* state);
+Ast_Expression parse_expression(Parser_State* state);
 
 void parse_directives(Parser_State* state) {
     while (peek(state) == Token_Identifier && state->tokens->elements[state->index].data[0] == '#') {
@@ -189,11 +191,19 @@ Ast_Macro_SyntaxData parse_macro_syntax_data_inner(Parser_State* state, Ast_Macr
             break;
         }
         case Macro_Type: {
-            Ast_Type* type = malloc(sizeof(Ast_Expression));
+            Ast_Type* type = malloc(sizeof(Ast_Type));
             *type = parse_type(state);
 
             result.kind.kind = Macro_Type;
             result.data.type = type;
+            break;
+        }
+        case Macro_Item: {
+            Ast_Item* item = malloc(sizeof(Ast_Item));
+            *item = parse_item(state);
+
+            result.kind.kind = Macro_Item;
+            result.data.item = item;
             break;
         }
         case Macro_Multiple: {
@@ -1135,10 +1145,10 @@ Ast_Item parse_item(Parser_State* state) {
         case Token_Keyword: {
             char* keyword = consume_keyword(state);
             if (strcmp(keyword, "proc") == 0) {
-                char* name = consume_identifier(state);
-                result.name = name;
-
                 Ast_Item_Procedure node;
+
+                node.name = consume_identifier(state);
+
                 consume_check(state, Token_LeftParenthesis);
 
                 Array_Ast_Declaration arguments = array_ast_declaration_new(4);
@@ -1184,12 +1194,11 @@ Ast_Item parse_item(Parser_State* state) {
                 result.kind = Item_Procedure;
                 result.data.procedure = node;
             } else if (strcmp(keyword, "macro") == 0) {
-                char* name = consume_identifier(state);
-                result.name = name;
+                Ast_Item_Macro node = { .arguments = array_ast_macro_syntax_kind_new(2), .variants = array_ast_macro_variant_new(2) };
+
+                node.name = consume_identifier(state);
 
                 consume_check(state, Token_Exclamation);
-
-                Ast_Item_Macro node = { .arguments = array_ast_macro_syntax_kind_new(2), .variants = array_ast_macro_variant_new(2) };
                 consume_check(state, Token_LeftParenthesis);
 
                 while (peek(state) != Token_RightParenthesis) {
@@ -1262,10 +1271,9 @@ Ast_Item parse_item(Parser_State* state) {
                 result.kind = Item_Macro;
                 result.data.macro = node;
             } else if (strcmp(keyword, "type") == 0) {
-                Ast_Item_Type node;
+                Ast_Item_Type node = {};
 
-                char* name = consume_identifier(state);
-                result.name = name;
+                node.name = consume_identifier(state);
 
                 consume_check(state, Token_Colon);
 
@@ -1274,9 +1282,9 @@ Ast_Item parse_item(Parser_State* state) {
                 result.kind = Item_Type;
                 result.data.type = node;
             } else if (strcmp(keyword, "global") == 0) {
-                Ast_Item_Global node;
+                Ast_Item_Global node = {};
 
-                result.name = consume_identifier(state);
+                node.name = consume_identifier(state);
                 consume_check(state, Token_Colon);
 
                 node.type = parse_type(state);
@@ -1284,9 +1292,9 @@ Ast_Item parse_item(Parser_State* state) {
                 result.kind = Item_Global;
                 result.data.global = node;
             } else if (strcmp(keyword, "const") == 0) {
-                Ast_Item_Constant node;
+                Ast_Item_Constant node = {};
 
-                result.name = consume_identifier(state);
+                node.name = consume_identifier(state);
                 consume_check(state, Token_Colon);
 
                 Ast_Expression expression = parse_expression(state);

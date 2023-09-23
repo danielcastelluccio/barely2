@@ -35,6 +35,24 @@ bool is_pointer_type(Ast_Type* type) {
     return (type->kind == Type_Internal && type->data.internal == Type_Ptr) || type->kind == Type_Pointer;
 }
 
+char* get_item_name(Ast_Item* item) {
+    switch (item->kind) {
+        case Item_Procedure:
+            return item->data.procedure.name;
+        case Item_Macro:
+            return item->data.macro.name;
+        case Item_Type:
+            return item->data.type.name;
+        case Item_Global:
+            return item->data.global.name;
+        case Item_Constant:
+            return item->data.constant.name;
+        case Item_RunMacro:
+            return get_item_name(item->data.run_macro.result.data.item);
+    }
+    assert(false);
+}
+
 Resolved resolve(Generic_State* state, Ast_Identifier data) {
     Ast_Identifier initial_search = {};
     initial_search = data;
@@ -45,10 +63,10 @@ Resolved resolve(Generic_State* state, Ast_Identifier data) {
         bool stop = false;
         for (size_t i = 0; i < file_node->items.count; i++) {
             Ast_Item* item = &file_node->items.elements[i];
-            if (strcmp(item->name, initial_search.name) == 0) {
+            if (strcmp(get_item_name(item), initial_search.name) == 0) {
                 result = (Resolved) { file_node, Resolved_Item, { .item = item } };
-                if (item->kind == Item_RunMacro) {
-                    result.data.item = item->data.run_macro.result.data.item;
+                while (result.data.item->kind == Item_RunMacro) {
+                    result.data.item = result.data.item->data.run_macro.result.data.item;
                 }
                 stop = true;
                 break;
@@ -123,7 +141,6 @@ Ast_Type evaluate_type(Ast_Type* type) {
         default:
             return *type;
     }
-    return *type;
 }
 
 Ast_Type evaluate_type_complete(Ast_Type* type_in, Generic_State* state) {
@@ -145,7 +162,7 @@ Ast_Type evaluate_type_complete(Ast_Type* type_in, Generic_State* state) {
                 assert(item->kind == Item_Type);
                 Ast_Item_Type* type_node = &item->data.type;
                 Ast_Type type_result = type_node->type;
-                return type_result;
+                return evaluate_type_complete(&type_result, state);
             }
             break;
         }
@@ -639,6 +656,7 @@ Ast_Type get_parent_item_type(Ast_Type* parent_type_in, char* item_name, Generic
                 break;
             }
             case Type_RunMacro: {
+                assert(parent_type.data.run_macro.result.data.type != NULL);
                 return get_parent_item_type(parent_type.data.run_macro.result.data.type, item_name, state);
             }
             default:
@@ -1952,17 +1970,16 @@ void process_item(Ast_Item* item, Process_State* state) {
             *run_macro->result.data.item = cloned;
 
             process_item(run_macro->result.data.item, state);
-
-            item->name = run_macro->result.data.item->name;
+            break;
+        }
+        case Item_Type: {
+            process_type(&item->data.type.type, state);
             break;
         }
         case Item_Macro: {
             break;
         }
         case Item_Global: {
-            break;
-        }
-        case Item_Type: {
             break;
         }
         case Item_Constant:

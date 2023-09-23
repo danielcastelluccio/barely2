@@ -411,12 +411,6 @@ struct Ast_Statement {
 };
 
 typedef struct {
-    Array_Ast_Declaration arguments;
-    Array_Ast_Type returns;
-    Ast_Expression* body;
-} Ast_Item_Procedure;
-
-typedef struct {
     Array_String bindings;
     Ast_Macro_SyntaxData data;
 } Ast_Macro_Variant;
@@ -424,28 +418,38 @@ typedef struct {
 Dynamic_Array_Def(Ast_Macro_Variant, Array_Ast_Macro_Variant, array_ast_macro_variant_)
 Dynamic_Array_Def(Ast_Macro_SyntaxKind, Array_Ast_Macro_SyntaxKind, array_ast_macro_syntax_kind_)
 
+Dynamic_Array_Def(Ast_Item, Array_Ast_Item, array_ast_item_)
+
 typedef struct {
+    char* name;
+    Array_Ast_Declaration arguments;
+    Array_Ast_Type returns;
+    Ast_Expression* body;
+} Ast_Item_Procedure;
+
+typedef struct {
+    char* name;
     Array_Ast_Macro_SyntaxKind arguments;
     Ast_Macro_SyntaxKind return_;
     Array_Ast_Macro_Variant variants;
 } Ast_Item_Macro;
 
 typedef struct {
+    char* name;
     Ast_Type type;
 } Ast_Item_Type;
 
-Dynamic_Array_Def(Ast_Item, Array_Ast_Item, array_ast_item_)
-
 typedef struct {
+    char* name;
     Ast_Type type;
 } Ast_Item_Global;
 
 typedef struct {
+    char* name;
     Ast_Expression_Number expression;
 } Ast_Item_Constant;
 
 struct Ast_Item {
-    char* name;
     Array_Ast_Directive directives;
     enum {
         Item_Procedure,

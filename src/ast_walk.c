@@ -16,6 +16,22 @@ void walk_item(Ast_Item* item, Ast_Walk_State* state) {
             walk_expression(procedure->body, state);
             break;
         }
+        case Item_Type: {
+            Ast_Item_Type* type = &item->data.type;
+            walk_type(&type->type, state);
+            break;
+        }
+        case Item_RunMacro: {
+            Ast_RunMacro* run_macro = &item->data.run_macro;
+            for (size_t i = 0; i < run_macro->arguments.count; i++) {
+                walk_macro_syntax_data(run_macro->arguments.elements[i], state);
+            }
+
+            if (run_macro->result.data.item != NULL) {
+                walk_item(run_macro->result.data.item, state);
+            }
+            break;
+        }
         default:
             break;
     }
@@ -55,6 +71,17 @@ void walk_type(Ast_Type* type, Ast_Walk_State* state) {
             Ast_Type_TypeOf* type_of = &type->data.type_of;
 
             walk_expression(type_of->expression, state);
+            break;
+        }
+        case Type_RunMacro: {
+            Ast_RunMacro* run_macro = &type->data.run_macro;
+            for (size_t i = 0; i < run_macro->arguments.count; i++) {
+                walk_macro_syntax_data(run_macro->arguments.elements[i], state);
+            }
+
+            if (run_macro->result.data.expression != NULL) {
+                walk_expression(run_macro->result.data.expression, state);
+            }
             break;
         }
         default:
@@ -250,6 +277,14 @@ void walk_macro_syntax_data(Ast_Macro_SyntaxData* data, Ast_Walk_State* state) {
     switch (data->kind.kind) {
         case Macro_Expression: {
             walk_expression(data->data.expression, state);
+            break;
+        }
+        case Macro_Type: {
+            walk_type(data->data.type, state);
+            break;
+        }
+        case Macro_Item: {
+            walk_item(data->data.item, state);
             break;
         }
         case Macro_Multiple: {

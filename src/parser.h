@@ -7,5 +7,4 @@ typedef struct {
     Array_Ast_Directive directives;
 } Parser_State;
 
-Ast_Expression parse_expression(Parser_State* state);
 Ast_File parse(char* path, Tokens* tokens);

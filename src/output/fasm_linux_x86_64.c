@@ -457,7 +457,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
 
                                             memset(buffer, 0, 128);
 
-                                            sprintf(buffer + strlen(buffer), "  mov [%s+%zu], rax\n", item->name, i);
+                                            sprintf(buffer + strlen(buffer), "  mov [%s+%zu], rax\n", global->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             i += 8;
@@ -468,7 +468,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
 
                                             memset(buffer, 0, 128);
 
-                                            sprintf(buffer + strlen(buffer), "  mov [%s+%zu], al\n", item->name, i);
+                                            sprintf(buffer + strlen(buffer), "  mov [%s+%zu], al\n", global->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             i += 1;
@@ -1426,7 +1426,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                         switch (item->kind) {
                             case Item_Procedure: {
                                 char buffer[128] = {};
-                                sprintf(buffer, "  push %s\n", item->name);
+                                sprintf(buffer, "  push %s\n", item->data.procedure.name);
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 break;
                             }
@@ -1434,7 +1434,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                 Ast_Item_Global* global = &item->data.global;
                                 if (consume_in_reference_output(state)) {
                                     char buffer[128] = {};
-                                    sprintf(buffer + strlen(buffer), "  lea rax, [%s.", item->name);
+                                    sprintf(buffer + strlen(buffer), "  lea rax, [%s.", global->name);
                                     sprintf(buffer + strlen(buffer), "%zu]\n", resolved.file->id);
 
                                     stringbuffer_appendstring(&state->instructions, buffer);
@@ -1450,7 +1450,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                     while (i < size) {
                                         if (size - i >= 8) {
                                             char buffer[128] = {};
-                                            sprintf(buffer + strlen(buffer), "  mov rax, [%s+%zu]\n", item->name, i);
+                                            sprintf(buffer + strlen(buffer), "  mov rax, [%s+%zu]\n", global->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             memset(buffer, 0, 128);
@@ -1461,7 +1461,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                             i += 8;
                                         } else if (size - i >= 1) {
                                             char buffer[128] = {};
-                                            sprintf(buffer + strlen(buffer), "  mov al, [%s+%zu]\n", item->name, i);
+                                            sprintf(buffer + strlen(buffer), "  mov al, [%s+%zu]\n", global->name, i);
                                             stringbuffer_appendstring(&state->instructions, buffer);
 
                                             memset(buffer, 0, 128);
@@ -1755,7 +1755,7 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
             state->current_procedure = item;
 
             char buffer[128] = {};
-            sprintf(buffer, "%s:\n", item->name);
+            sprintf(buffer, "%s:\n", procedure->name);
             stringbuffer_appendstring(&state->instructions, buffer);
 
             stringbuffer_appendstring(&state->instructions, "  push rbp\n");
@@ -1800,7 +1800,7 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
             size_t size = get_size(&global->type, state);
 
             char buffer[128] = {};
-            sprintf(buffer, "%s: rb %zu\n", item->name, size);
+            sprintf(buffer, "%s: rb %zu\n", global->name, size);
             stringbuffer_appendstring(&state->bss, buffer);
             break;
         }
