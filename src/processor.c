@@ -474,6 +474,8 @@ void apply_macro_values_expression(Ast_Expression* expression, void* state_in) {
 
                                 *expression = expression_new;
                             } else {
+                                assert(state->values.elements[i]->kind.kind == Macro_Expression);
+                                assert(state->values.elements[i]->data.expression->kind != Expression_Multiple);
                                 *expression = *state->values.elements[i]->data.expression;
                             }
                         }
@@ -484,6 +486,55 @@ void apply_macro_values_expression(Ast_Expression* expression, void* state_in) {
                 default:
                     break;
             }
+            break;
+        }
+        case Expression_RunMacro: {
+            Array_Ast_Macro_SyntaxData datas = array_ast_macro_syntax_data_new(expression->data.run_macro.arguments.count);
+            for (size_t i = 0; i < expression->data.run_macro.arguments.count; i++) {
+                Ast_Macro_SyntaxData* syntax_data = expression->data.run_macro.arguments.elements[i];
+
+                bool handled = false;
+                if (syntax_data->kind.kind == Macro_Multiple && syntax_data->data.multiple->kind.kind == Macro_Expression && syntax_data->data.multiple->data.expression->kind == Expression_Retrieve &&
+                        syntax_data->data.multiple->data.expression->data.retrieve.kind == Retrieve_Assign_Identifier) {
+                    Ast_Identifier identifier = syntax_data->data.multiple->data.expression->data.retrieve.data.identifier;
+                    for (size_t j = 0; j < state->bindings.count; j++) {
+                        if (strcmp(state->bindings.elements[j], identifier.name) == 0) {
+                            if (strcmp(state->bindings.elements[j], "..") == 0) {
+                                for (size_t k = j; k < state->values.count; k++) {
+                                    Ast_Macro_SyntaxData* retrieved_data = state->values.elements[k];
+                                    if (retrieved_data->kind.kind == Macro_Expression && retrieved_data->data.expression->kind == Expression_Multiple) {
+                                        for (size_t m = 0; m < retrieved_data->data.expression->data.multiple.expressions.count; m++) {
+                                            Ast_Macro_SyntaxData* new_data = malloc(sizeof(Ast_Macro_SyntaxData));
+                                            new_data->kind.kind = Macro_Expression;
+                                            new_data->data.expression = retrieved_data->data.expression->data.multiple.expressions.elements[m];
+                                            array_ast_macro_syntax_data_append(&datas, new_data);
+                                        }
+
+                                    } else {
+                                        array_ast_macro_syntax_data_append(&datas, state->values.elements[j]);
+                                    }
+                                }
+                                handled = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!handled) {
+                    if (syntax_data->kind.kind == Macro_Multiple_Expanded) {
+                        for (size_t j = 0; j < syntax_data->data.multiple_expanded.count; j++) {
+                            array_ast_macro_syntax_data_append(&datas, syntax_data->data.multiple_expanded.elements[j]);
+                        }
+                    } else {
+                        if (syntax_data->kind.kind == Macro_Expression) {
+                            assert(syntax_data->data.expression->kind != Expression_Multiple);
+                        }
+                        array_ast_macro_syntax_data_append(&datas, syntax_data);
+                    }
+                }
+            }
+
+            expression->data.run_macro.arguments = datas;
             break;
         }
         default:
@@ -516,6 +567,10 @@ bool macro_syntax_kind_equal(Ast_Macro_SyntaxKind wanted, Ast_Macro_SyntaxKind g
             return macro_syntax_kind_equal(*wanted.data.multiple, *given.data.multiple);
         }
         return true;
+    }
+
+    if (wanted.kind == Macro_Multiple && given.kind == Macro_Multiple_Expanded) {
+        return macro_syntax_kind_equal(*wanted.data.multiple, *given.data.multiple);
     }
 
     if (wanted.kind == Macro_Multiple) {
@@ -581,6 +636,7 @@ void process_run_macro(Ast_RunMacro* run_macro, Ast_Macro_Kind kind, Process_Sta
     }
 
     assert(matched);
+    assert(variant.data.kind.kind == kind);
 
     Apply_Macro_Walk_State locals_state = {
         .bindings = variant.bindings,

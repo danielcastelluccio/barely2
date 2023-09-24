@@ -329,6 +329,7 @@ typedef struct {
 struct Ast_Expression {
     Array_Ast_Directive directives;
     enum {
+        Expression_Invalid,
         Expression_Block,
         Expression_Number,
         Expression_String,

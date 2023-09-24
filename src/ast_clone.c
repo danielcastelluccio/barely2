@@ -287,13 +287,7 @@ Ast_Expression clone_expression(Ast_Expression expression) {
                 Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
                 *syntax_data = clone_syntax_data(*run_macro_in->arguments.elements[i]);
 
-                if (syntax_data->kind.kind == Macro_Multiple_Expanded) {
-                    for (size_t j = 0; j < syntax_data->data.multiple_expanded.count; j++) {
-                        array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data->data.multiple_expanded.elements[j]);
-                    }
-                } else {
-                    array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data);
-                }
+                array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data);
             }
 
             result.data.run_macro = run_macro_out;
@@ -443,24 +437,16 @@ Ast_Macro_SyntaxData clone_syntax_data(Ast_Macro_SyntaxData data) {
             break;
         }
         case Macro_Multiple: {
-            if (data.kind.data.multiple->kind == Macro_Expression) {
-                Ast_Macro_SyntaxData inner = *data.data.multiple;
-                inner = clone_syntax_data(inner);
-                assert(inner.data.expression->kind == Expression_Multiple);
-
-                Array_Ast_Macro_SyntaxData datas = array_ast_macro_syntax_data_new(2);
-                for (size_t i = 0; i < inner.data.expression->data.multiple.expressions.count; i++) {
-                    Ast_Macro_SyntaxData* individual = malloc(sizeof(Ast_Macro_SyntaxData));
-                    individual->kind.kind = Macro_Expression;
-                    individual->data.expression = inner.data.expression->data.multiple.expressions.elements[i];
-
-                    array_ast_macro_syntax_data_append(&datas, individual);
-                }
-
-                result.data.multiple_expanded = datas;
-                result.kind.kind = Macro_Multiple_Expanded;
-            } else {
-                assert(false);
+            result.data.multiple = malloc(sizeof(Ast_Macro_SyntaxData));
+            *result.data.multiple = clone_syntax_data(*data.data.multiple);
+            break;
+        }
+        case Macro_Multiple_Expanded: {
+            result.data.multiple_expanded = array_ast_macro_syntax_data_new(data.data.multiple_expanded.count);
+            for (size_t i = 0; i < data.data.multiple_expanded.count; i++) {
+                Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
+                *syntax_data = clone_syntax_data(*data.data.multiple_expanded.elements[i]);
+                array_ast_macro_syntax_data_append(&result.data.multiple_expanded, syntax_data);
             }
             break;
         }

@@ -68,21 +68,8 @@ void walk_type(Ast_Type* type, Ast_Walk_State* state) {
                 walk_macro_syntax_data(run_macro->arguments.elements[i], state);
             }
 
-            switch (run_macro->result.kind.kind) {
-                case Macro_Expression: {
-                    if (run_macro->result.data.expression != NULL) {
-                        walk_expression(run_macro->result.data.expression, state);
-                    }
-                    break;
-                }
-                case Macro_Type: {
-                    if (run_macro->result.data.type != NULL) {
-                        walk_type(run_macro->result.data.type, state);
-                    }
-                    break;
-                }
-                default:
-                    break;
+            if (run_macro->result.data.type != NULL) {
+                walk_type(run_macro->result.data.type, state);
             }
             break;
         }
@@ -219,10 +206,10 @@ void walk_statement(Ast_Statement* statement, Ast_Walk_State* state) {
     }
 
     for (size_t i = 0; i < statement->directives.count; i++) {
-        Ast_Directive directive = statement->directives.elements[i];
-        switch (directive.kind) {
+        Ast_Directive* directive = &statement->directives.elements[i];
+        switch (directive->kind) {
             case Directive_If: {
-                Ast_Directive_If* if_ = &directive.data.if_;
+                Ast_Directive_If* if_ = &directive->data.if_;
 
                 walk_expression(if_->expression, state);
                 break;
