@@ -850,6 +850,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
             if (strcmp(name, "if") == 0) {
                 Ast_Expression_If node = {};
+                node.location = state->tokens->elements[state->index].location;
 
                 Ast_Expression condition = parse_expression(state);
                 Ast_Expression* condition_allocated = malloc(sizeof(Ast_Expression));

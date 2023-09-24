@@ -354,7 +354,7 @@ Ast_Expression clone_expression(Ast_Expression expression) {
         }
         case Expression_If: {
             Ast_Expression_If* if_in = &expression.data.if_;
-            Ast_Expression_If if_out = { .condition = malloc(sizeof(Ast_Expression)), .if_expression = malloc(sizeof(Ast_Expression)) };
+            Ast_Expression_If if_out = { .condition = malloc(sizeof(Ast_Expression)), .if_expression = malloc(sizeof(Ast_Expression)), .location = if_in->location };
             *if_out.condition = clone_expression(*if_in->condition);
             *if_out.if_expression = clone_expression(*if_in->if_expression);
 

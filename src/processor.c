@@ -503,6 +503,7 @@ void apply_macro_values_type(Ast_Type* type, void* state_in) {
             for (size_t i = 0; i < state->bindings.count; i++) {
                 if (strcmp(state->bindings.elements[i], basic->identifier.name) == 0) {
                     *type = *state->values.elements[i]->data.type;
+                    break;
                 }
             }
             break;
@@ -529,6 +530,33 @@ bool macro_syntax_kind_equal(Ast_Macro_SyntaxKind wanted, Ast_Macro_SyntaxKind g
 
 void process_type(Ast_Type* type, Process_State* state) {
     switch (type->kind) {
+        case Type_Basic: {
+            Ast_Type_Basic* basic = &type->data.basic;
+            Ast_Item* item = basic->resolved_node;
+
+            if (item == NULL) {
+                Ast_Identifier identifier = basic->identifier;
+                Resolved resolved = resolve(&state->generic, identifier);
+                if (resolved.kind == Resolved_Item) {
+                    item = resolved.data.item;
+                }
+            }
+
+            if (item != NULL) {
+                assert(item->kind == Item_Type);
+                Ast_Item_Type* type_node = &item->data.type;
+                Ast_Type* type_result = &type_node->type;
+                process_type(type_result, state);
+            }
+            break;
+        }
+        case Type_Struct: {
+            Ast_Type_Struct* struct_ = &type->data.struct_;
+            for (size_t i = 0; i < struct_->items.count; i++) {
+                process_type(&struct_->items.elements[i]->type, state);
+            }
+            break;
+        }
         case Type_TypeOf: {
             Ast_Type_TypeOf* type_of = &type->data.type_of;
             Ast_Expression* expression = type_of->expression;
@@ -1611,10 +1639,12 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                                 procedure_type.returns = array_ast_type_new(4);
 
                                 for (size_t i = 0; i < procedure->arguments.count; i++) {
+                                    process_type(&procedure->arguments.elements[i].type, state);
                                     array_ast_type_append(&procedure_type.arguments, &procedure->arguments.elements[i].type);
                                 }
 
                                 for (size_t i = 0; i < procedure->returns.count; i++) {
+                                    process_type(procedure->returns.elements[i], state);
                                     array_ast_type_append(&procedure_type.returns, procedure->returns.elements[i]);
                                 }
 

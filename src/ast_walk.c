@@ -79,8 +79,21 @@ void walk_type(Ast_Type* type, Ast_Walk_State* state) {
                 walk_macro_syntax_data(run_macro->arguments.elements[i], state);
             }
 
-            if (run_macro->result.data.expression != NULL) {
-                walk_expression(run_macro->result.data.expression, state);
+            switch (run_macro->result.kind.kind) {
+                case Macro_Expression: {
+                    if (run_macro->result.data.expression != NULL) {
+                        walk_expression(run_macro->result.data.expression, state);
+                    }
+                    break;
+                }
+                case Macro_Type: {
+                    if (run_macro->result.data.type != NULL) {
+                        walk_type(run_macro->result.data.type, state);
+                    }
+                    break;
+                }
+                default:
+                    break;
             }
             break;
         }
@@ -199,6 +212,11 @@ void walk_expression(Ast_Expression* expression, Ast_Walk_State* state) {
             for (size_t i = 0; i < build->arguments.count; i++) {
                 walk_expression(build->arguments.elements[i], state);
             }
+            break;
+        }
+        case Expression_Init: {
+            Ast_Expression_Init* init = &expression->data.init;
+            walk_type(&init->type, state);
             break;
         }
         default:
