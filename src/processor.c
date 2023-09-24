@@ -509,9 +509,8 @@ void apply_macro_values_expression(Ast_Expression* expression, void* state_in) {
                                             new_data->data.expression = retrieved_data->data.expression->data.multiple.expressions.elements[m];
                                             array_ast_macro_syntax_data_append(&datas, new_data);
                                         }
-
                                     } else {
-                                        array_ast_macro_syntax_data_append(&datas, state->values.elements[j]);
+                                        array_ast_macro_syntax_data_append(&datas, retrieved_data);
                                     }
                                 }
                                 handled = true;
@@ -526,9 +525,6 @@ void apply_macro_values_expression(Ast_Expression* expression, void* state_in) {
                             array_ast_macro_syntax_data_append(&datas, syntax_data->data.multiple_expanded.elements[j]);
                         }
                     } else {
-                        if (syntax_data->kind.kind == Macro_Expression) {
-                            assert(syntax_data->data.expression->kind != Expression_Multiple);
-                        }
                         array_ast_macro_syntax_data_append(&datas, syntax_data);
                     }
                 }
@@ -1055,12 +1051,18 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
         }
         case Statement_Declare: {
             Ast_Statement_Declare* declare = &statement->data.declare;
+            for (size_t i = 0; i < declare->declarations.count; i++) {
+                Ast_Declaration* declaration = &declare->declarations.elements[i];
+                process_type(&declaration->type, state);
+            }
+
             if (declare->expression != NULL) {
                 if (declare->expression->kind == Expression_Multiple) {
                     size_t declare_index = 0;
                     for (size_t i = 0; i < declare->expression->data.multiple.expressions.count; i++) {
+                        Ast_Declaration* declaration = &declare->declarations.elements[i];
                         size_t stack_start = state->stack.count;
-                        state->wanted_type = &declare->declarations.elements[declare_index].type;
+                        state->wanted_type = &declaration->type;
                         process_expression(declare->expression->data.multiple.expressions.elements[i], state);
                         declare_index += state->stack.count - stack_start;
                     }
@@ -1071,7 +1073,6 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
 
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
                     Ast_Declaration* declaration = &declare->declarations.elements[i];
-                    process_type(&declaration->type, state);
 
                     if (state->stack.count == 0) {
                         print_error_stub(&declaration->location);
