@@ -63,19 +63,6 @@ Ast_Item clone_item(Ast_Item item) {
             result.data.type = type_out;
             break;
         }
-        case Item_RunMacro: {
-            Ast_RunMacro* run_macro_in = &item.data.run_macro;
-            Ast_RunMacro run_macro_out = { .identifier = run_macro_in->identifier, .arguments = array_ast_macro_syntax_data_new(run_macro_in->arguments.count), .location = run_macro_in->location };
-
-            for (size_t i = 0; i < run_macro_in->arguments.count; i++) {
-                Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
-                *syntax_data = clone_syntax_data(*run_macro_in->arguments.elements[i]);
-                array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data);
-            }
-
-            result.data.run_macro = run_macro_out;
-            break;
-        }
         default:
             assert(false);
     }
@@ -453,11 +440,6 @@ Ast_Macro_SyntaxData clone_syntax_data(Ast_Macro_SyntaxData data) {
         case Macro_Type: {
             result.data.type = malloc(sizeof(Ast_Type));
             *result.data.type = clone_type(*data.data.type);
-            break;
-        }
-        case Macro_Item: {
-            result.data.item = malloc(sizeof(Ast_Item));
-            *result.data.item = clone_item(*data.data.item);
             break;
         }
         case Macro_Multiple: {

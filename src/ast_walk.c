@@ -21,17 +21,6 @@ void walk_item(Ast_Item* item, Ast_Walk_State* state) {
             walk_type(&type->type, state);
             break;
         }
-        case Item_RunMacro: {
-            Ast_RunMacro* run_macro = &item->data.run_macro;
-            for (size_t i = 0; i < run_macro->arguments.count; i++) {
-                walk_macro_syntax_data(run_macro->arguments.elements[i], state);
-            }
-
-            if (run_macro->result.data.item != NULL) {
-                walk_item(run_macro->result.data.item, state);
-            }
-            break;
-        }
         default:
             break;
     }
@@ -299,10 +288,6 @@ void walk_macro_syntax_data(Ast_Macro_SyntaxData* data, Ast_Walk_State* state) {
         }
         case Macro_Type: {
             walk_type(data->data.type, state);
-            break;
-        }
-        case Macro_Item: {
-            walk_item(data->data.item, state);
             break;
         }
         case Macro_Multiple: {

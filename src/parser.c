@@ -151,8 +151,8 @@ void filter_add_directive(Parser_State* state, Array_Ast_Directive* directives, 
     }
 }
 
-Ast_Macro_SyntaxKind parse_macro_syntax_kind(Parser_State* state, Ast_Macro_SyntaxKind default_kind) {
-    Ast_Macro_SyntaxKind result = default_kind;
+Ast_Macro_SyntaxKind parse_macro_syntax_kind(Parser_State* state, Ast_Macro_Kind default_kind) {
+    Ast_Macro_SyntaxKind result = (Ast_Macro_SyntaxKind) { .kind = default_kind };
     if (peek(state) == Token_Identifier) {
         char* name = state->tokens->elements[state->index].data;
         if (strcmp(name, "$expr") == 0) {
@@ -160,9 +160,6 @@ Ast_Macro_SyntaxKind parse_macro_syntax_kind(Parser_State* state, Ast_Macro_Synt
             consume(state);
         } else if (strcmp(name, "$type") == 0) {
             result = (Ast_Macro_SyntaxKind) { .kind = Macro_Type };
-            consume(state);
-        } else if (strcmp(name, "$item") == 0) {
-            result = (Ast_Macro_SyntaxKind) { .kind = Macro_Item };
             consume(state);
         }
     }
@@ -198,14 +195,6 @@ Ast_Macro_SyntaxData parse_macro_syntax_data_inner(Parser_State* state, Ast_Macr
             result.data.type = type;
             break;
         }
-        case Macro_Item: {
-            Ast_Item* item = malloc(sizeof(Ast_Item));
-            *item = parse_item(state);
-
-            result.kind.kind = Macro_Item;
-            result.data.item = item;
-            break;
-        }
         case Macro_Multiple: {
             Ast_Macro_SyntaxKind* inner = kind.data.multiple;
 
@@ -223,9 +212,34 @@ Ast_Macro_SyntaxData parse_macro_syntax_data_inner(Parser_State* state, Ast_Macr
     return result;
 }
 
-Ast_Macro_SyntaxData parse_macro_syntax_data(Parser_State* state, Ast_Macro_SyntaxKind default_kind) {
+Ast_Macro_SyntaxData parse_macro_syntax_data(Parser_State* state, Ast_Macro_Kind default_kind) {
     Ast_Macro_SyntaxKind kind = parse_macro_syntax_kind(state, default_kind);
     return parse_macro_syntax_data_inner(state, kind);
+}
+
+Ast_RunMacro parse_run_macro(Parser_State* state, Ast_Identifier identifier, Ast_Macro_Kind default_kind) {
+    Ast_RunMacro run_macro = { .arguments = array_ast_macro_syntax_data_new(2) };
+    run_macro.identifier = identifier;
+    run_macro.location = state->tokens->elements[state->index].location;
+
+    consume(state);
+    consume_check(state, Token_LeftParenthesis);
+
+    while (peek(state) != Token_RightParenthesis) {
+        if (peek(state) == Token_Comma) {
+            consume(state);
+            continue;
+        }
+
+        Ast_Macro_SyntaxData* data = malloc(sizeof(Ast_Macro_SyntaxData));;
+        *data = parse_macro_syntax_data(state, default_kind);
+
+        array_ast_macro_syntax_data_append(&run_macro.arguments, data);
+    }
+
+    consume(state);
+
+    return run_macro;
 }
 
 Ast_Type parse_type(Parser_State* state) {
@@ -434,27 +448,8 @@ Ast_Type parse_type(Parser_State* state) {
             result.data.basic = basic;
 
             if (peek(state) == Token_Exclamation) {
-                Ast_RunMacro type = { .arguments = array_ast_macro_syntax_data_new(2) };
                 assert(result.kind == Type_Basic);
-                type.identifier = result.data.basic.identifier;
-                type.location = state->tokens->elements[state->index].location;
-
-                consume(state);
-                consume_check(state, Token_LeftParenthesis);
-
-                while (peek(state) != Token_RightParenthesis) {
-                    if (peek(state) == Token_Comma) {
-                        consume(state);
-                        continue;
-                    }
-
-                    Ast_Macro_SyntaxData* data = malloc(sizeof(Ast_Macro_SyntaxData));;
-                    *data = parse_macro_syntax_data(state, (Ast_Macro_SyntaxKind) { .kind = Macro_Type });
-
-                    array_ast_macro_syntax_data_append(&type.arguments, data);
-                }
-
-                consume(state);
+                Ast_RunMacro type = parse_run_macro(state, result.data.basic.identifier, Macro_Type);
 
                 result.kind = Type_RunMacro;
                 result.data.run_macro = type;
@@ -1011,27 +1006,8 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
         if (peek(state) == Token_Exclamation) {
             running = true;
-            Ast_RunMacro node = { .arguments = array_ast_macro_syntax_data_new(2) };
             assert(result.kind == Expression_Retrieve && result.data.retrieve.kind == Retrieve_Assign_Identifier);
-            node.identifier = result.data.retrieve.data.identifier;
-            node.location = state->tokens->elements[state->index].location;
-
-            consume(state);
-            consume_check(state, Token_LeftParenthesis);
-
-            while (peek(state) != Token_RightParenthesis) {
-                if (peek(state) == Token_Comma) {
-                    consume(state);
-                    continue;
-                }
-
-                Ast_Macro_SyntaxData* data = malloc(sizeof(Ast_Macro_SyntaxData));;
-                *data = parse_macro_syntax_data(state, (Ast_Macro_SyntaxKind) { .kind = Macro_Expression });
-
-                array_ast_macro_syntax_data_append(&node.arguments, data);
-            }
-
-            consume(state);
+            Ast_RunMacro node = parse_run_macro(state, result.data.retrieve.data.identifier, Macro_Expression);
 
             result.kind = Expression_RunMacro;
             result.data.run_macro = node;
@@ -1209,7 +1185,7 @@ Ast_Item parse_item(Parser_State* state) {
                     }
 
                     Ast_Macro_SyntaxKind argument = {};
-                    argument = parse_macro_syntax_kind(state, (Ast_Macro_SyntaxKind) { .kind = Macro_None });
+                    argument = parse_macro_syntax_kind(state, Macro_None);
 
                     array_ast_macro_syntax_kind_append(&node.arguments, argument);
                 }
@@ -1217,7 +1193,7 @@ Ast_Item parse_item(Parser_State* state) {
                 consume(state);
                 consume_check(state, Token_Colon);
 
-                node.return_ = parse_macro_syntax_kind(state, (Ast_Macro_SyntaxKind) { .kind = Macro_None });
+                node.return_ = parse_macro_syntax_kind(state, Macro_None);
 
                 consume_check(state, Token_LeftCurlyBrace);
 
@@ -1255,11 +1231,6 @@ Ast_Item parse_item(Parser_State* state) {
                         *type = parse_type(state);
                         variant.data.kind.kind = Macro_Type;
                         variant.data.data.type = type;
-                    } else if (node.return_.kind == Macro_Item) {
-                        Ast_Item* item = malloc(sizeof(Ast_Item));
-                        *item = parse_item(state);
-                        variant.data.kind.kind = Macro_Item;
-                        variant.data.data.item = item;
                     } else {
                         assert(false);
                     }
@@ -1312,33 +1283,6 @@ Ast_Item parse_item(Parser_State* state) {
                 printf("\n");
                 exit(1);
             }
-            break;
-        }
-        case Token_Identifier: {
-            char* name = consume_identifier(state);
-            Ast_RunMacro item = { .arguments = array_ast_macro_syntax_data_new(2) };
-            item.identifier = (Ast_Identifier) { .name = name };
-            item.location = state->tokens->elements[state->index].location;
-
-            consume_check(state, Token_Exclamation);
-            consume_check(state, Token_LeftParenthesis);
-
-            while (peek(state) != Token_RightParenthesis) {
-                if (peek(state) == Token_Comma) {
-                    consume(state);
-                    continue;
-                }
-
-                Ast_Macro_SyntaxData* data = malloc(sizeof(Ast_Macro_SyntaxData));;
-                *data = parse_macro_syntax_data(state, (Ast_Macro_SyntaxKind) { .kind = Macro_Item });
-
-                array_ast_macro_syntax_data_append(&item.arguments, data);
-            }
-
-            consume(state);
-
-            result.kind = Item_RunMacro;
-            result.data.run_macro = item;
             break;
         }
         default:

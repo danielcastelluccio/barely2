@@ -85,15 +85,16 @@ Dynamic_Array_Def(Ast_Macro_SyntaxData*, Array_Ast_Macro_SyntaxData, array_ast_m
 struct Ast_Macro_SyntaxKind;
 typedef struct Ast_Macro_SyntaxKind Ast_Macro_SyntaxKind;
 
+typedef enum {
+    Macro_None,
+    Macro_Expression,
+    Macro_Type,
+    Macro_Multiple,
+    Macro_Multiple_Expanded,
+} Ast_Macro_Kind;
+
 struct Ast_Macro_SyntaxKind {
-    enum {
-        Macro_None,
-        Macro_Expression,
-        Macro_Type,
-        Macro_Item,
-        Macro_Multiple,
-        Macro_Multiple_Expanded,
-    } kind;
+    Ast_Macro_Kind kind;
     union {
         Ast_Macro_SyntaxKind* multiple;
     } data;
@@ -104,7 +105,6 @@ struct Ast_Macro_SyntaxData {
     union {
         Ast_Expression* expression;
         Ast_Type* type;
-        Ast_Item* item;
         Ast_Macro_SyntaxData* multiple;
         Array_Ast_Macro_SyntaxData multiple_expanded;
     } data;
@@ -457,7 +457,6 @@ struct Ast_Item {
         Item_Type,
         Item_Global,
         Item_Constant,
-        Item_RunMacro,
     } kind;
     union {
         Ast_Item_Procedure procedure;
@@ -465,7 +464,6 @@ struct Ast_Item {
         Ast_Item_Type type;
         Ast_Item_Global global;
         Ast_Item_Constant constant;
-        Ast_RunMacro run_macro;
     } data;
 };
 
