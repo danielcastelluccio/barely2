@@ -1508,6 +1508,16 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
             Ast_Expression_Retrieve* retrieve = &expression->data.retrieve;
             bool found = false;
 
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
+                if (strcmp(retrieve->data.identifier.name, "@file") == 0) {
+                    stack_type_push(&state->stack, create_pointer_type(create_array_type(create_internal_type(Type_U8))));
+                    found = true;
+                } else if (strcmp(retrieve->data.identifier.name, "@line") == 0) {
+                    stack_type_push(&state->stack, create_internal_type(Type_USize));
+                    found = true;
+                }
+            }
+
             if (!found && retrieve->kind == Retrieve_Assign_Array) {
                 bool in_reference = consume_in_reference(state);
                 process_expression(retrieve->data.array.expression_outer, state);

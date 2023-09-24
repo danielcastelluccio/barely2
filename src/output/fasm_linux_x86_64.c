@@ -605,6 +605,29 @@ void output_unsigned_integer(Ast_Type_Internal type, size_t value, Output_State*
     }
 }
 
+void output_string(char* value, Output_State* state) {
+    char buffer[128] = {};
+    sprintf(buffer, "  push _%zu\n", state->string_index);
+    stringbuffer_appendstring(&state->instructions, buffer);
+
+    memset(buffer, 0, 128);
+    sprintf(buffer, "  _%zu: db ", state->string_index);
+    stringbuffer_appendstring(&state->data, buffer);
+
+    size_t str_len = strlen(value);
+    for (size_t i = 0; i < str_len; i++) {
+        char buffer[128] = {};
+        sprintf(buffer, "%i, ", (int) value[i]);
+        stringbuffer_appendstring(&state->data, buffer);
+    }
+
+    memset(buffer, 0, 128);
+    sprintf(buffer, "0\n");
+    stringbuffer_appendstring(&state->data, buffer);
+
+    state->string_index++;
+}
+
 void output_boolean(bool value, Output_State* state) {
     char buffer[128] = {};
     sprintf(buffer, "  mov rax, %i\n", value);
@@ -1160,6 +1183,16 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
             Ast_Expression_Retrieve* retrieve = &expression->data.retrieve;
             bool found = false;
 
+            if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
+                if (strcmp(retrieve->data.identifier.name, "@file") == 0) {
+                    output_string(retrieve->location.file, state);
+                    found = true;
+                } else if (strcmp(retrieve->data.identifier.name, "@line") == 0) {
+                    output_unsigned_integer(Type_USize, retrieve->location.row, state);
+                    found = true;
+                }
+            }
+
             if (!found) {
                 if (retrieve->kind == Retrieve_Assign_Array) {
                     found = true;
@@ -1620,26 +1653,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
         }
         case Expression_String: {
             Ast_Expression_String* string = &expression->data.string;
-            char buffer[128] = {};
-            sprintf(buffer, "  push _%zu\n", state->string_index);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
-            memset(buffer, 0, 128);
-            sprintf(buffer, "  _%zu: db ", state->string_index);
-            stringbuffer_appendstring(&state->data, buffer);
-
-            size_t str_len = strlen(string->value);
-            for (size_t i = 0; i < str_len; i++) {
-                char buffer[128] = {};
-                sprintf(buffer, "%i, ", (int) string->value[i]);
-                stringbuffer_appendstring(&state->data, buffer);
-            }
-
-            memset(buffer, 0, 128);
-            sprintf(buffer, "0\n");
-            stringbuffer_appendstring(&state->data, buffer);
-
-            state->string_index++;
+            output_string(string->value, state);
             break;
         }
         case Expression_Reference: {
