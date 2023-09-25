@@ -143,17 +143,10 @@ Ast_Type evaluate_type_complete(Ast_Type* type_in, Generic_State* state) {
     switch (type.kind) {
         case Type_Basic: {
             Ast_Type_Basic* basic = &type.data.basic;
-            Ast_Item* item = basic->resolved_node;
-
-            if (item == NULL) {
-                Ast_Identifier identifier = basic->identifier;
-                Resolved resolved = resolve(state, identifier);
-                if (resolved.kind == Resolved_Item) {
-                    item = resolved.data.item;
-                }
-            }
-
-            if (item != NULL) {
+            Ast_Identifier identifier = basic->identifier;
+            Resolved resolved = resolve(state, identifier);
+            if (resolved.kind == Resolved_Item) {
+                Ast_Item* item = resolved.data.item;
                 assert(item->kind == Item_Type);
                 Ast_Item_Type* type_node = &item->data.type;
                 Ast_Type type_result = type_node->type;
@@ -676,17 +669,10 @@ void process_type(Ast_Type* type, Process_State* state) {
     switch (type->kind) {
         case Type_Basic: {
             Ast_Type_Basic* basic = &type->data.basic;
-            Ast_Item* item = basic->resolved_node;
-
-            if (item == NULL) {
-                Ast_Identifier identifier = basic->identifier;
-                Resolved resolved = resolve(&state->generic, identifier);
-                if (resolved.kind == Resolved_Item) {
-                    item = resolved.data.item;
-                }
-            }
-
-            if (item != NULL) {
+            Ast_Identifier identifier = basic->identifier;
+            Resolved resolved = resolve(&state->generic, identifier);
+            if (resolved.kind == Resolved_Item) {
+                Ast_Item* item = resolved.data.item;
                 process_item_reference(item, state);
             }
             break;
@@ -726,7 +712,7 @@ Ast_Type get_parent_item_type(Ast_Type* parent_type_in, char* item_name, Generic
     Ast_Type result = { .kind = Type_None };
 
     if (strcmp(item_name, "*") == 0) {
-        result = parent_type;
+        result = *parent_type_in;
     } else {
         switch (parent_type.kind) {
             case Type_Struct:

@@ -54,7 +54,6 @@ typedef enum {
 
 typedef struct {
     Ast_Identifier identifier;
-    Ast_Item* resolved_node;
 } Ast_Type_Basic;
 
 typedef struct {

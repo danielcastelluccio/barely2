@@ -402,6 +402,9 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             result.data.string = expression.data.string;
             break;
         }
+        case Expression_Null: {
+            break;
+        }
         case Expression_Multiple: {
             Ast_Expression_Multiple* multiple_in = &expression.data.multiple;
             Ast_Expression_Multiple multiple_out = { .expressions = array_ast_expression_new(multiple_in->expressions.count) };

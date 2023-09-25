@@ -991,7 +991,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                     stringbuffer_appendstring(&state->instructions, "  cmova rcx, rdx\n");
                                     break;
                                 case Operator_GreaterEqual:
-                                    stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
+                                    stringbuffer_appendstring(&state->instructions, "  cmovae rcx, rdx\n");
                                     break;
                                 default:
                                     assert(false);
@@ -1022,7 +1022,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                     stringbuffer_appendstring(&state->instructions, "  cmova rcx, rdx\n");
                                     break;
                                 case Operator_GreaterEqual:
-                                    stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
+                                    stringbuffer_appendstring(&state->instructions, "  cmovae rcx, rdx\n");
                                     break;
                                 default:
                                     assert(false);
@@ -1053,7 +1053,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                     stringbuffer_appendstring(&state->instructions, "  cmova rcx, rdx\n");
                                     break;
                                 case Operator_GreaterEqual:
-                                    stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
+                                    stringbuffer_appendstring(&state->instructions, "  cmovae rcx, rdx\n");
                                     break;
                                 default:
                                     assert(false);
@@ -1083,7 +1083,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                     stringbuffer_appendstring(&state->instructions, "  cmova rcx, rdx\n");
                                     break;
                                 case Operator_GreaterEqual:
-                                    stringbuffer_appendstring(&state->instructions, "  cmovba rcx, rdx\n");
+                                    stringbuffer_appendstring(&state->instructions, "  cmovae rcx, rdx\n");
                                     break;
                                 default:
                                     assert(false);
@@ -1435,7 +1435,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                 }
             }
 
-            if (!found && retrieve->computed_result_type != NULL) {
+            if (!found && retrieve->computed_result_type != NULL && retrieve->computed_result_type->kind == Type_Enum) {
                 size_t index = 0;
                 Ast_Type_Enum* enum_ = &retrieve->computed_result_type->data.enum_;
                 char* variant = retrieve->data.identifier.name;
