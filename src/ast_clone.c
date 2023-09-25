@@ -402,6 +402,10 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             result.data.string = expression.data.string;
             break;
         }
+        case Expression_Char: {
+            result.data.char_ = expression.data.char_;
+            break;
+        }
         case Expression_Null: {
             break;
         }

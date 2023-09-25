@@ -1817,6 +1817,14 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 is_valid = true;
             }
 
+            if (cast->type.kind == Type_Internal && cast->type.data.internal == Type_Byte && input.kind == Type_Internal && input.data.internal == Type_UInt8) {
+                is_valid = true;
+            }
+
+            if (cast->type.kind == Type_Internal && cast->type.data.internal == Type_UInt8 && input.kind == Type_Internal && input.data.internal == Type_Byte) {
+                is_valid = true;
+            }
+
             if (!is_valid) {
                 print_error_stub(&cast->location);
                 printf("Type '");

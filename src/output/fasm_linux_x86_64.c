@@ -1030,7 +1030,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], cl\n");
-                        } else if (is_internal_type(Type_UInt8, &operator_type)) {
+                        } else if (is_internal_type(Type_UInt8, &operator_type) || is_internal_type(Type_Byte, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  xor rcx, rcx\n");
                             stringbuffer_appendstring(&state->instructions, "  mov rdx, 1\n");
                             stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
@@ -1719,6 +1719,8 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                 } else if (input_internal == Type_Float8 && output_internal == Type_UInt64) {
                     stringbuffer_appendstring(&state->instructions, "  fld qword [rsp]\n");
                     stringbuffer_appendstring(&state->instructions, "  fisttp qword [rsp]\n");
+                } else if (input.kind == Type_Internal && input.data.internal == Type_Byte && output.kind == Type_Internal && output.data.internal == Type_UInt8) {
+                } else if (input.kind == Type_Internal && input.data.internal == Type_UInt8 && output.kind == Type_Internal && output.data.internal == Type_Byte) {
                 } else {
                     assert(false);
                 }
