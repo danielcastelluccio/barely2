@@ -57,6 +57,18 @@ char* consume_string(Parser_State* state) {
     return current->data;
 }
 
+char* consume_char(Parser_State* state) {
+    Token* current = &state->tokens->elements[state->index];
+    if (current->kind != Token_Char) {
+        printf("Error: Expected String, got ");
+        print_token(current, false);
+        printf("\n");
+        exit(1);
+    }
+    state->index++;
+    return current->data;
+}
+
 char* consume_boolean(Parser_State* state) {
     Token* current = &state->tokens->elements[state->index];
     if (current->kind != Token_Boolean) {
@@ -407,23 +419,26 @@ Ast_Type parse_type(Parser_State* state) {
         }
 
         if (!found) {
-            if (strcmp(name, "usize") == 0) {
-                internal = Type_USize;
+            if (strcmp(name, "uint") == 0) {
+                internal = Type_UInt;
                 found = true;
-            } else if (strcmp(name, "u64") == 0) {
-                internal = Type_U64;
+            } else if (strcmp(name, "uint64") == 0) {
+                internal = Type_UInt64;
                 found = true;
-            } else if (strcmp(name, "u32") == 0) {
-                internal = Type_U32;
+            } else if (strcmp(name, "uint32") == 0) {
+                internal = Type_UInt32;
                 found = true;
-            } else if (strcmp(name, "u16") == 0) {
-                internal = Type_U16;
+            } else if (strcmp(name, "uint16") == 0) {
+                internal = Type_UInt16;
                 found = true;
-            } else if (strcmp(name, "u8") == 0) {
-                internal = Type_U8;
+            } else if (strcmp(name, "uint8") == 0) {
+                internal = Type_UInt8;
                 found = true;
-            } else if (strcmp(name, "f64") == 0) {
-                internal = Type_F8;
+            } else if (strcmp(name, "float64") == 0) {
+                internal = Type_Float8;
+                found = true;
+            } else if (strcmp(name, "byte") == 0) {
+                internal = Type_Byte;
                 found = true;
             } else if (strcmp(name, "ptr") == 0) {
                 internal = Type_Ptr;
@@ -672,6 +687,15 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
             result.kind = Expression_String;
             result.data.string = node;
+            break;
+        }
+        case Token_Char: {
+            Ast_Expression_Char node;
+
+            node.value = consume_char(state)[0];
+
+            result.kind = Expression_Char;
+            result.data.char_ = node;
             break;
         }
         case Token_Boolean: {

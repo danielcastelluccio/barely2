@@ -23,7 +23,7 @@ bool is_number_type(Ast_Type* type) {
     if (type->kind == Type_Internal) {
         Ast_Type_Internal internal = type->data.internal;
 
-        if (internal == Type_USize || internal == Type_U64 || internal == Type_U32 || internal == Type_U16 || internal == Type_U8 || internal == Type_F8) {
+        if (internal == Type_UInt || internal == Type_UInt64 || internal == Type_UInt32 || internal == Type_UInt16 || internal == Type_UInt8 || internal == Type_Float8) {
             return true;
         }
     }
@@ -174,7 +174,7 @@ bool is_type(Ast_Type* wanted_in, Ast_Type* given_in, Process_State* state) {
         if (given.kind == Type_RegisterSize) to_check = wanted;
 
         if (to_check.kind == Type_Pointer) return true;
-        if (to_check.kind == Type_Internal && (to_check.data.internal == Type_USize || to_check.data.internal == Type_Ptr)) return true;
+        if (to_check.kind == Type_Internal && (to_check.data.internal == Type_UInt || to_check.data.internal == Type_Ptr)) return true;
 
         return false;
     }
@@ -326,23 +326,26 @@ void print_type_inline(Ast_Type* type) {
             Ast_Type_Internal* internal = &type->data.internal;
 
             switch (*internal) {
-                case Type_USize:
-                    printf("usize");
+                case Type_UInt:
+                    printf("uint");
                     break;
-                case Type_U64:
-                    printf("u64");
+                case Type_UInt64:
+                    printf("uint64");
                     break;
-                case Type_U32:
-                    printf("u32");
+                case Type_UInt32:
+                    printf("uint32");
                     break;
-                case Type_U16:
-                    printf("u16");
+                case Type_UInt16:
+                    printf("uint16");
                     break;
-                case Type_U8:
-                    printf("u8");
+                case Type_UInt8:
+                    printf("uint8");
                     break;
-                case Type_F8:
-                    printf("f64");
+                case Type_Float8:
+                    printf("float64");
+                    break;
+                case Type_Byte:
+                    printf("byte");
                     break;
                 case Type_Ptr:
                     printf("ptr");
@@ -430,7 +433,7 @@ static Ast_Type* _usize_type;
 Ast_Type* usize_type() {
     if (_usize_type == NULL) {
         Ast_Type* usize = malloc(sizeof(Ast_Type));
-        *usize = create_internal_type(Type_USize);
+        *usize = create_internal_type(Type_UInt);
         _usize_type = usize;
     }
     return _usize_type;
@@ -950,7 +953,7 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
             process_expression(assign_part->data.array.expression_inner, state);
 
             Ast_Type array_index_type = stack_type_pop(&state->stack);
-            if (!is_internal_type(Type_USize, &array_index_type)) {
+            if (!is_internal_type(Type_UInt, &array_index_type)) {
                 print_error_stub(&assign_part->location);
                 printf("Type '");
                 print_type_inline(&array_index_type);
@@ -1167,7 +1170,7 @@ bool can_operate_together(Ast_Type* first, Ast_Type* second, Process_State* stat
         return true;
     }
 
-    if (first->kind == Type_Internal && first->data.internal == Type_Ptr && second->kind == Type_Internal && second->data.internal == Type_USize) {
+    if (first->kind == Type_Internal && first->data.internal == Type_Ptr && second->kind == Type_Internal && second->data.internal == Type_UInt) {
         return true;
     }
 
@@ -1496,10 +1499,10 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
                 if (strcmp(retrieve->data.identifier.name, "@file") == 0) {
-                    stack_type_push(&state->stack, create_pointer_type(create_array_type(create_internal_type(Type_U8))));
+                    stack_type_push(&state->stack, create_pointer_type(create_array_type(create_internal_type(Type_UInt8))));
                     found = true;
                 } else if (strcmp(retrieve->data.identifier.name, "@line") == 0) {
-                    stack_type_push(&state->stack, create_internal_type(Type_USize));
+                    stack_type_push(&state->stack, create_internal_type(Type_UInt));
                     found = true;
                 }
             }
@@ -1521,7 +1524,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 state->wanted_type = usize_type();
                 process_expression(retrieve->data.array.expression_inner, state);
                 Ast_Type array_index_type = stack_type_pop(&state->stack);
-                if (!is_internal_type(Type_USize, &array_index_type)) {
+                if (!is_internal_type(Type_UInt, &array_index_type)) {
                     print_error_stub(&retrieve->location);
                     printf("Type '");
                     print_type_inline(&array_index_type);
@@ -1747,7 +1750,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 number->type = wanted;
             } else {
                 Ast_Type* usize = malloc(sizeof(Ast_Type));
-                *usize = create_internal_type(Type_USize);
+                *usize = create_internal_type(Type_UInt);
                 stack_type_push(&state->stack, *usize);
                 number->type = usize;
             }
@@ -1762,7 +1765,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 null->type = wanted;
             } else {
                 Ast_Type* usize = malloc(sizeof(Ast_Type));
-                *usize = create_internal_type(Type_USize);
+                *usize = create_internal_type(Type_UInt);
                 stack_type_push(&state->stack, *usize);
                 null->type = usize;
             }
@@ -1773,7 +1776,11 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
             break;
         }
         case Expression_String: {
-            stack_type_push(&state->stack, create_pointer_type(create_array_type(create_internal_type(Type_U8))));
+            stack_type_push(&state->stack, create_pointer_type(create_array_type(create_internal_type(Type_Byte))));
+            break;
+        }
+        case Expression_Char: {
+            stack_type_push(&state->stack, create_internal_type(Type_Byte));
             break;
         }
         case Expression_Reference: {
@@ -1794,10 +1801,10 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 Ast_Type_Internal output_internal = cast->type.data.internal;
                 Ast_Type_Internal input_internal = input.data.internal;
 
-                if ((input_internal == Type_USize || input_internal == Type_U64 || input_internal == Type_U32 || input_internal == Type_U16 || input_internal == Type_U8) &&
-                        (output_internal == Type_USize || output_internal == Type_U64 || output_internal == Type_U32 || output_internal == Type_U16 || output_internal == Type_U8)) {
+                if ((input_internal == Type_UInt || input_internal == Type_UInt64 || input_internal == Type_UInt32 || input_internal == Type_UInt16 || input_internal == Type_UInt8) &&
+                        (output_internal == Type_UInt || output_internal == Type_UInt64 || output_internal == Type_UInt32 || output_internal == Type_UInt16 || output_internal == Type_UInt8)) {
                     is_valid = true;
-                } else if (input_internal == Type_F8 && output_internal == Type_U64) {
+                } else if (input_internal == Type_Float8 && output_internal == Type_UInt64) {
                     is_valid = true;
                 }
             }

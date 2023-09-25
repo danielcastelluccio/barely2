@@ -42,12 +42,13 @@ typedef struct {
 } Ast_Identifier;
 
 typedef enum {
-    Type_USize,
-    Type_U64,
-    Type_U32,
-    Type_U16,
-    Type_U8,
-    Type_F8,
+    Type_UInt,
+    Type_UInt64,
+    Type_UInt32,
+    Type_UInt16,
+    Type_UInt8,
+    Type_Float8,
+    Type_Byte,
     Type_Ptr,
     Type_Bool,
 } Ast_Type_Internal;
@@ -204,6 +205,10 @@ typedef struct {
 } Ast_Expression_String;
 
 typedef struct {
+    char value;
+} Ast_Expression_Char;
+
+typedef struct {
     bool value;
 } Ast_Expression_Boolean;
 
@@ -332,6 +337,7 @@ struct Ast_Expression {
         Expression_Block,
         Expression_Number,
         Expression_String,
+        Expression_Char,
         Expression_Invoke,
         Expression_RunMacro,
         Expression_Retrieve,
@@ -352,6 +358,7 @@ struct Ast_Expression {
         Ast_Expression_Block block;
         Ast_Expression_Number number;
         Ast_Expression_String string;
+        Ast_Expression_Char char_;
         Ast_Expression_Invoke invoke;
         Ast_RunMacro run_macro;
         Ast_Expression_Retrieve retrieve;

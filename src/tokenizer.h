@@ -40,6 +40,7 @@ typedef enum {
     Token_Keyword,
     Token_Number,
     Token_String,
+    Token_Char,
     Token_Boolean,
     Token_Null,
 } Token_Kind;

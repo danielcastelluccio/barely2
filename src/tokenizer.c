@@ -169,6 +169,8 @@ Tokens tokenize(char* file, char* contents) {
     size_t cached_i = 0;
 
     bool in_string = false;
+    bool in_char = false;
+
     bool in_comment = false;
     size_t length = strlen(contents);
     size_t i = 0;
@@ -182,32 +184,36 @@ Tokens tokenize(char* file, char* contents) {
                 row++;
             }
             i++;
-        } else if (in_string) {
-            switch (character) {
-                case '"':
-                    tokens_append(&tokens, (Token) { Token_String, copy_string(buffer.elements), LOCATION(file, row, col) });
-                    stringbuffer_clear(&buffer);
-                    in_string = false;
-                    i++;
-                    col += (i - cached_i);
-                    break;
-                default:
-                    if (character == '\\') {
-                        switch (contents[i + 1]) {
-                            case 'n':
-                                stringbuffer_append(&buffer, '\n');
-                                break;
-                            case '"':
-                                stringbuffer_append(&buffer, '"');
-                                break;
-                            default:
-                                assert(false);
-                        }
-                        i += 2;
-                    } else {
-                        stringbuffer_append(&buffer, character);
-                        i++;
+        } else if (in_string || in_char) {
+            if (in_string && character == '"') {
+                tokens_append(&tokens, (Token) { Token_String, copy_string(buffer.elements), LOCATION(file, row, col) });
+                stringbuffer_clear(&buffer);
+                in_string = false;
+                i++;
+                col += (i - cached_i);
+            } else if (in_char && character == '\'') {
+                tokens_append(&tokens, (Token) { Token_Char, copy_string(buffer.elements), LOCATION(file, row, col) });
+                stringbuffer_clear(&buffer);
+                in_char = false;
+                i++;
+                col += (i - cached_i);
+            } else {
+                if (character == '\\') {
+                    switch (contents[i + 1]) {
+                        case 'n':
+                            stringbuffer_append(&buffer, '\n');
+                            break;
+                        case '"':
+                            stringbuffer_append(&buffer, '"');
+                            break;
+                        default:
+                            assert(false);
                     }
+                    i += 2;
+                } else {
+                    stringbuffer_append(&buffer, character);
+                    i++;
+                }
             }
         } else {
             switch (character) {
@@ -384,6 +390,12 @@ Tokens tokenize(char* file, char* contents) {
                 case '"':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     in_string = true;
+                    cached_i = i;
+                    i++;
+                    break;
+                case '\'':
+                    check_append_string_token(&tokens, &buffer, file, &row, &col);
+                    in_char = true;
                     cached_i = i;
                     i++;
                     break;
