@@ -23,7 +23,7 @@ bool is_number_type(Ast_Type* type) {
     if (type->kind == Type_Internal) {
         Ast_Type_Internal internal = type->data.internal;
 
-        if (internal == Type_UInt || internal == Type_UInt64 || internal == Type_UInt32 || internal == Type_UInt16 || internal == Type_UInt8 || internal == Type_Float8) {
+        if (internal == Type_UInt || internal == Type_UInt64 || internal == Type_UInt32 || internal == Type_UInt16 || internal == Type_UInt8 || internal == Type_Float64) {
             return true;
         }
     }
@@ -341,7 +341,7 @@ void print_type_inline(Ast_Type* type) {
                 case Type_UInt8:
                     printf("uint8");
                     break;
-                case Type_Float8:
+                case Type_Float64:
                     printf("float64");
                     break;
                 case Type_Byte:
@@ -417,7 +417,7 @@ void print_error_stub(Location* location) {
     printf("%s:%zu:%zu: ", location->file, location->row, location->col);
 }
 
-bool consume_in_reference(Process_State* state) {
+bool consume_in_reference(Generic_State* state) {
     bool cached = state->in_reference;
     state->in_reference = false;
     return cached;
@@ -864,9 +864,9 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
             char* name = assign_part->data.identifier.name;
 
             Ast_Type* type = malloc(sizeof(Ast_Type));
-            for (size_t j = 0; j < state->current_declares.count; j++) {
-                if (strcmp(state->current_declares.elements[j].name, name) == 0) {
-                    *type = state->current_declares.elements[j].type;
+            for (size_t j = 0; j < state->generic.current_declares.count; j++) {
+                if (strcmp(state->generic.current_declares.elements[j].name, name) == 0) {
+                    *type = state->generic.current_declares.elements[j].type;
                     found = true;
                     break;
                 }
@@ -899,14 +899,15 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
             process_expression(assign_part->data.parent.expression, state);
             Ast_Type parent_type = stack_type_pop(&state->stack);
 
-            assign_part->data.parent.computed_parent_type = parent_type;
-
             Ast_Type* parent_type_raw;
             if (parent_type.kind == Type_Pointer) {
                 parent_type_raw = parent_type.data.pointer.child;
             } else {
                 parent_type_raw = &parent_type;
+                assign_part->data.parent.needs_reference = true;
             }
+
+            assign_part->data.parent.computed_parent_type = *parent_type_raw;
 
             Ast_Type resolved = get_parent_item_type(parent_type_raw, assign_part->data.parent.name, &state->generic);
             if (resolved.kind != Type_None) {
@@ -1079,13 +1080,13 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
                         printf("'\n");
                         exit(1);
                     }
-                    array_ast_declaration_append(&state->current_declares, *declaration);
+                    array_ast_declaration_append(&state->generic.current_declares, *declaration);
                 }
             } else {
                 for (int i = declare->declarations.count - 1; i >= 0; i--) {
                     Ast_Declaration* declaration = &declare->declarations.elements[i];
                     process_type(&declaration->type, state);
-                    array_ast_declaration_append(&state->current_declares, *declaration);
+                    array_ast_declaration_append(&state->generic.current_declares, *declaration);
                 }
             }
             break;
@@ -1100,17 +1101,17 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
                 size_t declare_index = 0;
                 for (size_t i = 0; i < return_->expression->data.multiple.expressions.count; i++) {
                     size_t stack_start = state->stack.count;
-                    state->wanted_type = state->current_returns.elements[declare_index];
+                    state->wanted_type = state->generic.current_returns.elements[declare_index];
                     process_expression(return_->expression->data.multiple.expressions.elements[i], state);
                     declare_index += state->stack.count - stack_start;
                 }
             } else {
-                state->wanted_type = state->current_returns.elements[state->current_returns.count - 1];
+                state->wanted_type = state->generic.current_returns.elements[state->generic.current_returns.count - 1];
                 process_expression(return_->expression, state);
             }
 
-            for (int i = state->current_returns.count - 1; i >= 0; i--) {
-                Ast_Type* return_type = state->current_returns.elements[i];
+            for (int i = state->generic.current_returns.count - 1; i >= 0; i--) {
+                Ast_Type* return_type = state->generic.current_returns.elements[i];
 
                 if (state->stack.count == 0) {
                     print_error_stub(&return_->location);
@@ -1155,8 +1156,8 @@ bool is_like_number_literal(Ast_Expression* expression) {
 }
 
 Ast_Type* get_local_variable_type(Process_State* state, char* name) {
-    for (int i = state->current_declares.count - 1; i >= 0; i--) {
-        Ast_Declaration* declaration = &state->current_declares.elements[i];
+    for (int i = state->generic.current_declares.count - 1; i >= 0; i--) {
+        Ast_Declaration* declaration = &state->generic.current_declares.elements[i];
         if (strcmp(declaration->name, name) == 0) {
             return &declaration->type;
         }
@@ -1266,12 +1267,12 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
             Ast_Expression_Block* block = &expression->data.block;
-            array_size_append(&state->scoped_declares, state->current_declares.count);
+            array_size_append(&state->generic.scoped_declares, state->generic.current_declares.count);
             for (size_t i = 0; i < block->statements.count; i++) {
                 process_statement(block->statements.elements[i], state);
             }
-            state->current_declares.count = state->scoped_declares.elements[state->scoped_declares.count - 1];
-            state->scoped_declares.count--;
+            state->generic.current_declares.count = state->generic.scoped_declares.elements[state->generic.scoped_declares.count - 1];
+            state->generic.scoped_declares.count--;
             break;
         }
         case Expression_Multiple: {
@@ -1508,7 +1509,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Array) {
-                bool in_reference = consume_in_reference(state);
+                bool in_reference = consume_in_reference(&state->generic);
                 process_expression(retrieve->data.array.expression_outer, state);
                 Ast_Type array_type = stack_type_pop(&state->stack);
 
@@ -1545,7 +1546,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
 
                 if (variable_type != NULL) {
                     found = true;
-                    if (consume_in_reference(state)) {
+                    if (consume_in_reference(&state->generic)) {
                         stack_type_push(&state->stack, create_pointer_type(*variable_type));
                     } else {
                         stack_type_push(&state->stack, *variable_type);
@@ -1555,8 +1556,8 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
                 Ast_Type type = { .directives = array_ast_directive_new(1) };
-                for (size_t i = 0; i < state->current_arguments.count; i++) {
-                    Ast_Declaration* declaration = &state->current_arguments.elements[state->current_arguments.count - i - 1];
+                for (size_t i = 0; i < state->generic.current_arguments.count; i++) {
+                    Ast_Declaration* declaration = &state->generic.current_arguments.elements[state->generic.current_arguments.count - i - 1];
                     if (strcmp(declaration->name, retrieve->data.identifier.name) == 0) {
                         type = declaration->type;
                         found = true;
@@ -1565,7 +1566,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 }
 
                 if (found) {
-                    if (consume_in_reference(state)) {
+                    if (consume_in_reference(&state->generic)) {
                         type = create_pointer_type(type);
                     }
 
@@ -1574,18 +1575,19 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
             }
 
             if (!found && retrieve->kind == Retrieve_Assign_Parent) {
-                bool in_reference = consume_in_reference(state);
+                bool in_reference = consume_in_reference(&state->generic);
                 process_expression(retrieve->data.parent.expression, state);
                 Ast_Type parent_type = stack_type_pop(&state->stack);
-
-                retrieve->data.parent.computed_parent_type = parent_type;
 
                 Ast_Type* parent_type_raw;
                 if (parent_type.kind == Type_Pointer) {
                     parent_type_raw = parent_type.data.pointer.child;
                 } else {
                     parent_type_raw = &parent_type;
+                    retrieve->data.parent.needs_reference = true;
                 }
+
+                retrieve->data.parent.computed_parent_type = *parent_type_raw;
 
                 Ast_Type item_type;
                 Ast_Type result_type = get_parent_item_type(parent_type_raw, retrieve->data.parent.name, &state->generic);
@@ -1652,7 +1654,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                             case Item_Global: {
                                 Ast_Item_Global* global = &item->data.global;
 
-                                if (consume_in_reference(state)) {
+                                if (consume_in_reference(&state->generic)) {
                                     stack_type_push(&state->stack, create_pointer_type(global->type));
                                 } else {
                                     stack_type_push(&state->stack, global->type);
@@ -1785,7 +1787,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
         }
         case Expression_Reference: {
             Ast_Expression_Reference* reference = &expression->data.reference;
-            state->in_reference = true;
+            state->generic.in_reference = true;
 
             process_expression(reference->inner, state);
             break;
@@ -1804,7 +1806,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 if ((input_internal == Type_UInt || input_internal == Type_UInt64 || input_internal == Type_UInt32 || input_internal == Type_UInt16 || input_internal == Type_UInt8) &&
                         (output_internal == Type_UInt || output_internal == Type_UInt64 || output_internal == Type_UInt32 || output_internal == Type_UInt16 || output_internal == Type_UInt8)) {
                     is_valid = true;
-                } else if (input_internal == Type_Float8 && output_internal == Type_UInt64) {
+                } else if (input_internal == Type_Float64 && output_internal == Type_UInt64) {
                     is_valid = true;
                 }
             }
@@ -1943,9 +1945,9 @@ void process_item(Ast_Item* item, Process_State* state) {
         case Item_Procedure: {
             state->current_procedure = item;
             Ast_Item_Procedure* procedure = &item->data.procedure;
-            state->current_declares = array_ast_declaration_new(4);
-            state->current_arguments = procedure->arguments;
-            state->current_returns = procedure->returns;
+            state->generic.current_declares = array_ast_declaration_new(4);
+            state->generic.current_arguments = procedure->arguments;
+            state->generic.current_returns = procedure->returns;
             state->current_body = procedure->body;
 
             for (size_t i = 0; i < procedure->arguments.count; i++) {
@@ -1972,6 +1974,18 @@ void process_item(Ast_Item* item, Process_State* state) {
     }
 }
 
+bool is_enum_type(Ast_Type* type, Generic_State* generic_state) {
+    if (type->kind == Type_Basic) {
+        Resolved resolved = resolve(generic_state, type->data.basic.identifier);
+        if (resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Type) {
+            return is_enum_type(&resolved.data.item->data.type.type, generic_state);
+        }
+    } else if (type->kind == Type_Enum) {
+        return true;
+    }
+    return false;
+}
+
 void process(Program* program, Array_String* package_names, Array_String* package_paths) {
     Process_State state = (Process_State) {
         .generic = (Generic_State) {
@@ -1980,14 +1994,14 @@ void process(Program* program, Array_String* package_names, Array_String* packag
             .current_file = NULL,
             .package_names = package_names,
             .package_paths = package_paths,
+            .current_arguments = {},
+            .current_declares = {},
+            .scoped_declares = array_size_new(8),
+            .current_returns = {},
+            .in_reference = false,
         },
         .stack = stack_type_new(8),
-        .current_declares = {},
-        .scoped_declares = array_size_new(8),
-        .current_arguments = {},
-        .current_returns = {},
         .current_body = NULL,
-        .in_reference = false,
         .wanted_type = NULL,
     };
 

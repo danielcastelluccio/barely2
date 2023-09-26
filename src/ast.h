@@ -47,7 +47,7 @@ typedef enum {
     Type_UInt32,
     Type_UInt16,
     Type_UInt8,
-    Type_Float8,
+    Type_Float64,
     Type_Byte,
     Type_Ptr,
     Type_Bool,
@@ -274,6 +274,7 @@ typedef struct {
             Ast_Expression* expression;
             char* name;
             Ast_Type computed_parent_type;
+            bool needs_reference;
         } parent;
         struct {
             Ast_Expression* expression_outer;

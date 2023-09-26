@@ -435,7 +435,7 @@ Ast_Type parse_type(Parser_State* state) {
                 internal = Type_UInt8;
                 found = true;
             } else if (strcmp(name, "float64") == 0) {
-                internal = Type_Float8;
+                internal = Type_Float64;
                 found = true;
             } else if (strcmp(name, "byte") == 0) {
                 internal = Type_Byte;
@@ -949,7 +949,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
         running = false;
         if (peek(state) == Token_Period) {
             running = true;
-            Ast_Expression_Retrieve node;
+            Ast_Expression_Retrieve node = {};
             node.kind = Retrieve_Assign_Parent;
 
             consume(state);

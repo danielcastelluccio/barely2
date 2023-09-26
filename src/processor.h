@@ -11,18 +11,18 @@ typedef struct {
     Ast_File* current_file;
     Array_String* package_names;
     Array_String* package_paths;
+    Array_Ast_Declaration current_arguments;
+    Array_Ast_Declaration current_declares;
+    Array_Ast_Type current_returns;
+    Array_Size scoped_declares;
+    bool in_reference;
 } Generic_State;
 
 typedef struct {
     Generic_State generic;
     Stack_Ast_Type stack;
     Ast_Item* current_procedure;
-    Array_Ast_Declaration current_declares;
-    Array_Size scoped_declares;
-    Array_Ast_Declaration current_arguments;
-    Array_Ast_Type current_returns;
     Ast_Expression* current_body;
-    bool in_reference;
     Ast_Type* wanted_type;
 } Process_State;
 
@@ -44,8 +44,12 @@ Ast_Type create_internal_type(Ast_Type_Internal type);
 Ast_Type create_basic_single_type(char* name);
 void process(Program* program, Array_String* package_names, Array_String* package_paths);
 
+bool consume_in_reference(Generic_State* state);
+
 bool has_directive(Array_Ast_Directive* directives, Directive_Kind kind);
 Ast_Directive* get_directive(Array_Ast_Directive* directives, Directive_Kind kind);
+
+bool is_enum_type(Ast_Type* type, Generic_State* generic_state);
 
 Ast_Type evaluate_type(Ast_Type* type);
 Ast_Type evaluate_type_complete(Ast_Type* type, Generic_State* state);
