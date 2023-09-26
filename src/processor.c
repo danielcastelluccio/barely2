@@ -1943,12 +1943,11 @@ void process_item(Ast_Item* item, Process_State* state) {
 
     switch (item->kind) {
         case Item_Procedure: {
-            state->current_procedure = item;
             Ast_Item_Procedure* procedure = &item->data.procedure;
+            state->generic.current_procedure = procedure;
             state->generic.current_declares = array_ast_declaration_new(4);
             state->generic.current_arguments = procedure->arguments;
             state->generic.current_returns = procedure->returns;
-            state->current_body = procedure->body;
 
             for (size_t i = 0; i < procedure->arguments.count; i++) {
                 process_type(&procedure->arguments.elements[i].type, state);
@@ -2001,7 +2000,6 @@ void process(Program* program, Array_String* package_names, Array_String* packag
             .in_reference = false,
         },
         .stack = stack_type_new(8),
-        .current_body = NULL,
         .wanted_type = NULL,
     };
 

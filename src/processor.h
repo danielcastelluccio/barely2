@@ -11,6 +11,7 @@ typedef struct {
     Ast_File* current_file;
     Array_String* package_names;
     Array_String* package_paths;
+    Ast_Item_Procedure* current_procedure;
     Array_Ast_Declaration current_arguments;
     Array_Ast_Declaration current_declares;
     Array_Ast_Type current_returns;
@@ -21,8 +22,6 @@ typedef struct {
 typedef struct {
     Generic_State generic;
     Stack_Ast_Type stack;
-    Ast_Item* current_procedure;
-    Ast_Expression* current_body;
     Ast_Type* wanted_type;
 } Process_State;
 

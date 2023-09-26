@@ -16,7 +16,6 @@ typedef struct {
     String_Buffer bss;
     size_t string_index;
     size_t flow_index;
-    Ast_Item* current_procedure;
 } Output_State;
 
 void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_State* state);
@@ -211,7 +210,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
 
             size_t arguments_size = get_arguments_size(&state->generic);
             size_t returns_size = get_returns_size(&state->generic);
-            size_t locals_size = get_locals_size(&state->current_procedure->data.procedure, &state->generic);
+            size_t locals_size = get_locals_size(state->generic.current_procedure, &state->generic);
 
             // rdx = old rip
             char buffer[128] = {};
@@ -1242,7 +1241,7 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
             state->generic.current_declares = array_ast_declaration_new(4);
             state->generic.current_arguments = procedure->arguments;
             state->generic.current_returns = procedure->returns;
-            state->current_procedure = item;
+            state->generic.current_procedure = procedure;
 
             char buffer[128] = {};
             sprintf(buffer, "%s:\n", procedure->name);
@@ -1307,7 +1306,6 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         .bss = stringbuffer_new(16384),
         .string_index = 0,
         .flow_index = 0,
-        .current_procedure = NULL,
     };
 
     for (size_t j = 0; j < program->count; j++) {
