@@ -163,39 +163,42 @@ void filter_add_directive(Parser_State* state, Array_Ast_Directive* directives, 
     }
 }
 
-Ast_Macro_SyntaxKind parse_macro_syntax_kind(Parser_State* state, Ast_Macro_Kind default_kind) {
-    Ast_Macro_SyntaxKind result = (Ast_Macro_SyntaxKind) { .kind = default_kind };
+Ast_Macro_Syntax_Kind parse_macro_kind(Parser_State* state, Ast_Macro_Syntax_Kind default_kind) {
+    Ast_Macro_Syntax_Kind result = default_kind;
     if (peek(state) == Token_Identifier) {
         char* name = state->tokens->elements[state->index].data;
         if (strcmp(name, "$expr") == 0) {
-            result = (Ast_Macro_SyntaxKind) { .kind = Macro_Expression };
+            result = Macro_Expression;
             consume(state);
         } else if (strcmp(name, "$type") == 0) {
-            result = (Ast_Macro_SyntaxKind) { .kind = Macro_Type };
+            result = Macro_Type;
             consume(state);
         }
     }
+    return result;
+}
+
+Ast_Macro_Argument parse_macro_syntax_kind(Parser_State* state, Ast_Macro_Syntax_Kind default_kind) {
+    Ast_Macro_Argument result = (Ast_Macro_Argument) { .kind = parse_macro_kind(state, default_kind) };
 
     assert(result.kind != Macro_None);
 
     if (peek(state) == Token_DoublePeriod) {
         consume(state);
-        Ast_Macro_SyntaxKind* result_allocated = malloc(sizeof(Ast_Macro_SyntaxKind));
-        *result_allocated = result;
-        result = (Ast_Macro_SyntaxKind) { .kind = Macro_Multiple, .data = { .multiple = result_allocated } };
+        result.multiple = true;
     }
     return result;
 }
 
-Ast_Macro_SyntaxData parse_macro_syntax_data_inner(Parser_State* state, Ast_Macro_SyntaxKind kind) {
-    Ast_Macro_SyntaxData result;
+Ast_Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, Ast_Macro_Syntax_Kind kind) {
+    Ast_Macro_Syntax_Data result;
 
-    switch (kind.kind) {
+    switch (kind) {
         case Macro_Expression: {
             Ast_Expression* expression = malloc(sizeof(Ast_Expression));
             *expression = parse_expression(state);
 
-            result.kind.kind = Macro_Expression;
+            result.kind = Macro_Expression;
             result.data.expression = expression;
             break;
         }
@@ -203,18 +206,8 @@ Ast_Macro_SyntaxData parse_macro_syntax_data_inner(Parser_State* state, Ast_Macr
             Ast_Type* type = malloc(sizeof(Ast_Type));
             *type = parse_type(state);
 
-            result.kind.kind = Macro_Type;
+            result.kind = Macro_Type;
             result.data.type = type;
-            break;
-        }
-        case Macro_Multiple: {
-            Ast_Macro_SyntaxKind* inner = kind.data.multiple;
-
-            result.kind.kind = Macro_Multiple;
-            result.kind.data.multiple = kind.data.multiple;
-            result.data.multiple = malloc(sizeof(Ast_Macro_SyntaxData));
-
-            *result.data.multiple = parse_macro_syntax_data_inner(state, *inner);
             break;
         }
         default:
@@ -224,12 +217,12 @@ Ast_Macro_SyntaxData parse_macro_syntax_data_inner(Parser_State* state, Ast_Macr
     return result;
 }
 
-Ast_Macro_SyntaxData parse_macro_syntax_data(Parser_State* state, Ast_Macro_Kind default_kind) {
-    Ast_Macro_SyntaxKind kind = parse_macro_syntax_kind(state, default_kind);
+Ast_Macro_Syntax_Data parse_macro_syntax_data(Parser_State* state, Ast_Macro_Syntax_Kind default_kind) {
+    Ast_Macro_Syntax_Kind kind = parse_macro_kind(state, default_kind);
     return parse_macro_syntax_data_inner(state, kind);
 }
 
-Ast_RunMacro parse_run_macro(Parser_State* state, Ast_Identifier identifier, Ast_Macro_Kind default_kind) {
+Ast_RunMacro parse_run_macro(Parser_State* state, Ast_Identifier identifier, Ast_Macro_Syntax_Kind default_kind) {
     Ast_RunMacro run_macro = { .arguments = array_ast_macro_syntax_data_new(2) };
     run_macro.identifier = identifier;
     run_macro.location = state->tokens->elements[state->index].location;
@@ -243,7 +236,7 @@ Ast_RunMacro parse_run_macro(Parser_State* state, Ast_Identifier identifier, Ast
             continue;
         }
 
-        Ast_Macro_SyntaxData* data = malloc(sizeof(Ast_Macro_SyntaxData));;
+        Ast_Macro_Syntax_Data* data = malloc(sizeof(Ast_Macro_Syntax_Data));;
         *data = parse_macro_syntax_data(state, default_kind);
 
         array_ast_macro_syntax_data_append(&run_macro.arguments, data);
@@ -833,20 +826,6 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
             }
             break;
         }
-        case Token_DoublePeriod: {
-            consume(state);
-
-            Ast_Expression_Retrieve node = {};
-            node.kind = Retrieve_Assign_Identifier;
-            Ast_Identifier identifier = {};
-            identifier.name = "..";
-
-            node.kind = Retrieve_Assign_Identifier;
-            node.data.identifier = identifier;
-            result.kind = Expression_Retrieve;
-            result.data.retrieve = node;
-            break;
-        }
         case Token_Exclamation: {
             Ast_Expression_Invoke node = { .arguments = array_ast_expression_new(1) };
             node.kind = Invoke_Operator;
@@ -1208,9 +1187,7 @@ Ast_Item parse_item(Parser_State* state) {
                         continue;
                     }
 
-                    Ast_Macro_SyntaxKind argument = {};
-                    argument = parse_macro_syntax_kind(state, Macro_None);
-
+                    Ast_Macro_Argument argument = parse_macro_syntax_kind(state, Macro_None);
                     array_ast_macro_syntax_kind_append(&node.arguments, argument);
                 }
 
@@ -1235,11 +1212,10 @@ Ast_Item parse_item(Parser_State* state) {
                             continue;
                         }
 
+                        array_string_append(&variant.bindings, consume_identifier(state));
                         if (peek(state) == Token_DoublePeriod) {
-                            array_string_append(&variant.bindings, "..");
+                            variant.varargs = true;
                             consume(state);
-                        } else {
-                            array_string_append(&variant.bindings, consume_identifier(state));
                         }
                     }
 
@@ -1248,12 +1224,12 @@ Ast_Item parse_item(Parser_State* state) {
                     if (node.return_.kind == Macro_Expression) {
                         Ast_Expression* node = malloc(sizeof(Ast_Expression));
                         *node = parse_expression(state);
-                        variant.data.kind.kind = Macro_Expression;
+                        variant.data.kind = Macro_Expression;
                         variant.data.data.expression = node;
                     } else if (node.return_.kind == Macro_Type) {
                         Ast_Type* type = malloc(sizeof(Ast_Type));
                         *type = parse_type(state);
-                        variant.data.kind.kind = Macro_Type;
+                        variant.data.kind = Macro_Type;
                         variant.data.data.type = type;
                     } else {
                         assert(false);

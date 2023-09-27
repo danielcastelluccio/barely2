@@ -77,36 +77,30 @@ typedef struct Ast_Declaration Ast_Declaration;
 
 Dynamic_Array_Def(Ast_Declaration*, Array_Ast_Declaration_Pointer, array_ast_declaration_pointer_)
 
-struct Ast_Macro_SyntaxData;
-typedef struct Ast_Macro_SyntaxData Ast_Macro_SyntaxData;
+struct Ast_Macro_Syntax_Data;
+typedef struct Ast_Macro_Syntax_Data Ast_Macro_Syntax_Data;
 
-Dynamic_Array_Def(Ast_Macro_SyntaxData*, Array_Ast_Macro_SyntaxData, array_ast_macro_syntax_data_)
+Dynamic_Array_Def(Ast_Macro_Syntax_Data*, Array_Ast_Macro_Syntax_Data, array_ast_macro_syntax_data_)
 
-struct Ast_Macro_SyntaxKind;
-typedef struct Ast_Macro_SyntaxKind Ast_Macro_SyntaxKind;
+struct Ast_Macro_Argument;
+typedef struct Ast_Macro_Argument Ast_Macro_Argument;
 
 typedef enum {
     Macro_None,
     Macro_Expression,
     Macro_Type,
-    Macro_Multiple,
-    Macro_Multiple_Expanded,
-} Ast_Macro_Kind;
+} Ast_Macro_Syntax_Kind;
 
-struct Ast_Macro_SyntaxKind {
-    Ast_Macro_Kind kind;
-    union {
-        Ast_Macro_SyntaxKind* multiple;
-    } data;
+struct Ast_Macro_Argument {
+    Ast_Macro_Syntax_Kind kind;
+    bool multiple;
 };
 
-struct Ast_Macro_SyntaxData {
-    Ast_Macro_SyntaxKind kind;
+struct Ast_Macro_Syntax_Data {
+    Ast_Macro_Syntax_Kind kind;
     union {
         Ast_Expression* expression;
         Ast_Type* type;
-        Ast_Macro_SyntaxData* multiple;
-        Array_Ast_Macro_SyntaxData multiple_expanded;
     } data;
 };
 
@@ -133,10 +127,10 @@ typedef struct {
 
 typedef struct {
     Ast_Identifier identifier;
-    Array_Ast_Macro_SyntaxData arguments;
+    Array_Ast_Macro_Syntax_Data arguments;
     Location location;
 
-    Ast_Macro_SyntaxData result;
+    Ast_Macro_Syntax_Data result;
 } Ast_RunMacro;
 
 struct Ast_Type {
@@ -420,11 +414,12 @@ struct Ast_Statement {
 
 typedef struct {
     Array_String bindings;
-    Ast_Macro_SyntaxData data;
+    bool varargs;
+    Ast_Macro_Syntax_Data data;
 } Ast_Macro_Variant;
 
 Dynamic_Array_Def(Ast_Macro_Variant, Array_Ast_Macro_Variant, array_ast_macro_variant_)
-Dynamic_Array_Def(Ast_Macro_SyntaxKind, Array_Ast_Macro_SyntaxKind, array_ast_macro_syntax_kind_)
+Dynamic_Array_Def(Ast_Macro_Argument, Array_Ast_Macro_Argument, array_ast_macro_syntax_kind_)
 
 Dynamic_Array_Def(Ast_Item, Array_Ast_Item, array_ast_item_)
 
@@ -437,8 +432,8 @@ typedef struct {
 
 typedef struct {
     char* name;
-    Array_Ast_Macro_SyntaxKind arguments;
-    Ast_Macro_SyntaxKind return_;
+    Array_Ast_Macro_Argument arguments;
+    Ast_Macro_Argument return_;
     Array_Ast_Macro_Variant variants;
 } Ast_Item_Macro;
 

@@ -11,5 +11,5 @@ Dynamic_Array_Impl(Statement_Assign_Part, Array_Statement_Assign_Part, array_sta
 Dynamic_Array_Impl(Ast_File, Program, program_)
 Dynamic_Array_Impl(Ast_Directive, Array_Ast_Directive, array_ast_directive_)
 Dynamic_Array_Impl(Ast_Macro_Variant, Array_Ast_Macro_Variant, array_ast_macro_variant_)
-Dynamic_Array_Impl(Ast_Macro_SyntaxData*, Array_Ast_Macro_SyntaxData, array_ast_macro_syntax_data_)
-Dynamic_Array_Impl(Ast_Macro_SyntaxKind, Array_Ast_Macro_SyntaxKind, array_ast_macro_syntax_kind_)
+Dynamic_Array_Impl(Ast_Macro_Syntax_Data*, Array_Ast_Macro_Syntax_Data, array_ast_macro_syntax_data_)
+Dynamic_Array_Impl(Ast_Macro_Argument, Array_Ast_Macro_Argument, array_ast_macro_syntax_kind_)

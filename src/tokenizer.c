@@ -46,10 +46,10 @@ bool is_keyword(char* buffer) {
 void print_token(Token* token, bool newline) {
     switch (token->kind) {
         case Token_LeftParenthesis:
-            printf("{");
+            printf("(");
             break;
         case Token_RightParenthesis:
-            printf("}");
+            printf(")");
             break;
         case Token_LeftBracket:
             printf("[");

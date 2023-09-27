@@ -221,7 +221,7 @@ Ast_Type clone_type(Ast_Type type) {
             Ast_RunMacro run_macro_out = { .identifier = run_macro_in->identifier, .arguments = array_ast_macro_syntax_data_new(run_macro_in->arguments.count), .location = run_macro_in->location };
 
             for (size_t i = 0; i < run_macro_in->arguments.count; i++) {
-                Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
+                Ast_Macro_Syntax_Data* syntax_data = malloc(sizeof(Ast_Macro_Syntax_Data));
                 *syntax_data = clone_syntax_data(*run_macro_in->arguments.elements[i]);
                 array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data);
             }
@@ -284,7 +284,7 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             Ast_RunMacro run_macro_out = { .identifier = run_macro_in->identifier, .arguments = array_ast_macro_syntax_data_new(run_macro_in->arguments.count), .location = run_macro_in->location };
 
             for (size_t i = 0; i < run_macro_in->arguments.count; i++) {
-                Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
+                Ast_Macro_Syntax_Data* syntax_data = malloc(sizeof(Ast_Macro_Syntax_Data));
                 *syntax_data = clone_syntax_data(*run_macro_in->arguments.elements[i]);
 
                 array_ast_macro_syntax_data_append(&run_macro_out.arguments, syntax_data);
@@ -428,11 +428,11 @@ Ast_Expression clone_expression(Ast_Expression expression) {
     return result;
 }
 
-Ast_Macro_SyntaxData clone_syntax_data(Ast_Macro_SyntaxData data) {
-    Ast_Macro_SyntaxData result;
+Ast_Macro_Syntax_Data clone_syntax_data(Ast_Macro_Syntax_Data data) {
+    Ast_Macro_Syntax_Data result;
     result.kind = data.kind;
 
-    switch (data.kind.kind) {
+    switch (data.kind) {
         case Macro_Expression: {
             result.data.expression = malloc(sizeof(Ast_Expression));
             *result.data.expression = clone_expression(*data.data.expression);
@@ -441,20 +441,6 @@ Ast_Macro_SyntaxData clone_syntax_data(Ast_Macro_SyntaxData data) {
         case Macro_Type: {
             result.data.type = malloc(sizeof(Ast_Type));
             *result.data.type = clone_type(*data.data.type);
-            break;
-        }
-        case Macro_Multiple: {
-            result.data.multiple = malloc(sizeof(Ast_Macro_SyntaxData));
-            *result.data.multiple = clone_syntax_data(*data.data.multiple);
-            break;
-        }
-        case Macro_Multiple_Expanded: {
-            result.data.multiple_expanded = array_ast_macro_syntax_data_new(data.data.multiple_expanded.count);
-            for (size_t i = 0; i < data.data.multiple_expanded.count; i++) {
-                Ast_Macro_SyntaxData* syntax_data = malloc(sizeof(Ast_Macro_SyntaxData));
-                *syntax_data = clone_syntax_data(*data.data.multiple_expanded.elements[i]);
-                array_ast_macro_syntax_data_append(&result.data.multiple_expanded, syntax_data);
-            }
             break;
         }
         default:

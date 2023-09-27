@@ -267,20 +267,14 @@ void walk_statement(Ast_Statement* statement, Ast_Walk_State* state) {
     }
 }
 
-void walk_macro_syntax_data(Ast_Macro_SyntaxData* data, Ast_Walk_State* state) {
-    switch (data->kind.kind) {
+void walk_macro_syntax_data(Ast_Macro_Syntax_Data* data, Ast_Walk_State* state) {
+    switch (data->kind) {
         case Macro_Expression: {
             walk_expression(data->data.expression, state);
             break;
         }
         case Macro_Type: {
             walk_type(data->data.type, state);
-            break;
-        }
-        case Macro_Multiple: {
-            if (data->kind.data.multiple->kind == Macro_Expression) {
-                walk_macro_syntax_data(data->data.multiple, state);
-            }
             break;
         }
         default:
