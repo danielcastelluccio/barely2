@@ -178,7 +178,7 @@ Ast_Macro_Syntax_Kind parse_macro_kind(Parser_State* state, Ast_Macro_Syntax_Kin
     return result;
 }
 
-Ast_Macro_Argument parse_macro_syntax_kind(Parser_State* state, Ast_Macro_Syntax_Kind default_kind) {
+Ast_Macro_Argument parse_macro_argument(Parser_State* state, Ast_Macro_Syntax_Kind default_kind) {
     Ast_Macro_Argument result = (Ast_Macro_Argument) { .kind = parse_macro_kind(state, default_kind) };
 
     assert(result.kind != Macro_None);
@@ -499,7 +499,7 @@ Ast_Statement parse_statement(Parser_State* state) {
         consume(state);
 
         Array_Ast_Declaration declarations = array_ast_declaration_new(8);
-        while (peek(state) != Token_Equals && peek(state) != Token_Semicolon) {
+        do {
             if (peek(state) == Token_Comma) {
                 consume(state);
                 continue;
@@ -510,23 +510,21 @@ Ast_Statement parse_statement(Parser_State* state) {
             consume_check(state, Token_Colon);
             declaration.type = parse_type(state);
             array_ast_declaration_append(&declarations, declaration);
-        }
+        } while(peek(state) == Token_Comma);
+
         node.declarations = declarations;
 
-        Token_Kind next = consume(state);
+        Token_Kind next = peek(state);
         if (next == Token_Equals) {
+            consume(state);
+
             Ast_Expression* expression = malloc(sizeof(Ast_Expression));
             *expression = parse_multiple_expression(state);
             node.expression = expression;
 
             consume_check(state, Token_Semicolon);
-        } else if (next == Token_Semicolon) {
         } else {
-            print_token_error_stub(&state->tokens->elements[state->index - 1]);
-            printf("Unexpected token ");
-            print_token(&state->tokens->elements[state->index - 1], false);
-            printf("\n");
-            exit(1);
+            consume_check(state, Token_Semicolon);
         }
 
         result.kind = Statement_Declare;
@@ -553,50 +551,40 @@ Ast_Statement parse_statement(Parser_State* state) {
         *expression = parse_multiple_expression(state);
         node.expression = expression;
 
-        Token_Kind token = consume(state);
-        switch (token) {
-            case Token_Equals: {
-                Ast_Statement_Assign assign = {};
-                assign.parts = array_statement_assign_part_new(2);
+        Token_Kind token = peek(state);
+        if (token == Token_Equals) {
+            consume(state);
 
-                if (expression->kind == Expression_Retrieve) {
+            Ast_Statement_Assign assign = {};
+            assign.parts = array_statement_assign_part_new(2);
+
+            if (expression->kind == Expression_Retrieve) {
+                Statement_Assign_Part assign_part;
+                assign_part = expression->data.retrieve;
+                array_statement_assign_part_append(&assign.parts, assign_part);
+            } else if (expression->kind == Expression_Multiple) {
+                Ast_Expression_Multiple* multiple = &expression->data.multiple;
+                for (size_t i = 0; i < multiple->expressions.count; i++) {
+                    Ast_Expression* expression = multiple->expressions.elements[i];
                     Statement_Assign_Part assign_part;
                     assign_part = expression->data.retrieve;
                     array_statement_assign_part_append(&assign.parts, assign_part);
-                } else if (expression->kind == Expression_Multiple) {
-                    Ast_Expression_Multiple* multiple = &expression->data.multiple;
-                    for (size_t i = 0; i < multiple->expressions.count; i++) {
-                        Ast_Expression* expression = multiple->expressions.elements[i];
-                        Statement_Assign_Part assign_part;
-                        assign_part = expression->data.retrieve;
-                        array_statement_assign_part_append(&assign.parts, assign_part);
-                    }
                 }
-
-                Ast_Expression* expression = malloc(sizeof(Ast_Expression));
-                *expression = parse_multiple_expression(state);
-                assign.expression = expression;
-
-                result.kind = Statement_Assign;
-                result.data.assign = assign;
-
-                consume_check(state, Token_Semicolon);
-                break;
             }
-            case Token_Semicolon: {
-                result.statement_end_location = state->tokens->elements[state->index - 1].location;
-                result.kind = Statement_Expression;
-                result.data.expression = node;
-                break;
-            }
-            default: {
-                print_token_error_stub(&state->tokens->elements[state->index - 1]);
-                printf("Unexpected token ");
-                print_token(&state->tokens->elements[state->index - 1], false);
-                printf("\n");
-                exit(1);
-                break;
-            }
+
+            Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+            *expression = parse_multiple_expression(state);
+            assign.expression = expression;
+
+            result.kind = Statement_Assign;
+            result.data.assign = assign;
+
+            consume_check(state, Token_Semicolon);
+        } else {
+            result.statement_end_location = state->tokens->elements[state->index - 1].location;
+            result.kind = Statement_Expression;
+            result.data.expression = node;
+            consume_check(state, Token_Semicolon);
         }
     }
 
@@ -1187,14 +1175,14 @@ Ast_Item parse_item(Parser_State* state) {
                         continue;
                     }
 
-                    Ast_Macro_Argument argument = parse_macro_syntax_kind(state, Macro_None);
+                    Ast_Macro_Argument argument = parse_macro_argument(state, Macro_None);
                     array_ast_macro_syntax_kind_append(&node.arguments, argument);
                 }
 
                 consume(state);
                 consume_check(state, Token_Colon);
 
-                node.return_ = parse_macro_syntax_kind(state, Macro_None);
+                node.return_ = parse_macro_argument(state, Macro_None);
 
                 consume_check(state, Token_LeftCurlyBrace);
 
