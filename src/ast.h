@@ -217,12 +217,6 @@ typedef struct {
     Location location;
 } Ast_Expression_If;
 
-typedef struct {
-    Ast_Expression* condition;
-    Ast_Expression* inside;
-    Location location;
-} Ast_Expression_While;
-
 typedef enum {
     Operator_Add,
     Operator_Subtract,
@@ -337,7 +331,6 @@ struct Ast_Expression {
         Expression_RunMacro,
         Expression_Retrieve,
         Expression_If,
-        Expression_While,
         Expression_Multiple,
         Expression_Reference,
         Expression_Boolean,
@@ -358,7 +351,6 @@ struct Ast_Expression {
         Ast_RunMacro run_macro;
         Ast_Expression_Retrieve retrieve;
         Ast_Expression_If if_;
-        Ast_Expression_While while_;
         Ast_Expression_Multiple multiple;
         Ast_Expression_Reference reference;
         Ast_Expression_Boolean boolean;
@@ -374,6 +366,7 @@ struct Ast_Expression {
 
 typedef struct {
     Ast_Expression* expression;
+    bool skip_stack_check;
 } Ast_Statement_Expression;
 
 typedef struct {
@@ -395,6 +388,15 @@ typedef struct {
     Location location;
 } Ast_Statement_Return;
 
+typedef struct {
+    Ast_Expression* condition;
+    Ast_Expression* inside;
+    Location location;
+} Ast_Statement_While;
+
+typedef struct {
+} Ast_Statement_Break;
+
 struct Ast_Statement {
     Array_Ast_Directive directives;
     enum {
@@ -402,12 +404,16 @@ struct Ast_Statement {
         Statement_Declare,
         Statement_Assign,
         Statement_Return,
+        Statement_While,
+        Statement_Break,
     } kind;
     union {
         Ast_Statement_Expression expression;
         Ast_Statement_Declare declare;
         Ast_Statement_Assign assign;
         Ast_Statement_Return return_;
+        Ast_Statement_While while_;
+        Ast_Statement_Break break_;
     } data;
     Location statement_end_location;
 };

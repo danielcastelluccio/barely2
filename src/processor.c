@@ -990,6 +990,12 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
         case Statement_Expression: {
             Ast_Statement_Expression* statement_expression = &statement->data.expression;
             process_expression(statement_expression->expression, state);
+
+            if (!statement_expression->skip_stack_check && state->stack.count > 0) {
+                print_error_stub(&statement->statement_end_location);
+                printf("Extra values at the end of statement\n");
+                exit(1);
+            }
             break;
         }
         case Statement_Declare: {
@@ -1042,10 +1048,22 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
                     array_ast_declaration_append(&state->generic.current_declares, *declaration);
                 }
             }
+
+            if (state->stack.count > 0) {
+                print_error_stub(&statement->statement_end_location);
+                printf("Extra values at the end of statement\n");
+                exit(1);
+            }
             break;
         }
         case Statement_Assign: {
             process_assign(&statement->data.assign, state);
+
+            if (state->stack.count > 0) {
+                print_error_stub(&statement->statement_end_location);
+                printf("Extra values at the end of statement\n");
+                exit(1);
+            }
             break;
         }
         case Statement_Return: {
@@ -1083,17 +1101,43 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
                     exit(1);
                 }
             }
+
+            if (state->stack.count > 0) {
+                print_error_stub(&statement->statement_end_location);
+                printf("Extra values at the end of statement\n");
+                exit(1);
+            }
+            break;
+        }
+        case Statement_While: {
+            Ast_Statement_While* node = &statement->data.while_;
+
+            process_expression(node->condition, state);
+
+            if (state->stack.count == 0) {
+                print_error_stub(&node->location);
+                printf("Ran out of values for if\n");
+                exit(1);
+            }
+
+            Ast_Type given = stack_type_pop(&state->stack);
+            Ast_Type bool_type = create_internal_type(Type_Bool);
+            if (!is_type(&bool_type, &given, state)) {
+                print_error_stub(&node->location);
+                printf("Type '");
+                print_type_inline(&given);
+                printf("' is not a boolean\n");
+                exit(1);
+            }
+
+            process_expression(node->inside, state);
+            break;
+        }
+        case Statement_Break: {
             break;
         }
         default:
-            printf("Unhandled statement type %i!\n", statement->kind);
-            exit(1);
-    }
-
-    if (state->stack.count > 0) {
-        print_error_stub(&statement->statement_end_location);
-        printf("Extra values at the end of statement\n");
-        exit(1);
+            assert(false);
     }
 }
 
@@ -1665,35 +1709,35 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 exit(1);
             }
 
+            size_t stack_pointer_start = state->stack.count;
             process_expression(node->if_expression, state);
+            size_t stack_pointer_middle = state->stack.count;
 
-            if (node->else_expression != NULL) {
+            if (node->else_expression == NULL) {
+                if (stack_pointer_middle - stack_pointer_start > 0) {
+                    print_error_stub(&node->location);
+                    printf("If expression resulting in value(s) must have an else expression\n");
+                    exit(1);
+                }
+            } else {
                 process_expression(node->else_expression, state);
+                size_t stack_pointer_end = state->stack.count;
+
+                bool matches = true;
+                if (stack_pointer_end - stack_pointer_middle != stack_pointer_middle - stack_pointer_start) matches = false;
+
+                for (size_t i = 0; i < stack_pointer_middle - stack_pointer_start; i++) {
+                    if (!is_type(&state->stack.elements[stack_pointer_start + i], &state->stack.elements[stack_pointer_middle + i], state)) matches = false;
+                }
+                
+                if (!matches) {
+                    print_error_stub(&node->location);
+                    printf("If expression resulting in value(s) must result in identical values no matter the case\n");
+                    exit(1);
+                }
+
+                state->stack.count = stack_pointer_middle;
             }
-            break;
-        }
-        case Expression_While: {
-            Ast_Expression_While* node = &expression->data.while_;
-
-            process_expression(node->condition, state);
-
-            if (state->stack.count == 0) {
-                print_error_stub(&node->location);
-                printf("Ran out of values for if\n");
-                exit(1);
-            }
-
-            Ast_Type given = stack_type_pop(&state->stack);
-            Ast_Type bool_type = create_internal_type(Type_Bool);
-            if (!is_type(&bool_type, &given, state)) {
-                print_error_stub(&node->location);
-                printf("Type '");
-                print_type_inline(&given);
-                printf("' is not a boolean\n");
-                exit(1);
-            }
-
-            process_expression(node->inside, state);
             break;
         }
         case Expression_Number: {

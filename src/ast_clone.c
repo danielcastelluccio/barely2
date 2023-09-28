@@ -142,6 +142,15 @@ Ast_Statement clone_statement(Ast_Statement statement) {
             result.data.expression = expression_out;
             break;
         }
+        case Statement_While: {
+            Ast_Statement_While* while_in = &statement.data.while_;
+            Ast_Statement_While while_out = { .condition = malloc(sizeof(Ast_Expression)), .inside = malloc(sizeof(Ast_Expression)) };
+            *while_out.condition = clone_expression(*while_in->condition);
+            *while_out.inside = clone_expression(*while_in->inside);
+
+            result.data.while_ = while_out;
+            break;
+        }
         default:
             assert(false);
     }
@@ -345,15 +354,6 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             }
 
             result.data.if_ = if_out;
-            break;
-        }
-        case Expression_While: {
-            Ast_Expression_While* while_in = &expression.data.while_;
-            Ast_Expression_While while_out = { .condition = malloc(sizeof(Ast_Expression)), .inside = malloc(sizeof(Ast_Expression)) };
-            *while_out.condition = clone_expression(*while_in->condition);
-            *while_out.inside = clone_expression(*while_in->inside);
-
-            result.data.while_ = while_out;
             break;
         }
         case Expression_IsType: {

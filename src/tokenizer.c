@@ -10,35 +10,21 @@
 Dynamic_Array_Impl(Token, Tokens, tokens_)
 
 bool is_keyword(char* buffer) {
-    if (strcmp(buffer, "proc") == 0) {
-        return true;
-    } else if (strcmp(buffer, "macro") == 0) {
-        return true;
-    } else if (strcmp(buffer, "type") == 0) {
-        return true;
-    } else if (strcmp(buffer, "struct") == 0) {
-        return true;
-    } else if (strcmp(buffer, "union") == 0) {
-        return true;
-    } else if (strcmp(buffer, "enum") == 0) {
-        return true;
-    } else if (strcmp(buffer, "mod") == 0) {
-        return true;
-    } else if (strcmp(buffer, "global") == 0) {
-        return true;
-    } else if (strcmp(buffer, "const") == 0) {
-        return true;
-    } else if (strcmp(buffer, "var") == 0) {
-        return true;
-    } else if (strcmp(buffer, "if") == 0) {
-        return true;
-    } else if (strcmp(buffer, "else") == 0) {
-        return true;
-    } else if (strcmp(buffer, "while") == 0) {
-        return true;
-    } else if (strcmp(buffer, "return") == 0) {
-        return true;
-    }
+    if (strcmp(buffer, "proc") == 0)        return true;
+    else if (strcmp(buffer, "macro") == 0)  return true;
+    else if (strcmp(buffer, "type") == 0)   return true;
+    else if (strcmp(buffer, "struct") == 0) return true;
+    else if (strcmp(buffer, "union") == 0)  return true;
+    else if (strcmp(buffer, "enum") == 0)   return true;
+    else if (strcmp(buffer, "mod") == 0)    return true;
+    else if (strcmp(buffer, "global") == 0) return true;
+    else if (strcmp(buffer, "const") == 0)  return true;
+    else if (strcmp(buffer, "var") == 0)    return true;
+    else if (strcmp(buffer, "if") == 0)     return true;
+    else if (strcmp(buffer, "else") == 0)   return true;
+    else if (strcmp(buffer, "while") == 0)  return true;
+    else if (strcmp(buffer, "break") == 0)  return true;
+    else if (strcmp(buffer, "return") == 0) return true;
 
     return false;
 }
@@ -117,7 +103,6 @@ void print_token(Token* token, bool newline) {
         default:
             printf("Unknown");
             break;
-
     }
 
     if (newline) {
@@ -418,12 +403,7 @@ Tokens tokenize(char* file, char* contents) {
                     i++;
 
                     if (character >= '0' && character <= '9' && contents[i] == '.') {
-                        bool is_number_buffer = true;
-                        for (size_t j = 0; j < buffer.count; j++) {
-                            if (buffer.elements[j] < '0' || buffer.elements[j] > '9') {
-                                is_number_buffer = false;
-                            }
-                        }
+                        bool is_number_buffer = buffer.elements[0] >= '0' && buffer.elements[0] <= '9';
                         if (is_number_buffer) {
                             stringbuffer_append(&buffer, contents[i]);
                             i++;

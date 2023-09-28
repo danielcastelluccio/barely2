@@ -148,11 +148,6 @@ void walk_expression(Ast_Expression* expression, Ast_Walk_State* state) {
             }
             break;
         }
-        case Expression_While: {
-            walk_expression(expression->data.while_.condition, state);
-            walk_expression(expression->data.while_.inside, state);
-            break;
-        }
         case Expression_RunMacro: {
             Ast_RunMacro* run_macro = &expression->data.run_macro;
             for (size_t i = 0; i < run_macro->arguments.count; i++) {
@@ -260,6 +255,11 @@ void walk_statement(Ast_Statement* statement, Ast_Walk_State* state) {
             }
 
             walk_expression(assign->expression, state);
+            break;
+        }
+        case Statement_While: {
+            walk_expression(statement->data.while_.condition, state);
+            walk_expression(statement->data.while_.inside, state);
             break;
         }
         default:

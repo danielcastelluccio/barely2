@@ -16,6 +16,7 @@ typedef struct {
     String_Buffer bss;
     size_t string_index;
     size_t flow_index;
+    Array_Size while_index;
 } Output_State;
 
 void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_State* state);
@@ -232,6 +233,51 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
             stringbuffer_appendstring(&state->instructions, "  push rdx\n");
             stringbuffer_appendstring(&state->instructions, "  ret\n");
 
+            break;
+        }
+        case Statement_While: {
+            size_t end = state->flow_index;
+            state->flow_index++;
+
+            size_t start = state->flow_index;
+            state->flow_index++;
+
+            Ast_Statement_While* node = &statement->data.while_;
+            char buffer[128] = {};
+            sprintf(buffer, "  __%zu:\n", start);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            output_expression_fasm_linux_x86_64(node->condition, state);
+
+            stringbuffer_appendstring(&state->instructions, "  mov rbx, 1\n");
+            stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
+            stringbuffer_appendstring(&state->instructions, "  mov al, [rsp]\n");
+            stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
+            stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  jne __%zu\n", end);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            array_size_append(&state->while_index, end);
+
+            output_expression_fasm_linux_x86_64(node->inside, state);
+
+            state->while_index.count--;
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  jmp __%zu\n", start);
+            stringbuffer_appendstring(&state->instructions, buffer);
+
+            memset(buffer, 0, 128);
+            sprintf(buffer, "  __%zu:\n", end);
+            stringbuffer_appendstring(&state->instructions, buffer);
+            break;
+        }
+        case Statement_Break: {
+            char buffer[128] = {};
+            sprintf(buffer, "  jmp __%zu\n", state->while_index.elements[state->while_index.count - 1]);
+            stringbuffer_appendstring(&state->instructions, buffer);
             break;
         }
         default:
@@ -1044,41 +1090,6 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
             stringbuffer_appendstring(&state->instructions, buffer);
             break;
         }
-        case Expression_While: {
-            size_t end = state->flow_index;
-            state->flow_index++;
-
-            size_t start = state->flow_index;
-            state->flow_index++;
-
-            Ast_Expression_While* node = &expression->data.while_;
-            char buffer[128] = {};
-            sprintf(buffer, "  __%zu:\n", start);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
-            output_expression_fasm_linux_x86_64(node->condition, state);
-
-            stringbuffer_appendstring(&state->instructions, "  mov rbx, 1\n");
-            stringbuffer_appendstring(&state->instructions, "  xor rax, rax\n");
-            stringbuffer_appendstring(&state->instructions, "  mov al, [rsp]\n");
-            stringbuffer_appendstring(&state->instructions, "  add rsp, 1\n");
-            stringbuffer_appendstring(&state->instructions, "  cmp rax, rbx\n");
-
-            memset(buffer, 0, 128);
-            sprintf(buffer, "  jne __%zu\n", end);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
-            output_expression_fasm_linux_x86_64(node->inside, state);
-
-            memset(buffer, 0, 128);
-            sprintf(buffer, "  jmp __%zu\n", start);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
-            memset(buffer, 0, 128);
-            sprintf(buffer, "  __%zu:\n", end);
-            stringbuffer_appendstring(&state->instructions, buffer);
-            break;
-        }
         case Expression_Number: {
             Ast_Expression_Number* number = &expression->data.number;
 
@@ -1306,6 +1317,7 @@ void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String*
         .bss = stringbuffer_new(16384),
         .string_index = 0,
         .flow_index = 0,
+        .while_index = array_size_new(4),
     };
 
     for (size_t j = 0; j < program->count; j++) {

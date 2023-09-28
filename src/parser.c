@@ -544,8 +544,35 @@ Ast_Statement parse_statement(Parser_State* state) {
 
         result.kind = Statement_Return;
         result.data.return_ = node;
+    } else if (token == Token_Keyword && strcmp(state->tokens->elements[state->index].data, "while") == 0) {
+        consume(state);
+
+        Ast_Statement_While node;
+
+        Ast_Expression condition = parse_expression(state);
+        Ast_Expression* condition_allocated = malloc(sizeof(Ast_Expression));
+        *condition_allocated = condition;
+        node.condition = condition_allocated;
+
+        Ast_Expression inside = parse_expression(state);
+        Ast_Expression* inside_allocated = malloc(sizeof(Ast_Expression));
+        *inside_allocated = inside;
+        node.inside = inside_allocated;
+
+        consume_check(state, Token_Semicolon);
+
+        result.kind = Statement_While;
+        result.data.while_ = node;
+    } else if (token == Token_Keyword && strcmp(state->tokens->elements[state->index].data, "break") == 0) {
+        consume(state);
+
+        Ast_Statement_Break node;
+        consume_check(state, Token_Semicolon);
+
+        result.kind = Statement_Break;
+        result.data.break_ = node;
     } else {
-        Ast_Statement_Expression node;
+        Ast_Statement_Expression node = {};
 
         Ast_Expression* expression = malloc(sizeof(Ast_Expression));
         *expression = parse_multiple_expression(state);
@@ -581,10 +608,18 @@ Ast_Statement parse_statement(Parser_State* state) {
 
             consume_check(state, Token_Semicolon);
         } else {
+            Token_Kind kind = peek(state);
+            if (kind == Token_Semicolon) {
+                consume(state);
+            } else if (kind == Token_RightCurlyBrace) {
+                node.skip_stack_check = true;
+            } else {
+                assert(false);
+            }
+
             result.statement_end_location = state->tokens->elements[state->index - 1].location;
             result.kind = Statement_Expression;
             result.data.expression = node;
-            consume_check(state, Token_Semicolon);
         }
     }
 
@@ -856,21 +891,6 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
                 result.kind = Expression_If;
                 result.data.if_ = node;
-            } else if (strcmp(name, "while") == 0) {
-                Ast_Expression_While node;
-
-                Ast_Expression condition = parse_expression(state);
-                Ast_Expression* condition_allocated = malloc(sizeof(Ast_Expression));
-                *condition_allocated = condition;
-                node.condition = condition_allocated;
-
-                Ast_Expression inside = parse_expression(state);
-                Ast_Expression* inside_allocated = malloc(sizeof(Ast_Expression));
-                *inside_allocated = inside;
-                node.inside = inside_allocated;
-
-                result.kind = Expression_While;
-                result.data.while_ = node;
             } else {
                 print_token_error_stub(&state->tokens->elements[state->index - 1]);
                 printf("Unexpected token ");
