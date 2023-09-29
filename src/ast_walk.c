@@ -209,6 +209,8 @@ void walk_statement(Ast_Statement* statement, Ast_Walk_State* state) {
                 walk_expression(if_->expression, state);
                 break;
             }
+            case Directive_Entry:
+                break;
         }
     }
 

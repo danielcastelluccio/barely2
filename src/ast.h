@@ -23,6 +23,7 @@ typedef struct {
 
 typedef enum {
     Directive_If,
+    Directive_Entry,
 } Directive_Kind;
 
 typedef struct {

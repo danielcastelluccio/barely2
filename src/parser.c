@@ -140,6 +140,8 @@ void parse_directives(Parser_State* state) {
 
             directive.kind = Directive_If;
             directive.data.if_ = if_node;
+        } else if (strcmp(directive_string, "#entry") == 0) {
+            directive.kind = Directive_Entry;
         }
 
         array_ast_directive_append(&state->directives, directive);
@@ -1168,6 +1170,7 @@ Ast_Item parse_item(Parser_State* state) {
 
     parse_directives(state);
     filter_add_directive(state, &result.directives, Directive_If);
+    filter_add_directive(state, &result.directives, Directive_Entry);
 
     switch (peek(state)) {
         case Token_Keyword: {

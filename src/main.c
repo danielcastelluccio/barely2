@@ -27,5 +27,5 @@ int main(int argc, char** argv) {
     }
 
     process(&program);
-    output_fasm_linux_x86_64(&program, "output");
+    output_fasm_linux_x86_64(&program, "output.fasm");
 }

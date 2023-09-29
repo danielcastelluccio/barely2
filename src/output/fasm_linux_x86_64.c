@@ -21,7 +21,7 @@ typedef struct {
 
 void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_State* state);
 
-void output_copy(Output_State* state, char* input_register, bool input_inverted, int input_offset, char* output_register, bool output_inverted, int output_offset, size_t size, char* intermediate_register_8, char* intermediate_register_1) {
+void output_copy_fasm_linux_x86_64(Output_State* state, char* input_register, bool input_inverted, int input_offset, char* output_register, bool output_inverted, int output_offset, size_t size, char* intermediate_register_8, char* intermediate_register_1) {
     size_t i = size;
     while (i > 0) {
         if (i >= 8) {
@@ -65,7 +65,7 @@ void output_actual_return_fasm_linux_x86_64(Output_State* state) {
     sprintf(buffer, "  mov rdx, [rsp+%zu]\n", returns_size + locals_size + 8);
     stringbuffer_appendstring(&state->instructions, buffer);
 
-    output_copy(state, "rsp", false, 0, "rsp", false, 16 + arguments_size + locals_size, returns_size, "rax", "al");
+    output_copy_fasm_linux_x86_64(state, "rsp", false, 0, "rsp", false, 16 + arguments_size + locals_size, returns_size, "rax", "al");
 
     memset(buffer, 0, 128);
     sprintf(buffer, "  add rsp, %zu\n", 16 + arguments_size + locals_size);
@@ -103,7 +103,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
                     }
                     size_t size = get_size(&declaration.type, &state->generic);
 
-                    output_copy(state, "rsp", false, 0, "rbp", true, location + size, size, "rax", "al");
+                    output_copy_fasm_linux_x86_64(state, "rsp", false, 0, "rbp", true, location + size, size, "rax", "al");
 
                     char buffer[128] = {};
                     sprintf(buffer, "  add rsp, %zu\n", size);
@@ -154,7 +154,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
 
                     stringbuffer_appendstring(&state->instructions, "  mul rdx\n");
                         
-                    output_copy(state, "rsp", false, 0, "rax+rcx", false, 0, size, "rbx", "bl");
+                    output_copy_fasm_linux_x86_64(state, "rsp", false, 0, "rax+rcx", false, 0, size, "rbx", "bl");
 
                     memset(buffer, 0, 128);
                     sprintf(buffer, "  add rsp, %zu\n", size);
@@ -175,7 +175,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
                     stringbuffer_appendstring(&state->instructions, "  pop rax\n");
 
                     Location_Size_Data location_size = get_parent_item_location_size(&parent_type, assign_part->data.parent.name, &state->generic);
-                    output_copy(state, "rsp", false, 0, "rax", false, location_size.location, location_size.size, "rbx", "bl");
+                    output_copy_fasm_linux_x86_64(state, "rsp", false, 0, "rax", false, location_size.location, location_size.size, "rbx", "bl");
 
                     char buffer[128] = {};
                     sprintf(buffer, "  add rsp, %zu\n", location_size.size);
@@ -189,7 +189,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
                         found = true;
 
                         Location_Size_Data location_size = get_local_variable_location_size(name, &state->generic);
-                        output_copy(state, "rsp", false, 0, "rbp", true, location_size.location + location_size.size, location_size.size, "rax", "al");
+                        output_copy_fasm_linux_x86_64(state, "rsp", false, 0, "rbp", true, location_size.location + location_size.size, location_size.size, "rax", "al");
 
                         char buffer[128] = {};
                         sprintf(buffer, "  add rsp, %zu\n", location_size.size);
@@ -207,7 +207,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
                                     Ast_Item_Global* global = &item->data.global;
                                     size_t size = get_size(&global->type, &state->generic);
 
-                                    output_copy(state, "rsp", false, 0, global->name, false, 0, size, "rax", "al");
+                                    output_copy_fasm_linux_x86_64(state, "rsp", false, 0, global->name, false, 0, size, "rax", "al");
 
                                     char buffer[128] = {};
                                     sprintf(buffer, "  add rsp, %zu\n", size);
@@ -287,7 +287,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
     }
 }
 
-void output_raw_value(Ast_Type_Internal type, size_t value, Output_State* state) {
+void output_raw_value_fasm_linux_x86_64(Ast_Type_Internal type, size_t value, Output_State* state) {
     if (type == Type_UInt64 || type == Type_UInt) {
         stringbuffer_appendstring(&state->instructions, "  sub rsp, 8\n");
         char buffer[128] = {};
@@ -314,7 +314,7 @@ void output_raw_value(Ast_Type_Internal type, size_t value, Output_State* state)
     }
 }
 
-void output_string(char* value, Output_State* state) {
+void output_string_fasm_linux_x86_64(char* value, Output_State* state) {
     char buffer[128] = {};
     sprintf(buffer, "  push _%zu\n", state->string_index);
     stringbuffer_appendstring(&state->instructions, buffer);
@@ -337,7 +337,7 @@ void output_string(char* value, Output_State* state) {
     state->string_index++;
 }
 
-void output_boolean(bool value, Output_State* state) {
+void output_boolean_fasm_linux_x86_64(bool value, Output_State* state) {
     char buffer[128] = {};
     sprintf(buffer, "  mov rax, %i\n", value);
     stringbuffer_appendstring(&state->instructions, buffer);
@@ -345,7 +345,7 @@ void output_boolean(bool value, Output_State* state) {
     stringbuffer_appendstring(&state->instructions, "  mov [rsp], al\n");
 }
 
-void output_zeroes(size_t count, Output_State* state) {
+void output_zeroes_fasm_linux_x86_64(size_t count, Output_State* state) {
     char buffer[128] = {};
     sprintf(buffer, "  sub rsp, %zu\n", count);
     stringbuffer_appendstring(&state->instructions, buffer);
@@ -368,7 +368,7 @@ void output_zeroes(size_t count, Output_State* state) {
     }
 }
 
-void output_build_type(Ast_Expression_Build* build, Ast_Type* type_in, Output_State* state) {
+void output_build_type_fasm_linux_x86_64(Ast_Expression_Build* build, Ast_Type* type_in, Output_State* state) {
     Ast_Type type = evaluate_type_complete(type_in, &state->generic);
     switch (type.kind) {
         case Type_Struct: {
@@ -864,10 +864,10 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
 
             if (!found && retrieve->kind == Retrieve_Assign_Identifier) {
                 if (strcmp(retrieve->data.identifier.name, "@file") == 0) {
-                    output_string(retrieve->location.file, state);
+                    output_string_fasm_linux_x86_64(retrieve->location.file, state);
                     found = true;
                 } else if (strcmp(retrieve->data.identifier.name, "@line") == 0) {
-                    output_raw_value(Type_UInt, retrieve->location.row, state);
+                    output_raw_value_fasm_linux_x86_64(Type_UInt, retrieve->location.row, state);
                     found = true;
                 }
             }
@@ -909,7 +909,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                     sprintf(buffer, "  sub rsp, %zu\n", element_size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
-                    output_copy(state, "rax+rcx", false, 0, "rsp", false, 0, element_size, "rbx", "bl");
+                    output_copy_fasm_linux_x86_64(state, "rax+rcx", false, 0, "rsp", false, 0, element_size, "rbx", "bl");
                 }
             }
 
@@ -938,7 +938,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                     sprintf(buffer, "  sub rsp, %zu\n", location_size.size);
                     stringbuffer_appendstring(&state->instructions, buffer);
 
-                    output_copy(state, "rax", false, location_size.location, "rsp", false, 0, location_size.size, "rbx", "bl");
+                    output_copy_fasm_linux_x86_64(state, "rax", false, location_size.location, "rsp", false, 0, location_size.size, "rbx", "bl");
                 }
             }
 
@@ -959,7 +959,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                         sprintf(buffer, "  sub rsp, %zu\n", location_size.size);
                         stringbuffer_appendstring(&state->instructions, buffer);
                         
-                        output_copy(state, "rbp", true, location_size.location + location_size.size, "rsp", false, 0, location_size.size, "rax", "al");
+                        output_copy_fasm_linux_x86_64(state, "rbp", true, location_size.location + location_size.size, "rsp", false, 0, location_size.size, "rax", "al");
                     }
                 }
             }
@@ -980,7 +980,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                         sprintf(buffer, "  sub rsp, %zu\n", location_size.size);
                         stringbuffer_appendstring(&state->instructions, buffer);
 
-                        output_copy(state, "rbp", false, location_size.location + 8, "rsp", false, 0, location_size.size, "rax", "al");
+                        output_copy_fasm_linux_x86_64(state, "rbp", false, location_size.location + 8, "rsp", false, 0, location_size.size, "rax", "al");
                     }
                 }
             }
@@ -1029,7 +1029,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                     sprintf(buffer, "  sub rsp, %zu\n", size);
                                     stringbuffer_appendstring(&state->instructions, buffer);
                                         
-                                    output_copy(state, global->name, false, 0, "rsp", false, 0, size, "rax", "al");
+                                    output_copy_fasm_linux_x86_64(state, global->name, false, 0, "rsp", false, 0, size, "rax", "al");
                                 }
                                 break;
                             }
@@ -1110,7 +1110,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                         assert(false);
                 }
 
-                output_raw_value(Type_UInt64, value.s, state);
+                output_raw_value_fasm_linux_x86_64(Type_UInt64, value.s, state);
             } else {
                 size_t value;
                 switch (number->kind) {
@@ -1123,13 +1123,13 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                     default:
                         assert(false);
                 }
-                output_raw_value(type, value, state);
+                output_raw_value_fasm_linux_x86_64(type, value, state);
             }
             break;
         }
         case Expression_Boolean: {
             Ast_Expression_Boolean* boolean = &expression->data.boolean;
-            output_boolean(boolean->value, state);
+            output_boolean_fasm_linux_x86_64(boolean->value, state);
             break;
         }
         case Expression_Null: {
@@ -1138,12 +1138,12 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
         }
         case Expression_String: {
             Ast_Expression_String* string = &expression->data.string;
-            output_string(string->value, state);
+            output_string_fasm_linux_x86_64(string->value, state);
             break;
         }
         case Expression_Char: {
             Ast_Expression_Char* char_ = &expression->data.char_;
-            output_raw_value(Type_Byte, char_->value, state);
+            output_raw_value_fasm_linux_x86_64(Type_Byte, char_->value, state);
             break;
         }
         case Expression_Reference: {
@@ -1215,22 +1215,22 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
         }
         case Expression_Init: {
             Ast_Expression_Init* init = &expression->data.init;
-            output_zeroes(get_size(&init->type, &state->generic), state);
+            output_zeroes_fasm_linux_x86_64(get_size(&init->type, &state->generic), state);
             break;
         }
         case Expression_Build: {
             Ast_Expression_Build* build = &expression->data.build;
-            output_build_type(build, &build->type, state);
+            output_build_type_fasm_linux_x86_64(build, &build->type, state);
             break;
         }
         case Expression_SizeOf: {
             Ast_Expression_SizeOf* size_of = &expression->data.size_of;
-            output_raw_value(size_of->computed_result_type.data.internal, get_size(&size_of->type, &state->generic), state);
+            output_raw_value_fasm_linux_x86_64(size_of->computed_result_type.data.internal, get_size(&size_of->type, &state->generic), state);
             break;
         }
         case Expression_LengthOf: {
             Ast_Expression_LengthOf* length_of = &expression->data.length_of;
-            output_raw_value(length_of->computed_result_type.data.internal, get_length(&length_of->type), state);
+            output_raw_value_fasm_linux_x86_64(length_of->computed_result_type.data.internal, get_length(&length_of->type), state);
             break;
         }
         default:
@@ -1255,6 +1255,12 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
             state->generic.current_arguments = procedure->arguments;
             state->generic.current_returns = procedure->returns;
             state->generic.current_procedure = procedure;
+
+            if (has_directive(&item->directives, Directive_Entry)) {
+                char buffer[128] = {};
+                sprintf(buffer, "_entry = %s\n", procedure->name);
+                stringbuffer_appendstring(&state->instructions, buffer);
+            }
 
             char buffer[128] = {};
             sprintf(buffer, "%s:\n", procedure->name);
@@ -1323,13 +1329,13 @@ void output_fasm_linux_x86_64(Program* program, char* output_file) {
         }
     }
 
-    FILE* file = fopen("temp.fasm", "w");
+    FILE* file = fopen(output_file, "w");
 
     fprintf(file, "format ELF64 executable\n");
     fprintf(file, "segment readable executable\n");
     fprintf(file, "  lea rbx, [rsp+8] \n");
     fprintf(file, "  push rbx\n");
-    fprintf(file, "  call main\n");
+    fprintf(file, "  call _entry\n");
     fprintf(file, "  mov rax, 60\n");
     fprintf(file, "  mov rdi, 0\n");
     fprintf(file, "  syscall\n");
@@ -1343,18 +1349,4 @@ void output_fasm_linux_x86_64(Program* program, char* output_file) {
     fwrite(state.bss.elements, state.bss.count, 1, file);
 
     fclose(file);
-
-    int result = fork();
-    if (result == 0) {
-        close(1);
-        char* args[] = {"fasm", "temp.fasm", output_file, NULL};
-        char* env[] = {NULL};
-
-        execve("/bin/fasm", args, env);
-        exit(1);
-    }
-
-    waitpid(result, NULL, 0);
-
-    remove("temp.fasm");
 }
