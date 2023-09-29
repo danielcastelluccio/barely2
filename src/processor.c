@@ -1392,9 +1392,9 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
 
                     process_expression(invoke->arguments.elements[reversed ? 1 : 0], state);
 
-                    Ast_Type* wanted_allocated = malloc(sizeof(Ast_Type));
-                    *wanted_allocated = state->stack.elements[state->stack.count - 1];
-                    state->wanted_type = wanted_allocated;
+                    Ast_Type* wanted = malloc(sizeof(Ast_Type));
+                    *wanted = state->stack.elements[state->stack.count - 1];
+                    state->wanted_type = wanted;
 
                     process_expression(invoke->arguments.elements[reversed ? 0 : 1], state);
                 } else if (operator == Operator_Not) {
