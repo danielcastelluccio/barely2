@@ -500,7 +500,6 @@ Ast_Statement parse_statement(Parser_State* state) {
         do {
             if (peek(state) == Token_Comma) {
                 consume(state);
-                continue;
             }
             Ast_Declaration declaration;
             declaration.location = state->tokens->elements[state->index].location;
@@ -534,7 +533,7 @@ Ast_Statement parse_statement(Parser_State* state) {
         consume(state);
 
         Ast_Expression* expression = malloc(sizeof(Ast_Expression));
-        *expression = parse_expression(state);
+        *expression = parse_multiple_expression(state);
         node.expression = expression;
 
         consume_check(state, Token_Semicolon);
@@ -1158,6 +1157,8 @@ Ast_Item_Procedure parse_procedure(Parser_State* state) {
     Ast_Expression* body = malloc(sizeof(Ast_Expression));
     *body = parse_expression(state);
     node.body = body;
+
+    node.end_location = state->tokens->elements[state->index - 1].location;
 
     return node;
 }

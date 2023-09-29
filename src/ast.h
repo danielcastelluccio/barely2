@@ -435,6 +435,7 @@ typedef struct {
     Array_Ast_Type returns;
     Ast_Expression* body;
     bool has_implicit_return;
+    Location end_location;
 } Ast_Item_Procedure;
 
 typedef struct {

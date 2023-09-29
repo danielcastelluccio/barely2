@@ -1936,7 +1936,7 @@ void process_item_reference(Ast_Item* item, Process_State* state) {
 
 bool has_implicit_return(Ast_Expression* expression) {
     if (expression->kind == Expression_Block) {
-        return expression->data.block.statements.elements[expression->data.block.statements.count - 1]->kind != Statement_Return;
+        return expression->data.block.statements.count == 0 || expression->data.block.statements.elements[expression->data.block.statements.count - 1]->kind != Statement_Return;
     }
     return true;
 }
@@ -1966,8 +1966,7 @@ void process_item(Ast_Item* item, Process_State* state) {
 
             procedure->has_implicit_return = has_implicit_return(procedure->body);
             if (procedure->has_implicit_return) {
-                Location temp = {};
-                check_return(state, &temp);
+                check_return(state, &procedure->end_location);
             }
             break;
         }
