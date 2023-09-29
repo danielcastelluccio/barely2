@@ -1,16 +1,16 @@
 //@out: abcdabcaba
 
 proc main() {
-    var a: usize = 2 + 2;
-    var _: usize = @syscall3(1, 1, "abcdefgh", a);
+    var a: uint = 2 + 2;
+    var _: uint = @syscall3(1, 1, "abcdefgh", a);
 
     // Lack of operator precedence
-    var b: usize = 2 + 2 / 2;
-    var _: usize = @syscall3(1, 1, "abcdefgh", b);
+    var b: uint = 2 + 2 / 2;
+    var _: uint = @syscall3(1, 1, "abcdefgh", b);
 
-    var c: usize = 2 + 2 % 2;
-    var _: usize = @syscall3(1, 1, "abcdefgh", c);
+    var c: uint = 2 + 2 % 2;
+    var _: uint = @syscall3(1, 1, "abcdefgh", c);
 
-    var d: usize = 2 - 1;
-    var _: usize = @syscall3(1, 1, "abcdefgh", d);
+    var d: uint = 2 - 1;
+    var _: uint = @syscall3(1, 1, "abcdefgh", d);
 }

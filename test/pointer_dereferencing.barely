@@ -1,0 +1,8 @@
+//@out: test
+
+proc main() {
+    var a: uint = 4;
+    var b: *uint = &a;
+
+    var _: uint = @syscall3(1, 1, "test", b.*);
+}

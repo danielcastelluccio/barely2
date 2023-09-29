@@ -1,5 +1,5 @@
 //@out: Hello World!
 
 proc main() {
-    var _: usize = @syscall3(1, 1, "Hello World!", 12);
+    var _: uint = @syscall3(1, 1, "Hello World!", 12);
 }

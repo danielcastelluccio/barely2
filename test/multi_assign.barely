@@ -1,0 +1,7 @@
+//@out: abcdabcde
+
+proc main() {
+    var b: uint, c: uint = 4, 5;
+    var _: uint = @syscall3(1, 1, "abcdef", b);
+    var _: uint = @syscall3(1, 1, "abcdef", c);
+}

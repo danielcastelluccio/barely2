@@ -1,0 +1,9 @@
+//@out: testtest
+
+proc main() {
+    var a: *[]byte = "test";
+    var _: uint = @syscall3(1, 1, a, 4);
+
+    var a: uint = 4;
+    var _: uint = @syscall3(1, 1, "test", a);
+}

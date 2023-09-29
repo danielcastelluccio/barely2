@@ -1,8 +1,8 @@
 //@out: abcdabcde
 
 type A : struct {
-    a: usize,
-    b: usize
+    a: uint,
+    b: uint
 }
 
 proc main() {
@@ -16,6 +16,6 @@ proc main() {
 proc c(a: A) {
     var b: A = a;
 
-    var _: usize = @syscall3(1, 1, "abcdefh", b.a);
-    var _: usize = @syscall3(1, 1, "abcdefh", b.b);
+    var _: uint = @syscall3(1, 1, "abcdefh", b.a);
+    var _: uint = @syscall3(1, 1, "abcdefh", b.b);
 }

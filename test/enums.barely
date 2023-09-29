@@ -8,9 +8,9 @@ type A : enum {
 proc main() {
     var a: A = A;
     if a == A {
-        var _: usize = @syscall3(1, 1, "a", 1);
+        var _: uint = @syscall3(1, 1, "a", 1);
     };
     if a == B {
-        var _: usize = @syscall3(1, 1, "a", 1);
+        var _: uint = @syscall3(1, 1, "a", 1);
     };
 }

@@ -1,0 +1,7 @@
+//@out: abcd
+
+proc main() {
+    var a: bool = true;
+    var b: uint = if a 4 else 5;
+    var _: uint = @syscall3(1, 1, "abcdefgh", b);
+}
