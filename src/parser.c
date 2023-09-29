@@ -1159,9 +1159,6 @@ Ast_Item_Procedure parse_procedure(Parser_State* state) {
     *body = parse_expression(state);
     node.body = body;
 
-    print_token_error_stub(&state->tokens->elements[state->index]);
-    printf("\n");
-    
     return node;
 }
 

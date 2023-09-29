@@ -977,6 +977,35 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
     }
 }
 
+void check_return(Process_State* state, Location* location) {
+    for (int i = state->generic.current_returns.count - 1; i >= 0; i--) {
+        Ast_Type* return_type = state->generic.current_returns.elements[i];
+
+        if (state->stack.count == 0) {
+            print_error_stub(location);
+            printf("Ran out of values for return\n");
+            exit(1);
+        }
+
+        Ast_Type given_type = stack_type_pop(&state->stack);
+        if (!is_type(return_type, &given_type, state)) {
+            print_error_stub(location);
+            printf("Type '");
+            print_type_inline(&given_type);
+            printf("' is not returnable of type '");
+            print_type_inline(return_type);
+            printf("'\n");
+            exit(1);
+        }
+    }
+
+    if (state->stack.count > 0) {
+        print_error_stub(location);
+        printf("Extra values at the end of return\n");
+        exit(1);
+    }
+}
+
 void process_statement(Ast_Statement* statement, Process_State* state) {
     if (has_directive(&statement->directives, Directive_If)) {
         Ast_Directive_If* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
@@ -1081,32 +1110,8 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
                 process_expression(return_->expression, state);
             }
 
-            for (int i = state->generic.current_returns.count - 1; i >= 0; i--) {
-                Ast_Type* return_type = state->generic.current_returns.elements[i];
+            check_return(state, &return_->location);
 
-                if (state->stack.count == 0) {
-                    print_error_stub(&return_->location);
-                    printf("Ran out of values for return\n");
-                    exit(1);
-                }
-
-                Ast_Type given_type = stack_type_pop(&state->stack);
-                if (!is_type(return_type, &given_type, state)) {
-                    print_error_stub(&return_->location);
-                    printf("Type '");
-                    print_type_inline(&given_type);
-                    printf("' is not returnable of type '");
-                    print_type_inline(return_type);
-                    printf("'\n");
-                    exit(1);
-                }
-            }
-
-            if (state->stack.count > 0) {
-                print_error_stub(&statement->statement_end_location);
-                printf("Extra values at the end of statement\n");
-                exit(1);
-            }
             break;
         }
         case Statement_While: {
@@ -1929,6 +1934,13 @@ void process_item_reference(Ast_Item* item, Process_State* state) {
     }
 }
 
+bool has_implicit_return(Ast_Expression* expression) {
+    if (expression->kind == Expression_Block) {
+        return expression->data.block.statements.elements[expression->data.block.statements.count - 1]->kind != Statement_Return;
+    }
+    return true;
+}
+
 void process_item(Ast_Item* item, Process_State* state) {
     if (has_directive(&item->directives, Directive_If)) {
         Ast_Directive_If* if_node = &get_directive(&item->directives, Directive_If)->data.if_;
@@ -1951,6 +1963,12 @@ void process_item(Ast_Item* item, Process_State* state) {
             }
 
             process_expression(procedure->body, state);
+
+            procedure->has_implicit_return = has_implicit_return(procedure->body);
+            if (procedure->has_implicit_return) {
+                Location temp = {};
+                check_return(state, &temp);
+            }
             break;
         }
         case Item_Type: {
@@ -1982,14 +2000,12 @@ bool is_enum_type(Ast_Type* type, Generic_State* generic_state) {
     return false;
 }
 
-void process(Program* program, Array_String* package_names, Array_String* package_paths) {
+void process(Program* program) {
     Process_State state = (Process_State) {
         .generic = (Generic_State) {
             .program = program,
             // should items just be able to store their file?
             .current_file = NULL,
-            .package_names = package_names,
-            .package_paths = package_paths,
             .current_arguments = {},
             .current_declares = {},
             .scoped_declares = array_size_new(8),

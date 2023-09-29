@@ -50,6 +50,32 @@ void output_copy(Output_State* state, char* input_register, bool input_inverted,
     }
 }
 
+void output_actual_return_fasm_linux_x86_64(Output_State* state) {
+    size_t arguments_size = get_arguments_size(&state->generic);
+    size_t returns_size = get_returns_size(&state->generic);
+    size_t locals_size = get_locals_size(state->generic.current_procedure, &state->generic);
+
+    // rdx = old rip
+    char buffer[128] = {};
+    sprintf(buffer, "  mov rcx, [rsp+%zu]\n", returns_size + locals_size);
+    stringbuffer_appendstring(&state->instructions, buffer);
+
+    // rdx = old rbp
+    memset(buffer, 0, 128);
+    sprintf(buffer, "  mov rdx, [rsp+%zu]\n", returns_size + locals_size + 8);
+    stringbuffer_appendstring(&state->instructions, buffer);
+
+    output_copy(state, "rsp", false, 0, "rsp", false, 16 + arguments_size + locals_size, returns_size, "rax", "al");
+
+    memset(buffer, 0, 128);
+    sprintf(buffer, "  add rsp, %zu\n", 16 + arguments_size + locals_size);
+    stringbuffer_appendstring(&state->instructions, buffer);
+
+    stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
+    stringbuffer_appendstring(&state->instructions, "  push rdx\n");
+    stringbuffer_appendstring(&state->instructions, "  ret\n");
+}
+
 void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* state) {
     if (has_directive(&statement->directives, Directive_If)) {
         Ast_Directive_If* if_node = &get_directive(&statement->directives, Directive_If)->data.if_;
@@ -208,31 +234,7 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
         case Statement_Return: {
             Ast_Statement_Return* return_ = &statement->data.return_;
             output_expression_fasm_linux_x86_64(return_->expression, state);
-
-            size_t arguments_size = get_arguments_size(&state->generic);
-            size_t returns_size = get_returns_size(&state->generic);
-            size_t locals_size = get_locals_size(state->generic.current_procedure, &state->generic);
-
-            // rdx = old rip
-            char buffer[128] = {};
-            sprintf(buffer, "  mov rcx, [rsp+%zu]\n", returns_size + locals_size);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
-            // rdx = old rbp
-            memset(buffer, 0, 128);
-            sprintf(buffer, "  mov rdx, [rsp+%zu]\n", returns_size + locals_size + 8);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
-            output_copy(state, "rsp", false, 0, "rsp", false, 16 + arguments_size + locals_size, returns_size, "rax", "al");
-
-            memset(buffer, 0, 128);
-            sprintf(buffer, "  add rsp, %zu\n", 16 + arguments_size + locals_size);
-            stringbuffer_appendstring(&state->instructions, buffer);
-
-            stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
-            stringbuffer_appendstring(&state->instructions, "  push rdx\n");
-            stringbuffer_appendstring(&state->instructions, "  ret\n");
-
+            output_actual_return_fasm_linux_x86_64(state);
             break;
         }
         case Statement_While: {
@@ -1268,16 +1270,9 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
 
             output_expression_fasm_linux_x86_64(procedure->body, state);
 
-            size_t arguments_size = get_arguments_size(&state->generic);
-            stringbuffer_appendstring(&state->instructions, "  mov rsp, rbp\n");
-            stringbuffer_appendstring(&state->instructions, "  mov rcx, [rsp+0]\n");
-            stringbuffer_appendstring(&state->instructions, "  mov rdx, [rsp+8]\n");
-            memset(buffer, 0, 128);
-            sprintf(buffer, "  add rsp, %zu\n", arguments_size + 16);
-            stringbuffer_appendstring(&state->instructions, buffer);
-            stringbuffer_appendstring(&state->instructions, "  mov rbp, rcx\n");
-            stringbuffer_appendstring(&state->instructions, "  push rdx\n");
-            stringbuffer_appendstring(&state->instructions, "  ret\n");
+            if (procedure->has_implicit_return) {
+                output_actual_return_fasm_linux_x86_64(state);
+            }
             break;
         }
         case Item_Global: {
@@ -1300,13 +1295,11 @@ void output_item_fasm_linux_x86_64(Ast_Item* item, Output_State* state) {
     }
 }
 
-void output_fasm_linux_x86_64(Program* program, char* output_file, Array_String* package_names, Array_String* package_paths) {
+void output_fasm_linux_x86_64(Program* program, char* output_file) {
     Output_State state = (Output_State) {
         .generic = (Generic_State) {
             .program = program,
             .current_file = NULL,
-            .package_names = package_names,
-            .package_paths = package_paths,
             .current_declares = {},
             .scoped_declares = array_size_new(8),
             .current_arguments = {},

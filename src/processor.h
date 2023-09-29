@@ -9,8 +9,6 @@ Dynamic_Array_Def(size_t, Array_Size, array_size_)
 typedef struct {
     Program* program;
     Ast_File* current_file;
-    Array_String* package_names;
-    Array_String* package_paths;
     Ast_Item_Procedure* current_procedure;
     Array_Ast_Declaration current_arguments;
     Array_Ast_Declaration current_declares;
@@ -41,7 +39,7 @@ bool is_type(Ast_Type* wanted, Ast_Type* given, Process_State* state);
 bool is_internal_type(Ast_Type_Internal wanted, Ast_Type* given);
 Ast_Type create_internal_type(Ast_Type_Internal type);
 Ast_Type create_basic_single_type(char* name);
-void process(Program* program, Array_String* package_names, Array_String* package_paths);
+void process(Program* program);
 
 bool consume_in_reference(Generic_State* state);
 

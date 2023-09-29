@@ -110,8 +110,6 @@ void print_token(Token* token, bool newline) {
     }
 }
 
-#define LOCATION(file, row, col) (Location) { file, row, col }
-
 void check_append_string_token(Tokens* tokens, String_Buffer* buffer, char* file, size_t* row, size_t* col) {
     char* buffer_contents = buffer->elements;
     if (strlen(buffer_contents) == 0) {
@@ -131,7 +129,7 @@ void check_append_string_token(Tokens* tokens, String_Buffer* buffer, char* file
         kind = Token_Identifier;
     }
 
-    tokens_append(tokens, (Token) { kind, copy_string(buffer_contents), LOCATION(file, *row, *col) });
+    tokens_append(tokens, (Token) { kind, copy_string(buffer_contents), (Location) { file, *row, *col } });
     *col += buffer->count;
     stringbuffer_clear(buffer);
 }
@@ -171,13 +169,13 @@ Tokens tokenize(char* file, char* contents) {
             i++;
         } else if (in_string || in_char) {
             if (in_string && character == '"') {
-                tokens_append(&tokens, (Token) { Token_String, copy_string(buffer.elements), LOCATION(file, row, col) });
+                tokens_append(&tokens, (Token) { Token_String, copy_string(buffer.elements), (Location) { file, row, col } });
                 stringbuffer_clear(&buffer);
                 in_string = false;
                 i++;
                 col += (i - cached_i);
             } else if (in_char && character == '\'') {
-                tokens_append(&tokens, (Token) { Token_Char, copy_string(buffer.elements), LOCATION(file, row, col) });
+                tokens_append(&tokens, (Token) { Token_Char, copy_string(buffer.elements), (Location) { file, row, col } });
                 stringbuffer_clear(&buffer);
                 in_char = false;
                 i++;
@@ -207,42 +205,42 @@ Tokens tokenize(char* file, char* contents) {
             switch (character) {
                 case '(':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_LeftParenthesis, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_LeftParenthesis, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case ')':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_RightParenthesis, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_RightParenthesis, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case ':':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Colon, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_Colon, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case ';':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Semicolon, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_Semicolon, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case ',':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Comma, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_Comma, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case '.':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '.') {
-                        tokens_append(&tokens, (Token) { Token_DoublePeriod, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_DoublePeriod, 0, (Location) { file, row, col } });
                         col += 2;
                         i += 2;
                     } else {
-                        tokens_append(&tokens, (Token) { Token_Period, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_Period, 0, (Location) { file, row, col } });
                         col++;
                         i++;
                     }
@@ -250,11 +248,11 @@ Tokens tokenize(char* file, char* contents) {
                 case '=':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '=') {
-                        tokens_append(&tokens, (Token) { Token_DoubleEquals, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_DoubleEquals, 0, (Location) { file, row, col } });
                         col += 2;
                         i += 2;
                     } else {
-                        tokens_append(&tokens, (Token) { Token_Equals, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_Equals, 0, (Location) { file, row, col } });
                         col++;
                         i++;
                     }
@@ -262,11 +260,11 @@ Tokens tokenize(char* file, char* contents) {
                 case '>':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '=') {
-                        tokens_append(&tokens, (Token) { Token_GreaterThanEqual, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_GreaterThanEqual, 0, (Location) { file, row, col } });
                         col += 2;
                         i += 2;
                     } else {
-                        tokens_append(&tokens, (Token) { Token_GreaterThan, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_GreaterThan, 0, (Location) { file, row, col } });
                         col++;
                         i++;
                     }
@@ -274,40 +272,40 @@ Tokens tokenize(char* file, char* contents) {
                 case '<':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '=') {
-                        tokens_append(&tokens, (Token) { Token_LessThanEqual, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_LessThanEqual, 0, (Location) { file, row, col } });
                         i += 2;
                     } else {
-                        tokens_append(&tokens, (Token) { Token_LessThan, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_LessThan, 0, (Location) { file, row, col } });
                         i++;
                     }
                     break;
                 case '!':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '=') {
-                        tokens_append(&tokens, (Token) { Token_ExclamationEquals, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_ExclamationEquals, 0, (Location) { file, row, col } });
                         col += 2;
                         i += 2;
                     } else {
-                        tokens_append(&tokens, (Token) { Token_Exclamation, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_Exclamation, 0, (Location) { file, row, col } });
                         col++;
                         i++;
                     }
                     break;
                 case '+':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Plus, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_Plus, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case '-':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Minus, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_Minus, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case '*':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Asterisk, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_Asterisk, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
@@ -318,25 +316,25 @@ Tokens tokenize(char* file, char* contents) {
                         col += 2;
                         i += 2;
                     } else {
-                        tokens_append(&tokens, (Token) { Token_Slash, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_Slash, 0, (Location) { file, row, col } });
                         col++;
                         i++;
                     }
                     break;
                 case '%':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_Percent, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_Percent, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case '&':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '&') {
-                        tokens_append(&tokens, (Token) { Token_DoubleAmpersand, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_DoubleAmpersand, 0, (Location) { file, row, col } });
                         col += 2;
                         i += 2;
                     } else {
-                        tokens_append(&tokens, (Token) { Token_Ampersand, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_Ampersand, 0, (Location) { file, row, col } });
                         col++;
                         i++;
                     }
@@ -344,7 +342,7 @@ Tokens tokenize(char* file, char* contents) {
                 case '|':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
                     if (contents[i + 1] == '|') {
-                        tokens_append(&tokens, (Token) { Token_DoubleBar, 0, LOCATION(file, row, col) });
+                        tokens_append(&tokens, (Token) { Token_DoubleBar, 0, (Location) { file, row, col } });
                         col += 2;
                         i += 2;
                     } else {
@@ -353,25 +351,25 @@ Tokens tokenize(char* file, char* contents) {
                     break;
                 case '{':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_LeftCurlyBrace, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_LeftCurlyBrace, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case '}':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_RightCurlyBrace, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_RightCurlyBrace, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case '[':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_LeftBracket, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_LeftBracket, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
                 case ']':
                     check_append_string_token(&tokens, &buffer, file, &row, &col);
-                    tokens_append(&tokens, (Token) { Token_RightBracket, 0, LOCATION(file, row, col) });
+                    tokens_append(&tokens, (Token) { Token_RightBracket, 0, (Location) { file, row, col } });
                     col++;
                     i++;
                     break;
