@@ -981,7 +981,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
             Ast_Expression* previous_result = malloc(sizeof(Ast_Expression));
             *previous_result = result;
-            node.data.procedure = previous_result;
+            node.data.procedure.procedure = previous_result;
             consume(state);
 
             Array_Ast_Expression arguments = array_ast_expression_new(32);

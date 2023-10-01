@@ -13,12 +13,6 @@ void stack_type_push(Stack_Ast_Type* stack, Ast_Type type) {
     stack_type_append(stack, type);
 }
 
-Ast_Type stack_type_pop(Stack_Ast_Type* stack) {
-    Ast_Type result = stack->elements[stack->count - 1];
-    stack->count--;
-    return result;
-}
-
 bool is_number_type(Ast_Type* type) {
     if (type->kind == Type_Internal) {
         Ast_Type_Internal internal = type->data.internal;
@@ -1269,12 +1263,12 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
             Ast_Expression_Block* block = &expression->data.block;
-            array_size_append(&state->generic.scoped_declares, state->generic.current_declares.count);
+            array_size_append(&state->scoped_declares, state->generic.current_declares.count);
             for (size_t i = 0; i < block->statements.count; i++) {
                 process_statement(block->statements.elements[i], state);
             }
-            state->generic.current_declares.count = state->generic.scoped_declares.elements[state->generic.scoped_declares.count - 1];
-            state->generic.scoped_declares.count--;
+            state->generic.current_declares.count = state->scoped_declares.elements[state->scoped_declares.count - 1];
+            state->scoped_declares.count--;
             break;
         }
         case Expression_Multiple: {
@@ -1288,7 +1282,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
             Ast_Expression_Invoke* invoke = &expression->data.invoke;
 
             if (invoke->kind == Invoke_Standard) {
-                Ast_Expression* procedure = invoke->data.procedure;
+                Ast_Expression* procedure = invoke->data.procedure.procedure;
                 bool handled = false;
 
                 if (procedure->kind == Expression_Retrieve) {
@@ -1347,6 +1341,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                     }
 
                     Ast_Type_Procedure* procedure_type = &type.data.pointer.child->data.procedure;
+                    invoke->data.procedure.computed_procedure_type = *type.data.pointer.child;
                     size_t arg_index = 0;
                     for (size_t i = 0; i < invoke->arguments.count; i++) {
                         size_t stack_start = state->stack.count;
@@ -2007,12 +2002,12 @@ void process(Program* program) {
             .current_file = NULL,
             .current_arguments = {},
             .current_declares = {},
-            .scoped_declares = array_size_new(8),
             .current_returns = {},
             .in_reference = false,
         },
         .stack = stack_type_new(8),
         .wanted_type = NULL,
+        .scoped_declares = array_size_new(8),
     };
 
     for (size_t j = 0; j < program->count; j++) {

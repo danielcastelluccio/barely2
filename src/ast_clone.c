@@ -276,8 +276,8 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             switch (invoke_in->kind) {
                 case Invoke_Standard: {
                     Ast_Expression* expression = malloc(sizeof(Ast_Expression));
-                    *expression = clone_expression(*invoke_in->data.procedure);
-                    invoke_out.data.procedure = expression;
+                    *expression = clone_expression(*invoke_in->data.procedure.procedure);
+                    invoke_out.data.procedure.procedure = expression;
                     break;
                 }
                 default:

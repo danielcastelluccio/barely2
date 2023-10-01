@@ -98,7 +98,7 @@ void walk_expression(Ast_Expression* expression, Ast_Walk_State* state) {
 
             switch (invoke->kind) {
                 case Invoke_Standard: {
-                    walk_expression(invoke->data.procedure, state);
+                    walk_expression(invoke->data.procedure.procedure, state);
                     break;
                 }
                 default:
@@ -262,6 +262,12 @@ void walk_statement(Ast_Statement* statement, Ast_Walk_State* state) {
         case Statement_While: {
             walk_expression(statement->data.while_.condition, state);
             walk_expression(statement->data.while_.inside, state);
+            break;
+        }
+        case Statement_Return: {
+            if (statement->data.return_.expression != NULL) {
+                walk_expression(statement->data.return_.expression, state);
+            }
             break;
         }
         default:

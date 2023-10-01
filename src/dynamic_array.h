@@ -10,6 +10,7 @@ typedef struct { \
 \
 Array_Type_ name##new(size_t size); \
 void name##append(Array_Type_* array, Type_Inner element); \
+Type_Inner name##pop(Array_Type_* array); \
 void name##clear(Array_Type_* array); \
 void name##free(Array_Type_* array); \
 Type_Inner name##get(Array_Type_* array, size_t index); \
@@ -53,6 +54,11 @@ Type_Inner name##get(Array_Type_* array, size_t index) { \
 } \
 void name##set(Array_Type_* array, size_t index, Type_Inner value) { \
     array->elements[index] = value; \
+} \
+Type_Inner name##pop(Array_Type_* array) { \
+    Type_Inner value = array->elements[array->count - 1]; \
+    array->count--; \
+    return value; \
 } \
 
 #endif

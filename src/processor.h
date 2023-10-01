@@ -13,7 +13,6 @@ typedef struct {
     Array_Ast_Declaration current_arguments;
     Array_Ast_Declaration current_declares;
     Array_Ast_Type current_returns;
-    Array_Size scoped_declares;
     bool in_reference;
 } Generic_State;
 
@@ -21,6 +20,7 @@ typedef struct {
     Generic_State generic;
     Stack_Ast_Type stack;
     Ast_Type* wanted_type;
+    Array_Size scoped_declares;
 } Process_State;
 
 typedef struct {

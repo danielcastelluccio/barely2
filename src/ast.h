@@ -241,7 +241,10 @@ typedef struct {
         Invoke_Operator,
     } kind;
     union {
-        Ast_Expression* procedure;
+        struct {
+            Ast_Expression* procedure;
+            Ast_Type computed_procedure_type;
+        } procedure;
         struct {
             Operator operator_;
             Ast_Type computed_operand_type;

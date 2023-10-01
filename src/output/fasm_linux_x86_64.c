@@ -399,13 +399,10 @@ void output_build_type_fasm_linux_x86_64(Ast_Expression_Build* build, Ast_Type* 
 void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_State* state) {
     switch (expression->kind) {
         case Expression_Block: {
-            array_size_append(&state->generic.scoped_declares, state->generic.current_declares.count);
             Ast_Expression_Block* block = &expression->data.block;
             for (size_t i = 0; i < block->statements.count; i++) {
                 output_statement_fasm_linux_x86_64(block->statements.elements[i], state);
             }
-            state->generic.current_declares.count = state->generic.scoped_declares.elements[state->generic.scoped_declares.count - 1];
-            state->generic.scoped_declares.count--;
             break;
         }
         case Expression_Multiple: {
@@ -422,7 +419,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
             }
 
             if (invoke->kind == Invoke_Standard) {
-                Ast_Expression* procedure = invoke->data.procedure;
+                Ast_Expression* procedure = invoke->data.procedure.procedure;
                 bool handled = false;
 
                 if (procedure->kind == Expression_Retrieve) {
@@ -1307,7 +1304,6 @@ void output_fasm_linux_x86_64(Program* program, char* output_file) {
             .program = program,
             .current_file = NULL,
             .current_declares = {},
-            .scoped_declares = array_size_new(8),
             .current_arguments = {},
             .in_reference = false,
         },
