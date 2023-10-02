@@ -138,10 +138,11 @@ void check_append_string_token(Tokens* tokens, String_Buffer* buffer, char* file
 #define INITIAL_CAPACITY 512
 
 Tokens tokenize(char* file, char* contents) {
+    size_t length = strlen(contents);
     Tokens tokens = {
-        (Token*) malloc(sizeof(Token) * INITIAL_CAPACITY),
+        (Token*) malloc(sizeof(Token) * (length / 3)),
         0,
-        INITIAL_CAPACITY
+        length / 3,
     };
 
     String_Buffer buffer = stringbuffer_new(32);
@@ -155,7 +156,6 @@ Tokens tokenize(char* file, char* contents) {
     bool in_char = false;
 
     bool in_comment = false;
-    size_t length = strlen(contents);
     size_t i = 0;
     while (i < length) {
         char character = contents[i];

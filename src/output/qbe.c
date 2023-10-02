@@ -640,13 +640,13 @@ void output_string_qbe(char* value, Output_State* state) {
     state->intermediate_index++;
 
     memset(buffer, 0, 128);
-    sprintf(buffer, "data $__%zu = { ", state->string_index);
+    sprintf(buffer, "data $__%zu = {", state->string_index);
     stringbuffer_appendstring(&state->data, buffer);
 
     size_t str_len = strlen(value);
     for (size_t i = 0; i < str_len; i++) {
         char buffer[128] = {};
-        sprintf(buffer, "b %i, ", (int) value[i]);
+        sprintf(buffer, "b %i,", (int) value[i]);
         stringbuffer_appendstring(&state->data, buffer);
     }
 
@@ -775,8 +775,6 @@ void output_expression_qbe(Ast_Expression* expression, Output_State* state) {
                 if (!handled) {
                     output_expression_qbe(procedure, state);
 
-                    stringbuffer_appendstring(&state->instructions, "  ");
-
                     Ast_Type_Procedure* procedure_type = &invoke->data.procedure.computed_procedure_type.data.procedure;
                     size_t returns_size = 0;
                     size_t return_intermediate = 0;
@@ -802,7 +800,7 @@ void output_expression_qbe(Ast_Expression* expression, Output_State* state) {
                         size_t j = 0;
                         while (j < size) {
                             if (i > 0 || j > 0) {
-                                stringbuffer_appendstring(&state->instructions, ", ");
+                                stringbuffer_appendstring(&state->instructions, ",");
                             }
 
                             if (j + 8 <= size) {
@@ -1744,22 +1742,6 @@ void output_expression_qbe(Ast_Expression* expression, Output_State* state) {
                                         total += size_temp;
                                     }
                                 }
-                                //if (consume_in_reference(&state->generic)) {
-                                //    char buffer[128] = {};
-                                //    sprintf(buffer + strlen(buffer), "  lea rax, [%s.", global->name);
-                                //    sprintf(buffer + strlen(buffer), "%zu]\n", resolved.file->id);
-
-                                //    stringbuffer_appendstring(&state->instructions, buffer);
-                                //    stringbuffer_appendstring(&state->instructions, "  push rax\n");
-                                //} else {
-                                //    size_t size = get_size(&global->type, &state->generic);
-
-                                //    char buffer[128] = {};
-                                //    sprintf(buffer, "  sub rsp, %zu\n", size);
-                                //    stringbuffer_appendstring(&state->instructions, buffer);
-                                //        
-                                //    //output_copy_qbe(state, global->name, false, 0, "rsp", false, 0, size, "rax", "al");
-                                //}
                                 break;
                             }
                             case Item_Constant: {
@@ -2044,7 +2026,7 @@ void output_item_qbe(Ast_Item* item, Output_State* state) {
                     size_t j = 0;
                     while (j < return_size) {
                         if (j != 0 || i != 0) {
-                            stringbuffer_appendstring(&state->types, ", ");
+                            stringbuffer_appendstring(&state->types, ",");
                         }
 
                         if (j + 8 <= return_size) {

@@ -728,7 +728,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
             Location location = state->tokens->elements[state->index].location;
             char* name = consume_identifier(state);
             if (strcmp(name, "@sizeof") == 0) {
-                Ast_Expression_SizeOf node;
+                Ast_Expression_SizeOf node = {};
 
                 consume_check(state, Token_LeftParenthesis);
 
@@ -740,7 +740,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                 result.kind = Expression_SizeOf;
                 result.data.size_of = node;
             } else if (strcmp(name, "@lengthof") == 0) {
-                Ast_Expression_LengthOf node;
+                Ast_Expression_LengthOf node = {};
 
                 consume_check(state, Token_LeftParenthesis);
 
@@ -752,7 +752,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                 result.kind = Expression_LengthOf;
                 result.data.length_of = node;
             } else if (strcmp(name, "@istype") == 0) {
-                Ast_Expression_IsType node;
+                Ast_Expression_IsType node = {};
 
                 consume_check(state, Token_LeftParenthesis);
 
@@ -767,7 +767,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                 result.kind = Expression_IsType;
                 result.data.is_type = node;
             } else if (strcmp(name, "@cast") == 0) {
-                Ast_Expression_Cast node;
+                Ast_Expression_Cast node = {};
                 node.location = location;
 
                 consume_check(state, Token_LeftParenthesis);
@@ -787,7 +787,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                 result.data.cast = node;
                 break;
             } else if (strcmp(name, "@init") == 0) {
-                Ast_Expression_Init node;
+                Ast_Expression_Init node = {};
                 node.location = location;
 
                 consume_check(state, Token_LeftParenthesis);
@@ -952,7 +952,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
         if (peek(state) == Token_LeftBracket) {
             running = true;
-            Ast_Expression_Retrieve node;
+            Ast_Expression_Retrieve node = {};
             node.kind = Retrieve_Assign_Array;
             node.location = state->tokens->elements[state->index].location;
 
@@ -975,7 +975,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
         if (peek(state) == Token_LeftParenthesis) {
             running = true;
-            Ast_Expression_Invoke node;
+            Ast_Expression_Invoke node = {};
             node.location = state->tokens->elements[state->index].location;
             node.kind = Invoke_Standard;
 
