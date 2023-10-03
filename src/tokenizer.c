@@ -192,6 +192,9 @@ Tokens tokenize(char* file, char* contents) {
                         case '"':
                             stringbuffer_append(&buffer, '"');
                             break;
+                        case '\'':
+                            stringbuffer_append(&buffer, '\'');
+                            break;
                         default:
                             assert(false);
                     }

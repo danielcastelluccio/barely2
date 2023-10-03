@@ -775,6 +775,8 @@ void output_expression_qbe(Ast_Expression* expression, Output_State* state) {
                 if (!handled) {
                     output_expression_qbe(procedure, state);
 
+                    stringbuffer_appendstring(&state->instructions, "  ");
+
                     Ast_Type_Procedure* procedure_type = &invoke->data.procedure.computed_procedure_type.data.procedure;
                     size_t returns_size = 0;
                     size_t return_intermediate = 0;
@@ -794,6 +796,22 @@ void output_expression_qbe(Ast_Expression* expression, Output_State* state) {
                     sprintf(buffer, "call %%.%zu(", array_size_pop(&state->intermediate_stack));
                     stringbuffer_appendstring(&state->instructions, buffer);
 
+                    Array_Size reversed = array_size_new(4);
+                    for (size_t i = 0; i < procedure_type->arguments.count; i++) {
+                        size_t size = get_size(procedure_type->arguments.elements[i], &state->generic);
+
+                        size_t j = 0;
+                        while (j < size) {
+                            if (j + 8 <= size) {
+                                j += 8;
+                                array_size_append(&reversed, array_size_pop(&state->intermediate_stack));
+                            } else if (j + 1 <= size) {
+                                j += 1;
+                                array_size_append(&reversed, array_size_pop(&state->intermediate_stack));
+                            }
+                        }
+                    }
+
                     for (size_t i = 0; i < procedure_type->arguments.count; i++) {
                         size_t size = get_size(procedure_type->arguments.elements[i], &state->generic);
 
@@ -807,14 +825,14 @@ void output_expression_qbe(Ast_Expression* expression, Output_State* state) {
                                 j += 8;
 
                                 char buffer[128] = {};
-                                sprintf(buffer, "l %%.%zu", array_size_pop(&state->intermediate_stack));
+                                sprintf(buffer, "l %%.%zu", array_size_pop(&reversed));
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 state->intermediate_index++;
-                            } else if (j + 1 < size) {
+                            } else if (j + 1 <= size) {
                                 j += 1;
 
                                 char buffer[128] = {};
-                                sprintf(buffer, "w %%.%zu", array_size_pop(&state->intermediate_stack));
+                                sprintf(buffer, "w %%.%zu", array_size_pop(&reversed));
                                 stringbuffer_appendstring(&state->instructions, buffer);
                                 state->intermediate_index++;
                             }
@@ -1888,11 +1906,11 @@ void output_expression_qbe(Ast_Expression* expression, Output_State* state) {
                     if (input_size == 8) {
                         sprintf(buffer, "  %%.%zu =l copy %%.%zu\n", intermediate, array_size_pop(&state->intermediate_stack));
                     } else if (input_size == 4) {
-                        sprintf(buffer, "  %%.%zu =l copy %%.%zu\n", intermediate, array_size_pop(&state->intermediate_stack));
+                        sprintf(buffer, "  %%.%zu =l extuw %%.%zu\n", intermediate, array_size_pop(&state->intermediate_stack));
                     } else if (input_size == 2) {
-                        sprintf(buffer, "  %%.%zu =l copy %%.%zu\n", intermediate, array_size_pop(&state->intermediate_stack));
+                        sprintf(buffer, "  %%.%zu =l extuh %%.%zu\n", intermediate, array_size_pop(&state->intermediate_stack));
                     } else if (input_size == 1) {
-                        sprintf(buffer, "  %%.%zu =l copy %%.%zu\n", intermediate, array_size_pop(&state->intermediate_stack));
+                        sprintf(buffer, "  %%.%zu =l extub %%.%zu\n", intermediate, array_size_pop(&state->intermediate_stack));
                     }
                     stringbuffer_appendstring(&state->instructions, buffer);
 
@@ -2057,7 +2075,7 @@ void output_item_qbe(Ast_Item* item, Output_State* state) {
             size_t real_arg_index = 0;
             size_t temp_arg_index = 0;
             for (size_t i = 0; i < procedure->arguments.count; i++) {
-                size_t arg_size = get_size(&procedure->arguments.elements[procedure->arguments.count - i - 1].type, &state->generic);
+                size_t arg_size = get_size(&procedure->arguments.elements[i].type, &state->generic);
 
                 Array_Size indexes = array_size_new(4);
 
@@ -2100,9 +2118,9 @@ void output_item_qbe(Ast_Item* item, Output_State* state) {
 
             real_arg_index = 0;
             for (size_t i = 0; i < procedure->arguments.count; i++) {
-                size_t arg_size = get_size(&procedure->arguments.elements[procedure->arguments.count - i - 1].type, &state->generic);
+                size_t arg_size = get_size(&procedure->arguments.elements[i].type, &state->generic);
 
-                size_t arg_local_intermediate = procedure->arguments.count - i - 1;
+                size_t arg_local_intermediate = i;
                 char buffer[128] = {};
                 sprintf(buffer, "  %%.%zu =l alloc8 %zu\n", arg_local_intermediate, arg_size);
                 stringbuffer_appendstring(&state->instructions, buffer);
@@ -2111,11 +2129,9 @@ void output_item_qbe(Ast_Item* item, Output_State* state) {
                 size_t j = 0;
                 while (j < arg_size) {
                     if (j + 8 <= arg_size) {
-                        j += 8;
-
                         size_t temporary_pointer = temp_intermediate_index;
                         char buffer[128] = {};
-                        sprintf(buffer, "  %%.i%zu =l add %%.%zu, %zu\n", temporary_pointer, arg_local_intermediate, arg_size - j);
+                        sprintf(buffer, "  %%.i%zu =l add %%.%zu, %zu\n", temporary_pointer, arg_local_intermediate, j);
                         stringbuffer_appendstring(&state->instructions, buffer);
                         temp_intermediate_index++;
 
@@ -2123,12 +2139,12 @@ void output_item_qbe(Ast_Item* item, Output_State* state) {
                         sprintf(buffer, "  storel %%.a%zu, %%.i%zu\n", real_arg_index, temporary_pointer);
                         stringbuffer_appendstring(&state->instructions, buffer);
                         real_arg_index++;
-                    } else {
-                        j += 1;
 
+                        j += 8;
+                    } else {
                         size_t temporary_pointer = temp_intermediate_index;
                         char buffer[128] = {};
-                        sprintf(buffer, "  %%.i%zu =l add %%.%zu, %zu\n", temporary_pointer, arg_local_intermediate, arg_size - j);
+                        sprintf(buffer, "  %%.i%zu =l add %%.%zu, %zu\n", temporary_pointer, arg_local_intermediate, j);
                         stringbuffer_appendstring(&state->instructions, buffer);
                         temp_intermediate_index++;
 
@@ -2136,6 +2152,8 @@ void output_item_qbe(Ast_Item* item, Output_State* state) {
                         sprintf(buffer, "  storeb %%.a%zu, %%.i%zu\n", real_arg_index, temporary_pointer);
                         stringbuffer_appendstring(&state->instructions, buffer);
                         real_arg_index++;
+
+                        j += 1;
                     }
                 }
             }
@@ -2227,7 +2245,7 @@ void output_qbe(Program* program, char* output_file) {
     fprintf(file, "export function $main(l %%.argc, l %%.argv) {\n");
     fprintf(file, "@start\n");
     fprintf(file, "  %%.argc2 =l copy %%.argc\n");
-    fprintf(file, "  call $%s(l %%.argv, l %%.argc2)\n", state.entry);
+    fprintf(file, "  call $%s(l %%.argc2, l %%.argv)\n", state.entry);
     fprintf(file, "  ret\n");
     fprintf(file, "}\n");
 
