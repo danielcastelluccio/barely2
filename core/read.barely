@@ -1,0 +1,10 @@
+type Reader : struct {
+    data: ptr,
+    procedure: *proc(ptr, *[]byte, uint): uint
+}
+
+proc read_string(reader: Reader, string: *[]byte, length: uint): uint {
+    var _: uint = @syscall0(read_file);
+    var _: uint = @syscall0(reader.procedure);
+    return reader.procedure(reader.data, string, length);
+}

@@ -1,0 +1,8 @@
+type Allocator : struct {
+    data: ptr,
+    procedure: *proc(ptr, uint): ptr
+}
+
+proc allocate_size(allocator: Allocator, size: uint): ptr {
+    return allocator.procedure(allocator.data, size);
+}

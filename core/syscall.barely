@@ -1,0 +1,25 @@
+const SYS_WRITE : 1
+proc sys_write(file: uint, buffer: *[]uint8, length: uint): uint {
+    return @syscall3(SYS_WRITE, file, buffer, length);
+}
+
+const SYS_OPEN : 2
+proc sys_open(file: *[]uint8, flags: uint, mode: uint): uint {
+    return @syscall3(SYS_OPEN, file, flags, mode);
+}
+
+type Stat : struct {
+    stuff0: [48]uint8,
+    size: uint,
+    stuff1: [88]uint8
+}
+
+const SYS_FSTAT : 5
+proc sys_fstat(file: uint, stat: *Stat) {
+    var _: uint = @syscall2(SYS_FSTAT, file, stat);
+}
+
+const SYS_BRK : 12
+proc sys_brk(pointer: ptr): ptr {
+    return @syscall1(SYS_BRK, pointer);
+}

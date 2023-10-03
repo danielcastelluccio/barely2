@@ -1,0 +1,34 @@
+type String : struct {
+    pointer: *[]byte,
+    length: uint
+}
+
+proc string_new(pointer: *[]byte): String {
+    return string_new_length(pointer, raw_string_length(pointer));
+}
+
+proc string_new_length(pointer: *[]byte, length: uint): String {
+    var result: String;
+    result.pointer = pointer;
+    result.length = length;
+    return result;
+}
+
+proc string_new_empty(): String {
+    var result: String = @init(String);
+    return @init(String);
+}
+
+proc string_from_range(string: String, start: uint, end: uint): String {
+    var pointer: ptr = @cast(ptr, string.pointer);
+    pointer = pointer + start;
+    return @build(String, @cast(*[]byte, pointer), end - start);
+}
+
+proc raw_string_length(string: *[]byte): uint {
+    var size: uint = 0;
+    while string[size] != '\0' {
+        size = size + 1;
+    };
+    return size;
+}

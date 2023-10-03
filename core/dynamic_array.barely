@@ -1,0 +1,49 @@
+type Dynamic_Array : struct {
+    data: ptr,
+    capacity: uint,
+    count: uint,
+    allocator: Allocator,
+}
+
+proc _dynamic_array_new(capacity: uint, allocator: Allocator, inner_size: uint): Dynamic_Array {
+    var result: Dynamic_Array = @build(Dynamic_Array, null, capacity, 0, allocator);
+    _dynamic_array_resize(&result, capacity, inner_size);
+    return result;
+}
+
+macro dynamic_array_new!($expr, $expr, $type): $expr {
+    ($capacity, $allocator, $type) _dynamic_array_new($capacity, $allocator, @sizeof($type))
+}
+
+proc _dynamic_array_resize(array: *Dynamic_Array, size: uint, inner_size: uint) {
+    var data_new: ptr = allocate_size(array.allocator, inner_size * size);
+    
+    memory_copy(array.data, data_new, inner_size * array.count);
+
+    array.data = data_new;
+    array.capacity = size;
+}
+
+proc _dynamic_array_append(array: *Dynamic_Array, value: ptr, inner_size: uint) {
+    if array.count == array.capacity {
+        _dynamic_array_resize(array, array.capacity * 2, inner_size);
+    };
+
+    memory_copy(value, array.data + inner_size * array.count, inner_size);
+    array.count = array.count + 1;
+}
+
+macro dynamic_array_append!($expr, $expr, $type): $expr {
+    ($array, $item, $item_type) {
+        var item_var: $item_type = $item;
+        _dynamic_array_append($array, @cast(ptr, &item_var), @sizeof($item_type));
+    }
+}
+
+proc _dynamic_array_get(array: *Dynamic_Array, index: uint, inner_size: uint): ptr {
+    return array.data + inner_size * index;
+}
+
+macro dynamic_array_get!($expr, $expr, $type): $expr {
+    ($array, $index, $item_type) @cast(*$item_type, _dynamic_array_get($array, $index, @sizeof($item_type))).*
+}

@@ -1,0 +1,19 @@
+#entry
+proc entry2(argc: uint, argv: *[]*[]byte) {
+    var stdout_file: File = @build(File, STDOUT);
+    var stdout: Writer = create_file_writer(&stdout_file);
+
+    var allocator: Allocator = create_brk_allocator();
+
+    var i: uint = 1;
+    while i < argc {
+        var string: *[]byte = argv[i];
+
+        var file: File = open_file_for_reading(string);
+        var contents: String = read_file_to_string(file, allocator);
+
+        lex(contents, allocator);
+
+        i = i + 1;
+    };
+}

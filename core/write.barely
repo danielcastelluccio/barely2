@@ -1,0 +1,167 @@
+type Writer : struct {
+    data: ptr,
+    procedure: *proc(ptr, *[]byte, uint)
+}
+
+proc write_uint(writer: Writer, value: uint) {
+    var buffer: [24]byte = @init([24]byte);
+    var length: uint = 0;
+
+    if value == 0 {
+        buffer[0] = '0';
+        length = 1;
+    };
+
+    var v: uint = value;
+    while v > 0 {
+        v = v / 10;
+        length = length + 1;
+    };
+
+    var i: uint = 0;
+    v = value;
+    while v > 0 {
+        i = i + 1;
+
+        var character: uint8 = @cast(uint8, v % 10);
+
+        v = v / 10;
+
+        buffer[length - i] = @cast(byte, character + 48);
+    };
+
+    writer.procedure(writer.data, &buffer, length);
+}
+
+proc string_length(string: *[]byte): uint {
+    var size: uint = 0;
+    while string[size] != '\0' {
+        size = size + 1;
+    };
+    return size;
+}
+
+proc write_raw_string(writer: Writer, value: *[]byte) {
+    writer.procedure(writer.data, value, string_length(value));
+}
+
+proc write_string(writer: Writer, value: String) {
+    writer.procedure(writer.data, value.pointer, value.length);
+}
+
+global custom_writes: *[]Custom_Write
+global custom_write_count: uint
+
+type Custom_Write : struct {
+    identifier: *[]byte,
+    procedure: *proc(Writer, ptr)
+}
+
+//proc append_custom_write(custom_write: Custom_Write) {
+//    custom_writes[custom_write_count] = custom_write;
+//    custom_write_count = custom_write_count + 1;
+//}
+
+proc string_eq_index_len(a: *[]byte, a_index: uint, a_len: uint, b: *[]byte, b_index: uint, b_len: uint): bool {
+    if a_len != b_len {
+        return false;
+    };
+
+    var i: uint = 0;
+    while i < a_len {
+        if a[a_index + i] != b[b_index + i] {
+            return false;
+        };
+        i = i + 1;
+    };
+
+    return true;
+}
+
+proc write_internal(writer: Writer, string: *[]byte, index: uint, data: ptr): uint {
+    var string_len: uint = 0;
+    while string[index + string_len] != '}' {
+        string_len = string_len + 1;
+    };
+
+    //var found: bool = false;
+    //var i: uint = 0;
+    //while !found && i < custom_write_count {
+    //    var custom_write: *Custom_Write = &custom_writes[i];
+    //    if string_eq_index_len(string, index, string_len, custom_write.identifier, 0, string_length(custom_write.identifier)) {
+    //        custom_write.procedure(writer, data);
+    //        found = true;
+    //    };
+    //    i = i + 1;
+    //};
+    return string_len;
+}
+
+macro write!($expr..): $expr {
+    (writer_in, string_in, args..) {
+        var writer: Writer = writer_in;
+        var string: *[]byte = string_in;
+        var _i: uint = 0;
+        var length: uint = string_length(string);
+
+        var value_index: uint = 0;
+
+        var last_write: uint = 0;
+
+        while _i < length {
+            if string[_i] == '{' && string[_i + 1] != '{' {
+                writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+
+                var counter: uint = 0;
+
+                write_part!(args);
+
+                value_index = value_index + 1;
+
+                last_write = _i;
+            } else {
+                if string[_i] == '{' && string[_i + 1] == '{' {
+                    writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+                    _i = _i + 1;
+                    last_write = _i;
+                };
+                if string[_i] == '}' && string[_i + 1] == '}' {
+                    writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+                    _i = _i + 1;
+                    last_write = _i;
+                };
+                _i = _i + 1;
+            };
+        };
+
+        writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+    },
+    (writer_in, string_in) {
+        write_raw_string(writer_in, string_in);
+    }
+}
+
+macro write_part!($expr..): $expr {
+    ($value, $args..) {
+        write_part!($expr $value);
+        write_part!($args);
+    },
+    ($value) {
+        if (counter == value_index) {
+            if string[_i + 1] == '}' {
+                #if(@istype(String, @typeof($value))) {
+                    write_string(writer, $value);
+                };
+                #if(@istype(*[]byte, @typeof($value))) write_raw_string(writer, $value);
+                #if(@istype(uint, @typeof($value))) write_uint(writer, $value);
+                _i = _i + 2;
+            } else {
+                _i = _i + 1;
+                var temp: @typeof($value) = $value;
+                var write_len: uint = write_internal(writer, string, _i, @cast(ptr, &temp));
+                _i = _i + write_len + 1;
+            };
+        };
+        counter = counter + 1;
+    }
+}

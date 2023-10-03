@@ -1,0 +1,50 @@
+type Dynamic_Array : struct {
+    data: *[]ptr,
+    capacity: usize,
+    count: usize,
+    allocator: Allocator,
+}
+
+proc dynamic_array_new(capacity: usize, allocator: Allocator): Dynamic_Array {
+    var result: Dynamic_Array = @build(Dynamic_Array, null, capacity, 0, allocator);
+    dynamic_array_resize(&result, capacity);
+    return result;
+}
+
+proc dynamic_array_resize(array: *Dynamic_Array, size: usize) {
+    var data_new: *[]ptr = @cast(*[]ptr, allocate_size(array.allocator, @sizeof(ptr) * size));
+    
+    var i: usize = 0;
+    while i < array.count {
+        data_new[i] = array.data[i];
+        i = i + 1;
+    };
+
+    array.data = data_new;
+    array.capacity = size;
+}
+
+proc dynamic_array_appendraw(array: *Dynamic_Array, value: ptr) {
+    if array.count == array.capacity {
+        dynamic_array_resize(array, array.capacity * 2);
+    };
+
+    array.data[array.count] = value;
+    array.count = array.count + 1;
+}
+
+proc dynamic_array_getraw(array: *Dynamic_Array, index: usize): ptr {
+    return array.data[index];
+}
+
+macro dynamic_array_append!($expr, $expr, $type): $expr {
+    ($array, $item, $item_type) {
+        var item_var: *$item_type = @cast(*$item_type, allocate_size($array.allocator, @sizeof($item_type)));
+        item_var.* = $item;
+        dynamic_array_appendraw($array, @cast(ptr, item_var));
+    }
+}
+
+macro dynamic_array_get!($expr, $expr, $type): $expr {
+    ($array, $index, $item_type) @cast(*$item_type, dynamic_array_getraw($array, $index)).*
+}

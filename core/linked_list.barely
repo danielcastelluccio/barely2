@@ -1,0 +1,48 @@
+type Linked_List : struct {
+    head: *Linked_List_Node,
+    allocator: Allocator
+}
+
+type Linked_List_Node : struct {
+    data: ptr,
+    next: *Linked_List_Node
+}
+
+proc linkedlist_new(allocator: Allocator): Linked_List {
+    var head: *Linked_List_Node = @cast(*Linked_List_Node, allocate_size(allocator, @sizeof(Linked_List_Node)));
+    var result: Linked_List = @build(Linked_List, head, allocator);
+    return result;
+}
+
+proc linkedlist_appendraw(list: *Linked_List, value: ptr) {
+    var node: *Linked_List_Node = list.head;
+    while node.next != null {
+        node = node.next;
+    };
+
+    var new_node: *Linked_List_Node = @cast(*Linked_List_Node, allocate_size(list.allocator, @sizeof(Linked_List_Node)));
+    new_node.data = value;
+    node.next = new_node;
+}
+
+proc linkedlist_getraw(list: *Linked_List, index: uint): ptr {
+    var node: *Linked_List_Node = list.head;
+    var i: uint = 0;
+    while i <= index {
+        node = node.next;
+        i = i + 1;
+    };
+    return node.data;
+}
+
+macro linkedlist_append!($expr, $expr, $type): $expr {
+    ($list, $item, $item_type) {
+        var item_var: *$item_type = @cast(*$item_type, allocate_size($list.allocator, @sizeof($item_type)));
+        item_var.* = $item;
+        linkedlist_appendraw($list, @cast(ptr, item_var));
+    }
+}
+
+macro linkedlist_get!($expr, $expr, $type): $expr {
+    ($list, $index, $item_type) @cast(*$item_type, linkedlist_getraw($list, $index)).*
+}

@@ -1,0 +1,12 @@
+proc memory_copy(source: ptr, destination: ptr, length: uint) {
+    var i: uint = 0;
+    while i < length {
+        if i + 8 < length {
+            @cast(*uint64, destination + i).* = @cast(*uint64, source + i).*;
+            i = i + 8;
+        } else {
+            @cast(*uint8, destination + i).* = @cast(*uint8, source + i).*;
+            i = i + 1;
+        };
+    };
+}

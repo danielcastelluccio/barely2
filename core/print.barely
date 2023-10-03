@@ -1,0 +1,12 @@
+macro print!($expr, $expr..): $expr {
+    ($string_in, $args..) {
+        var _file: File = @build(File, 0);
+        var writer: Writer = create_file_writer(&_file);
+        write!(writer, $string_in, $args);
+    },
+    ($string_in) {
+        var _file: File = @build(File, 0);
+        var writer: Writer = create_file_writer(&_file);
+        write!(writer, $string_in);
+    }
+}
