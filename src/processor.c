@@ -93,7 +93,7 @@ Ast_Type create_array_type(Ast_Type child) {
     Ast_Type type = { .directives = array_ast_directive_new(1) };
     Ast_Type_Array array = {};
 
-    Ast_Type* child_allocated = malloc(sizeof(Ast_Type));
+    Ast_Type* child_allocated = malloc(sizeof(*child_allocated));
     *child_allocated = child;
     array.element_type = child_allocated;
 
@@ -107,7 +107,7 @@ Ast_Type create_pointer_type(Ast_Type child) {
     Ast_Type type = { .directives = array_ast_directive_new(1) };
     Ast_Type_Pointer pointer;
 
-    Ast_Type* child_allocated = malloc(sizeof(Ast_Type));
+    Ast_Type* child_allocated = malloc(sizeof(*child_allocated));
     *child_allocated = child;
     pointer.child = child_allocated;
 
@@ -426,7 +426,7 @@ static Ast_Type* _usize_type;
 
 Ast_Type* usize_type() {
     if (_usize_type == NULL) {
-        Ast_Type* usize = malloc(sizeof(Ast_Type));
+        Ast_Type* usize = malloc(sizeof(*usize));
         *usize = create_internal_type(Type_UInt);
         _usize_type = usize;
     }
@@ -593,7 +593,7 @@ void process_run_macro(Ast_RunMacro* run_macro, Ast_Macro_Syntax_Kind kind, Proc
             walk_expression(&cloned, &walk_state);
 
             run_macro->result.kind = Macro_Expression;
-            run_macro->result.data.expression = malloc(sizeof(Ast_Expression));
+            run_macro->result.data.expression = malloc(sizeof(*run_macro->result.data.expression));
             *run_macro->result.data.expression = cloned;
 
             process_expression(run_macro->result.data.expression, state);
@@ -604,7 +604,7 @@ void process_run_macro(Ast_RunMacro* run_macro, Ast_Macro_Syntax_Kind kind, Proc
             walk_type(&cloned, &walk_state);
 
             run_macro->result.kind = Macro_Type;
-            run_macro->result.data.type = malloc(sizeof(Ast_Type));
+            run_macro->result.data.type = malloc(sizeof(*run_macro->result.data.type));
             *run_macro->result.data.type = cloned;
 
             process_type(run_macro->result.data.type, state);
@@ -640,7 +640,7 @@ void process_type(Ast_Type* type, Process_State* state) {
             size_t stack_initial = state->stack.count;
             process_expression(expression, state);
 
-            Ast_Type* type = malloc(sizeof(Ast_Type));
+            Ast_Type* type = malloc(sizeof(*type));
             *type = stack_type_pop(&state->stack);
             type_of->computed_result_type = type;
 
@@ -781,7 +781,7 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
     Array_Ast_Type wanted_types = array_ast_type_new(1);
     for (size_t i = 0; i < assign->parts.count; i++) {
         Statement_Assign_Part* assign_part = &assign->parts.elements[i];
-        Ast_Type* wanted_type = malloc(sizeof(Ast_Type));
+        Ast_Type* wanted_type = malloc(sizeof(*wanted_type));
         bool found = false;
 
         if (assign_part->kind == Retrieve_Assign_Array) {
@@ -810,7 +810,7 @@ void process_assign(Ast_Statement_Assign* assign, Process_State* state) {
         if (assign_part->kind == Retrieve_Assign_Identifier) {
             char* name = assign_part->data.identifier.name;
 
-            Ast_Type* type = malloc(sizeof(Ast_Type));
+            Ast_Type* type = malloc(sizeof(*type));
             for (size_t j = 0; j < state->generic.current_declares.count; j++) {
                 if (strcmp(state->generic.current_declares.elements[j].name, name) == 0) {
                     *type = state->generic.current_declares.elements[j].type;
@@ -1392,7 +1392,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
 
                     process_expression(invoke->arguments.elements[reversed ? 1 : 0], state);
 
-                    Ast_Type* wanted = malloc(sizeof(Ast_Type));
+                    Ast_Type* wanted = malloc(sizeof(*wanted));
                     *wanted = state->stack.elements[state->stack.count - 1];
                     state->wanted_type = wanted;
 
@@ -1608,7 +1608,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                     Ast_Type_Enum* enum_type = &evaluated_wanted_type.data.enum_;
                     for (size_t i = 0; i < enum_type->items.count; i++) {
                         if (strcmp(enum_variant, enum_type->items.elements[i]) == 0) {
-                            Ast_Type* evaluated_wanted_type_allocated = malloc(sizeof(Ast_Type));
+                            Ast_Type* evaluated_wanted_type_allocated = malloc(sizeof(*evaluated_wanted_type_allocated));
                             *evaluated_wanted_type_allocated = evaluated_wanted_type;
                             retrieve->computed_result_type = evaluated_wanted_type_allocated;
                             stack_type_push(&state->stack, *state->wanted_type);
@@ -1748,7 +1748,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 stack_type_push(&state->stack, *wanted);
                 number->type = wanted;
             } else {
-                Ast_Type* usize = malloc(sizeof(Ast_Type));
+                Ast_Type* usize = malloc(sizeof(*usize));
                 *usize = create_internal_type(Type_UInt);
                 stack_type_push(&state->stack, *usize);
                 number->type = usize;
@@ -1763,7 +1763,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
                 stack_type_push(&state->stack, *wanted);
                 null->type = wanted;
             } else {
-                Ast_Type* usize = malloc(sizeof(Ast_Type));
+                Ast_Type* usize = malloc(sizeof(*usize));
                 *usize = create_internal_type(Type_UInt);
                 stack_type_push(&state->stack, *usize);
                 null->type = usize;

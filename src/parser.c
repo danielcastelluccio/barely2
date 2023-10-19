@@ -132,7 +132,7 @@ void parse_directives(Parser_State* state) {
             Ast_Directive_If if_node;
             consume_check(state, Token_LeftParenthesis);
 
-            Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+            Ast_Expression* expression = malloc(sizeof(*expression));
             *expression = parse_expression(state);
             if_node.expression = expression;
 
@@ -197,7 +197,7 @@ Ast_Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, Ast_Mac
 
     switch (kind) {
         case Macro_Expression: {
-            Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+            Ast_Expression* expression = malloc(sizeof(*expression));
             *expression = parse_expression(state);
 
             result.kind = Macro_Expression;
@@ -205,7 +205,7 @@ Ast_Macro_Syntax_Data parse_macro_syntax_data_inner(Parser_State* state, Ast_Mac
             break;
         }
         case Macro_Type: {
-            Ast_Type* type = malloc(sizeof(Ast_Type));
+            Ast_Type* type = malloc(sizeof(*type));
             *type = parse_type(state);
 
             result.kind = Macro_Type;
@@ -238,7 +238,7 @@ Ast_RunMacro parse_run_macro(Parser_State* state, Ast_Identifier identifier, Ast
             continue;
         }
 
-        Ast_Macro_Syntax_Data* data = malloc(sizeof(Ast_Macro_Syntax_Data));;
+        Ast_Macro_Syntax_Data* data = malloc(sizeof(*data));;
         *data = parse_macro_syntax_data(state, default_kind);
 
         array_ast_macro_syntax_data_append(&run_macro.arguments, data);
@@ -259,7 +259,7 @@ Ast_Type parse_type(Parser_State* state) {
 
         consume(state);
 
-        Ast_Type* child = malloc(sizeof(Ast_Type));
+        Ast_Type* child = malloc(sizeof(*child));
         *child = parse_type(state);
         pointer.child = child;
 
@@ -272,14 +272,14 @@ Ast_Type parse_type(Parser_State* state) {
 
         if (peek(state) != Token_RightBracket) {
             array.has_size = true;
-            Ast_Type* size_type = malloc(sizeof(Ast_Type));
+            Ast_Type* size_type = malloc(sizeof(*size_type));
             *size_type = parse_type(state);
             array.size_type = size_type;
         }
 
         consume_check(state, Token_RightBracket);
 
-        Ast_Type* child = malloc(sizeof(Ast_Type));
+        Ast_Type* child = malloc(sizeof(*child));
         *child = parse_type(state);
         array.element_type = child;
 
@@ -302,7 +302,7 @@ Ast_Type parse_type(Parser_State* state) {
                     continue;
                 }
 
-                Ast_Type* type = malloc(sizeof(Ast_Type));
+                Ast_Type* type = malloc(sizeof(*type));
                 *type = parse_type(state);
                 array_ast_type_append(&procedure.arguments, type);
             }
@@ -314,7 +314,7 @@ Ast_Type parse_type(Parser_State* state) {
 
                 bool looking_at_returns = true;
                 while (looking_at_returns) {
-                    Ast_Type* type = malloc(sizeof(Ast_Type));
+                    Ast_Type* type = malloc(sizeof(*type));
                     *type = parse_type(state);
                     array_ast_type_append(&procedure.returns, type);
 
@@ -340,7 +340,7 @@ Ast_Type parse_type(Parser_State* state) {
                 consume_check(state, Token_Colon);
                 Ast_Type type = parse_type(state);
 
-                Ast_Declaration* declaration = malloc(sizeof(Ast_Declaration));
+                Ast_Declaration* declaration = malloc(sizeof(*declaration));
                 declaration->name = name;
                 declaration->type = type;
                 declaration->location = location;
@@ -399,7 +399,7 @@ Ast_Type parse_type(Parser_State* state) {
 
                 consume_check(state, Token_LeftParenthesis);
 
-                Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+                Ast_Expression* expression = malloc(sizeof(*expression));
                 *expression = parse_expression(state);
                 type_of.expression = expression;
 
@@ -476,7 +476,7 @@ Ast_Expression parse_multiple_expression(Parser_State* state) {
             consume(state);
         }
 
-        Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+        Ast_Expression* expression = malloc(sizeof(*expression));
         *expression = parse_expression(state);
         array_ast_expression_append(&node.expressions, expression);
     } while (peek(state) == Token_Comma);
@@ -517,7 +517,7 @@ Ast_Statement parse_statement(Parser_State* state) {
         if (next == Token_Equals) {
             consume(state);
 
-            Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+            Ast_Expression* expression = malloc(sizeof(*expression));
             *expression = parse_multiple_expression(state);
             node.expression = expression;
 
@@ -534,7 +534,7 @@ Ast_Statement parse_statement(Parser_State* state) {
 
         consume(state);
 
-        Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+        Ast_Expression* expression = malloc(sizeof(*expression));
         *expression = parse_multiple_expression(state);
         node.expression = expression;
 
@@ -547,11 +547,11 @@ Ast_Statement parse_statement(Parser_State* state) {
 
         Ast_Statement_While node;
 
-        Ast_Expression* condition = malloc(sizeof(Ast_Expression));
+        Ast_Expression* condition = malloc(sizeof(*condition));
         *condition = parse_expression(state);
         node.condition = condition;
 
-        Ast_Expression* inside = malloc(sizeof(Ast_Expression));
+        Ast_Expression* inside = malloc(sizeof(*inside));
         *inside = parse_expression(state);
         node.inside = inside;
 
@@ -570,7 +570,7 @@ Ast_Statement parse_statement(Parser_State* state) {
     } else {
         Ast_Statement_Expression node = {};
 
-        Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+        Ast_Expression* expression = malloc(sizeof(*expression));
         *expression = parse_multiple_expression(state);
         node.expression = expression;
 
@@ -595,7 +595,7 @@ Ast_Statement parse_statement(Parser_State* state) {
                 }
             }
 
-            Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+            Ast_Expression* expression = malloc(sizeof(*expression));
             *expression = parse_multiple_expression(state);
             assign.expression = expression;
 
@@ -662,7 +662,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
             Array_Ast_Statement statements = array_ast_statement_new(32);
 
             while (peek(state) != Token_RightCurlyBrace) {
-                Ast_Statement* statement = malloc(sizeof(Ast_Statement));
+                Ast_Statement* statement = malloc(sizeof(*statement));
                 *statement = parse_statement(state);
                 array_ast_statement_append(&statements, statement);
             }
@@ -777,7 +777,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
                 consume_check(state, Token_Comma);
 
-                Ast_Expression* inner = malloc(sizeof(Ast_Expression));
+                Ast_Expression* inner = malloc(sizeof(*inner));
                 *inner = parse_expression(state);
                 node.expression = inner;
 
@@ -817,7 +817,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                         continue;
                     }
 
-                    Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+                    Ast_Expression* expression = malloc(sizeof(*expression));
                     *expression = parse_expression(state);
 
                     array_ast_expression_append(&arguments, expression);
@@ -853,7 +853,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
             consume(state);
 
-            Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+            Ast_Expression* expression = malloc(sizeof(*expression));
             *expression = parse_expression_without_operators(state);
             array_ast_expression_append(&node.arguments, expression);
 
@@ -868,17 +868,17 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                 Ast_Expression_If node = {};
                 node.location = state->tokens->elements[state->index].location;
 
-                Ast_Expression* condition = malloc(sizeof(Ast_Expression));
+                Ast_Expression* condition = malloc(sizeof(*condition));
                 *condition = parse_expression(state);
                 node.condition = condition;
 
-                Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+                Ast_Expression* expression = malloc(sizeof(*expression));
                 *expression = parse_expression(state);
                 node.if_expression = expression;
 
                 if (state->tokens->elements[state->index].kind == Token_Keyword && strcmp(state->tokens->elements[state->index].data, "else") == 0) {
                     consume(state);
-                    Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+                    Ast_Expression* expression = malloc(sizeof(*expression));
                     *expression = parse_expression(state);
                     node.else_expression = expression;
                 }
@@ -899,7 +899,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
             consume(state);
             
-            Ast_Expression* inner = malloc(sizeof(Ast_Expression));
+            Ast_Expression* inner = malloc(sizeof(*inner));
             *inner = parse_expression(state);
             node.inner = inner;
 
@@ -934,7 +934,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
 
             consume(state);
 
-            Ast_Expression* previous_result = malloc(sizeof(Ast_Expression));
+            Ast_Expression* previous_result = malloc(sizeof(*previous_result));
             *previous_result = result;
             node.data.parent.expression = previous_result;
 
@@ -956,13 +956,13 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
             node.kind = Retrieve_Assign_Array;
             node.location = state->tokens->elements[state->index].location;
 
-            Ast_Expression* previous_result = malloc(sizeof(Ast_Expression));
+            Ast_Expression* previous_result = malloc(sizeof(*previous_result));
             *previous_result = result;
             node.data.array.expression_outer = previous_result;
 
             consume(state);
 
-            Ast_Expression* inner = malloc(sizeof(Ast_Expression));
+            Ast_Expression* inner = malloc(sizeof(*inner));
             *inner = parse_expression(state);
             node.data.array.expression_inner = inner;
 
@@ -979,7 +979,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
             node.location = state->tokens->elements[state->index].location;
             node.kind = Invoke_Standard;
 
-            Ast_Expression* previous_result = malloc(sizeof(Ast_Expression));
+            Ast_Expression* previous_result = malloc(sizeof(*previous_result));
             *previous_result = result;
             node.data.procedure.procedure = previous_result;
             consume(state);
@@ -992,7 +992,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
                     continue;
                 }
 
-                Ast_Expression* expression = malloc(sizeof(Ast_Expression));
+                Ast_Expression* expression = malloc(sizeof(*expression));
                 *expression = parse_expression(state);
 
                 array_ast_expression_append(&arguments, expression);
@@ -1080,11 +1080,11 @@ Ast_Expression parse_expression(Parser_State* state) {
             }
             node.data.operator_.operator_ = operator;
 
-            Ast_Expression* parsed = malloc(sizeof(Ast_Expression));
+            Ast_Expression* parsed = malloc(sizeof(*parsed));
             *parsed = parse_expression_without_operators(state);
 
             if (current_precedence > previous_precedence) {
-                Ast_Expression* result_inner = malloc(sizeof(Ast_Expression));
+                Ast_Expression* result_inner = malloc(sizeof(*result_inner));
 
                 Array_Ast_Expression arguments = array_ast_expression_new(32);
                 array_ast_expression_append(&arguments, array_ast_expression_get(&result.data.invoke.arguments, 1));
@@ -1096,7 +1096,7 @@ Ast_Expression parse_expression(Parser_State* state) {
 
                 array_ast_expression_set(&result.data.invoke.arguments, 1, result_inner);
             } else {
-                Ast_Expression* result_allocated = malloc(sizeof(Ast_Expression));
+                Ast_Expression* result_allocated = malloc(sizeof(*result_allocated));
                 *result_allocated = result;
 
                 Array_Ast_Expression arguments = array_ast_expression_new(32);
@@ -1144,7 +1144,7 @@ Ast_Item_Procedure parse_procedure(Parser_State* state) {
 
         bool running = true;
         while (running) {
-            Ast_Type* type = malloc(sizeof(Ast_Type));
+            Ast_Type* type = malloc(sizeof(*type));
             *type = parse_type(state);
 
             array_ast_type_append(&node.returns, type);
@@ -1156,7 +1156,7 @@ Ast_Item_Procedure parse_procedure(Parser_State* state) {
         }
     }
 
-    Ast_Expression* body = malloc(sizeof(Ast_Expression));
+    Ast_Expression* body = malloc(sizeof(*body));
     *body = parse_expression(state);
     node.body = body;
 
@@ -1228,12 +1228,12 @@ Ast_Item parse_item(Parser_State* state) {
                     consume(state);
 
                     if (node.return_.kind == Macro_Expression) {
-                        Ast_Expression* node = malloc(sizeof(Ast_Expression));
+                        Ast_Expression* node = malloc(sizeof(*node));
                         *node = parse_expression(state);
                         variant.data.kind = Macro_Expression;
                         variant.data.data.expression = node;
                     } else if (node.return_.kind == Macro_Type) {
-                        Ast_Type* type = malloc(sizeof(Ast_Type));
+                        Ast_Type* type = malloc(sizeof(*type));
                         *type = parse_type(state);
                         variant.data.kind = Macro_Type;
                         variant.data.data.type = type;
