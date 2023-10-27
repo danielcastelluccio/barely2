@@ -1298,12 +1298,8 @@ Ast_Item parse_item(Parser_State* state) {
     return result;
 }
 
-static size_t file_id;
-
-Ast_File parse(char* path, Tokens* tokens) {
+Ast_File parse(Tokens* tokens) {
     Ast_File result;
-    result.path = path;
-    result.id = file_id++;
 
     Parser_State state = { .tokens = tokens, .directives = array_ast_directive_new(4), .index = 0 };
 

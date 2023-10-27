@@ -22,6 +22,8 @@ int main(int argc, char** argv) {
             if (strcmp(arg, "-backend") == 0) {
                 backend = argv[i + 1];
                 i += 2;
+            } else {
+                assert(false);
             }
         } else {
             char* path = argv[i];
@@ -34,7 +36,7 @@ int main(int argc, char** argv) {
             }
             Tokens tokens = tokenize(path, contents);
 
-            program_append(&program, parse(real_path, &tokens));
+            program_append(&program, parse(&tokens));
             i++;
         }
     }

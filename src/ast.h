@@ -483,8 +483,6 @@ struct Ast_Item {
 };
 
 typedef struct {
-    char* path;
-    size_t id;
     Array_Ast_Item items;
 } Ast_File;
 

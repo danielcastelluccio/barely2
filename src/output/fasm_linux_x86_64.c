@@ -22,9 +22,11 @@ typedef struct {
 void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_State* state);
 
 void output_copy_fasm_linux_x86_64(Output_State* state, char* input_register, bool input_inverted, int input_offset, char* output_register, bool output_inverted, int output_offset, size_t size, char* intermediate_register_8, char* intermediate_register_1) {
-    size_t i = size;
-    while (i > 0) {
-        if (i >= 8) {
+    size_t i = 0;
+    while (i < size) {
+        if (size - i >= 8) {
+            i += 8;
+
             char buffer[128] = {};
             sprintf(buffer, "  mov %s, [%s%s%zu]\n", intermediate_register_8, input_register, input_inverted ? "-" : "+", input_offset + (size - i) * (input_inverted ? -1 : 1));
             stringbuffer_appendstring(&state->instructions, buffer);
@@ -33,9 +35,9 @@ void output_copy_fasm_linux_x86_64(Output_State* state, char* input_register, bo
 
             sprintf(buffer, "  mov [%s%s%zu], %s\n", output_register, output_inverted ? "-" : "+", output_offset + (size - i) * (output_inverted ? -1 : 1), intermediate_register_8);
             stringbuffer_appendstring(&state->instructions, buffer);
+        } else if (size - i >= 1) {
+            i += 1;
 
-            i -= 8;
-        } else if (i >= 1) {
             char buffer[128] = {};
             sprintf(buffer, "  mov %s, [%s%s%zu]\n", intermediate_register_1, input_register, input_inverted ? "-" : "+", input_offset + (size - i) * (input_inverted ? -1 : 1));
             stringbuffer_appendstring(&state->instructions, buffer);
@@ -44,8 +46,6 @@ void output_copy_fasm_linux_x86_64(Output_State* state, char* input_register, bo
 
             sprintf(buffer, "  mov [%s%s%zu], %s\n", output_register, output_inverted ? "-" : "+", output_offset + (size - i) * (output_inverted ? -1 : 1), intermediate_register_1);
             stringbuffer_appendstring(&state->instructions, buffer);
-
-            i -= 1;
         }
     }
 }
@@ -1014,8 +1014,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                                 Ast_Item_Global* global = &item->data.global;
                                 if (consume_in_reference(&state->generic)) {
                                     char buffer[128] = {};
-                                    sprintf(buffer + strlen(buffer), "  lea rax, [%s.", global->name);
-                                    sprintf(buffer + strlen(buffer), "%zu]\n", resolved.file->id);
+                                    sprintf(buffer + strlen(buffer), "  lea rax, [%s]\n", global->name);
 
                                     stringbuffer_appendstring(&state->instructions, buffer);
                                     stringbuffer_appendstring(&state->instructions, "  push rax\n");
