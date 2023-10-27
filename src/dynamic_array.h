@@ -30,6 +30,7 @@ void name##append(Array_Type_* array, Type_Inner element) { \
     if (array->count == array->capacity) { \
         size_t new_capacity = array->capacity * 2; \
         Type_Inner* elements_new = (Type_Inner*) malloc(sizeof(Type_Inner) * new_capacity); \
+        memset(elements_new, 0, new_capacity * sizeof(Type_Inner)); \
         memcpy(elements_new, array->elements, sizeof(Type_Inner) * array->capacity); \
         free(array->elements); \
         array->elements = elements_new; \
@@ -41,7 +42,7 @@ void name##append(Array_Type_* array, Type_Inner element) { \
 } \
 \
 void name##clear(Array_Type_* array) { \
-    memset(array->elements, 0, array->count * sizeof(Type_Inner)); \
+    memset(array->elements, 0, array->capacity * sizeof(Type_Inner)); \
     array->count = 0; \
 } \
 \
