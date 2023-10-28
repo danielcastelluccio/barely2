@@ -74,6 +74,7 @@ Ast_Statement clone_statement(Ast_Statement statement) {
     Ast_Statement result = {};
     result.directives = clone_directives(statement.directives);
     result.kind = statement.kind;
+    result.statement_end_location = statement.statement_end_location;
 
     switch (statement.kind) {
         case Statement_Declare: {
@@ -138,6 +139,7 @@ Ast_Statement clone_statement(Ast_Statement statement) {
             Ast_Statement_Expression expression_out = { .expression = malloc(sizeof(Ast_Expression)) };
 
             *expression_out.expression = clone_expression(*expression_in->expression);
+            expression_out.skip_stack_check = expression_in->skip_stack_check;
 
             result.data.expression = expression_out;
             break;

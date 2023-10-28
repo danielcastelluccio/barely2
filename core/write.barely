@@ -33,16 +33,8 @@ proc write_uint(writer: Writer, value: uint) {
     writer.procedure(writer.data, &buffer, length);
 }
 
-proc string_length(string: *[]byte): uint {
-    var size: uint = 0;
-    while string[size] != '\0' {
-        size = size + 1;
-    };
-    return size;
-}
-
 proc write_raw_string(writer: Writer, value: *[]byte) {
-    writer.procedure(writer.data, value, string_length(value));
+    writer.procedure(writer.data, value, raw_string_length(value));
 }
 
 proc write_string(writer: Writer, value: String) {
@@ -57,10 +49,10 @@ type Custom_Write : struct {
     procedure: *proc(Writer, ptr)
 }
 
-//proc append_custom_write(custom_write: Custom_Write) {
-//    custom_writes[custom_write_count] = custom_write;
-//    custom_write_count = custom_write_count + 1;
-//}
+proc append_custom_write(custom_write: Custom_Write) {
+    custom_writes[custom_write_count] = custom_write;
+    custom_write_count = custom_write_count + 1;
+}
 
 proc string_eq_index_len(a: *[]byte, a_index: uint, a_len: uint, b: *[]byte, b_index: uint, b_len: uint): bool {
     if a_len != b_len {
@@ -84,16 +76,16 @@ proc write_internal(writer: Writer, string: *[]byte, index: uint, data: ptr): ui
         string_len = string_len + 1;
     };
 
-    //var found: bool = false;
-    //var i: uint = 0;
-    //while !found && i < custom_write_count {
-    //    var custom_write: *Custom_Write = &custom_writes[i];
-    //    if string_eq_index_len(string, index, string_len, custom_write.identifier, 0, string_length(custom_write.identifier)) {
-    //        custom_write.procedure(writer, data);
-    //        found = true;
-    //    };
-    //    i = i + 1;
-    //};
+    var found: bool = false;
+    var i: uint = 0;
+    while !found && i < custom_write_count {
+        var custom_write: *Custom_Write = &custom_writes[i];
+        if string_eq_index_len(string, index, string_len, custom_write.identifier, 0, raw_string_length(custom_write.identifier)) {
+            custom_write.procedure(writer, data);
+            found = true;
+        };
+        i = i + 1;
+    };
     return string_len;
 }
 
@@ -102,13 +94,13 @@ macro write!($expr..): $expr {
         var writer: Writer = writer_in;
         var string: *[]byte = string_in;
         var _i: uint = 0;
-        var length: uint = string_length(string);
+        var _length: uint = raw_string_length(string);
 
         var value_index: uint = 0;
 
         var last_write: uint = 0;
 
-        while _i < length {
+        while _i < _length {
             if string[_i] == '{' && string[_i + 1] != '{' {
                 writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
 
@@ -149,11 +141,10 @@ macro write_part!($expr..): $expr {
     ($value) {
         if (counter == value_index) {
             if string[_i + 1] == '}' {
-                #if(@istype(String, @typeof($value))) {
-                    write_string(writer, $value);
-                };
+                #if(@istype(String, @typeof($value))) write_string(writer, $value);
                 #if(@istype(*[]byte, @typeof($value))) write_raw_string(writer, $value);
                 #if(@istype(uint, @typeof($value))) write_uint(writer, $value);
+
                 _i = _i + 2;
             } else {
                 _i = _i + 1;

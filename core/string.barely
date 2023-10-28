@@ -1,6 +1,6 @@
 type String : struct {
     pointer: *[]byte,
-    length: uint
+    length: uint,
 }
 
 proc string_new(pointer: *[]byte): String {
@@ -23,6 +23,18 @@ proc string_from_range(string: String, start: uint, end: uint): String {
     var pointer: ptr = @cast(ptr, string.pointer);
     pointer = pointer + start;
     return @build(String, @cast(*[]byte, pointer), end - start);
+}
+
+proc string_equal(s1: String, s2: String): bool {
+    if s1.length != s2.length { return false; };
+
+    var i: uint = 0;
+    while i < s1.length {
+        if s1.pointer[i] != s2.pointer[i] { return false; };
+        i = i + 1;
+    };
+
+    return true;
 }
 
 proc raw_string_length(string: *[]byte): uint {

@@ -1,2 +1,197 @@
-proc parse() {
+type Parser : struct {
+    tokens: *Dynamic_Array,
+    tokens_index: uint,
+    allocator: Allocator,
+    //directives: Array_Ast_Directive,
+}
+
+proc parser_create(tokens: *Dynamic_Array, allocator: Allocator): Parser {
+    return @build(Parser, tokens, 0, allocator);
+}
+
+proc parser_peek_token_kind(parser: *Parser): Token_Kind {
+    return dynamic_array_get!(parser.tokens, parser.tokens_index, $type Token).kind;
+}
+
+proc parser_peek_token(parser: *Parser): Token {
+    return dynamic_array_get!(parser.tokens, parser.tokens_index, $type Token);
+}
+
+proc parser_peek_check_token(parser: *Parser, wanted: Token_Kind) {
+    var token: Token = parser_peek_token(parser);
+    if token.kind != wanted {
+        print!("{}:{}:{}: Unexpected token\n", token.location.file, token.location.row, token.location.column);
+        panic();
+    };
+}
+
+proc parser_consume_check_token(parser: *Parser, wanted: Token_Kind) {
+    var token: Token = parser_peek_token(parser);
+    if token.kind != wanted {
+        print!("{}:{}:{}: Unexpected token '{token}', expected '{token}'\n", token.location.file, token.location.row, token.location.column, token, create_basic_token(wanted));
+        panic();
+    };
+    parser.tokens_index = parser.tokens_index + 1;
+}
+
+proc parser_consume_token_data(parser: *Parser): String {
+    var result: String = dynamic_array_get!(parser.tokens, parser.tokens_index, $type Token).data;
+    parser.tokens_index = parser.tokens_index + 1;
+    return result;
+}
+
+proc parser_peek_token_data(parser: *Parser): String {
+    return dynamic_array_get!(parser.tokens, parser.tokens_index, $type Token).data;
+}
+
+proc parse_file(parser: *Parser): Ast_File {
+    var result: Ast_File;
+
+    result.items = dynamic_array_new!(32, parser.allocator, $type Ast_Item);
+    while parser.tokens_index < parser.tokens.count {
+        var node: Ast_Item = parse_item(parser);
+        dynamic_array_append!(&result.items, node, $type Ast_Item);
+    };
+
+    return result;
+}
+
+proc parse_item(parser: *Parser): Ast_Item {
+    var result: Ast_Item;
+
+    if parser_peek_token_kind(parser) == Keyword {
+        var keyword: String = parser_peek_token_data(parser);
+
+        if string_equal(keyword, string_new("proc")) {
+            var procedure: Ast_Item_Procedure  = parse_procedure_item(parser);
+            result.kind = Procedure;
+            result.data.procedure = procedure;
+        } else {
+            assert_(false, @file, @line);
+        };
+    } else {
+        assert_(false, @file, @line);
+    };
+
+    return result;
+}
+
+proc parse_procedure_item(parser: *Parser): Ast_Item_Procedure {
+    var result: Ast_Item_Procedure;
+
+    parser_consume_check_token(parser, Keyword);
+
+    parser_peek_check_token(parser, Identifier);
+    result.name = parser_consume_token_data(parser);
+
+    // TODO: parse arguments
+    parser_consume_check_token(parser, Left_Parenthesis);
+    parser_consume_check_token(parser, Right_Parenthesis);
+    result.arguments = dynamic_array_new!(1, parser.allocator, $type Ast_Declaration);
+
+    // TODO: parse returns
+    result.returns = dynamic_array_new!(1, parser.allocator, $type Ast_Type);
+
+    result.body = parse_expression(parser);
+
+    return result;
+}
+
+proc parse_invoke(parser: *Parser, procedure: Ast_Expression): Ast_Invoke {
+    var result: Ast_Invoke;
+    result.procedure = allocate_value!(parser.allocator, procedure, $type Ast_Expression);
+
+    parser_consume_check_token(parser, Left_Parenthesis);
+
+    result.arguments = dynamic_array_new!(1, parser.allocator, $type Ast_Expression);
+    while parser_peek_token_kind(parser) != Right_Parenthesis {
+        if parser_peek_token_kind(parser) == Comma {
+            parser_consume_check_token(parser, Comma);
+        } else {
+            var expression: Ast_Expression = parse_expression(parser);
+            dynamic_array_append!(&result.arguments, expression, $type Ast_Expression);
+        };
+    };
+
+    parser_consume_check_token(parser, Right_Parenthesis);
+
+    return result;
+}
+
+proc parse_expression(parser: *Parser): Ast_Expression {
+    var result: Ast_Expression;
+
+    var kind: Token_Kind = parser_peek_token_kind(parser);
+    if kind == Left_Curly_Brace {
+        var block: Ast_Block = parse_block(parser);
+        result.kind = Block;
+        result.data.block = block;
+    } else if kind == Number {
+        
+    } else if kind == Identifier {
+        var retrieve: Ast_Retrieve = parse_retrieve_identifier(parser);
+        result.kind = Retrieve;
+        result.data.retrieve = retrieve;
+    } else {
+        assert_(false, @file, @line);
+    };
+
+    if parser_peek_token_kind(parser) == Left_Parenthesis {
+        var invoke: Ast_Invoke = parse_invoke(parser, result);
+        result.kind = Invoke;
+        result.data.invoke = invoke;
+    };
+
+    return result;
+}
+
+proc parse_retrieve_identifier(parser: *Parser): Ast_Retrieve {
+    var result: Ast_Retrieve;
+    result.kind = Identifier;
+    result.data.identifier.name = parser_consume_token_data(parser);
+    return result;
+}
+
+proc parse_block(parser: *Parser): Ast_Block {
+    var result: Ast_Block;
+
+    parser_consume_check_token(parser, Left_Curly_Brace);
+
+    result.statements = dynamic_array_new!(1, parser.allocator, $type Ast_Statement);
+    while parser_peek_token_kind(parser) != Right_Curly_Brace {
+        var statement: Ast_Statement = parse_statement(parser);
+        dynamic_array_append!(&result.statements, statement, $type Ast_Statement);
+    };
+
+    parser_consume_check_token(parser, Right_Curly_Brace);
+
+    return result;
+}
+
+proc parse_statement(parser: *Parser): Ast_Statement {
+    var result: Ast_Statement;
+
+    if parser_peek_token_kind(parser) == Identifier {
+        var expression: Ast_Statement_Expression = parse_statement_expression(parser);
+        result.kind = Expression;
+        result.data.expression = expression;
+    } else {
+        assert_(false, @file, @line);
+    };
+
+    return result;
+}
+
+proc parse_statement_expression(parser: *Parser): Ast_Statement_Expression {
+    var result: Ast_Statement_Expression;
+    result.expression = parse_expression(parser);
+
+    if parser_peek_token_kind(parser) == Semicolon {
+        parser_consume_check_token(parser, Semicolon);
+        result.stack_check = true;
+    } else {
+        result.stack_check = false;
+    };
+
+    return result;
 }

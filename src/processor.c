@@ -1074,7 +1074,7 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
 
             if (state->stack.count > 0) {
                 print_error_stub(&statement->statement_end_location);
-                printf("Extra values at the end of statement\n");
+                printf("Extra values at the end of declare statement\n");
                 exit(1);
             }
             break;
@@ -1084,7 +1084,7 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
 
             if (state->stack.count > 0) {
                 print_error_stub(&statement->statement_end_location);
-                printf("Extra values at the end of statement\n");
+                printf("Extra values at the end of assign statement\n");
                 exit(1);
             }
             break;

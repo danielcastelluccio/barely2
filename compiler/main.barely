@@ -1,5 +1,8 @@
 #entry
 proc entry2(argc: uint, argv: *[]*[]byte) {
+    var custom_writes_data: [8]Custom_Write = @init([8]Custom_Write);
+    custom_writes = &custom_writes_data;
+
     var stdout_file: File = @build(File, STDOUT);
     var stdout: Writer = create_file_writer(&stdout_file);
 
@@ -12,7 +15,10 @@ proc entry2(argc: uint, argv: *[]*[]byte) {
         var file: File = open_file_for_reading(string);
         var contents: String = read_file_to_string(file, allocator);
 
-        lex(contents, allocator);
+        var tokens: Dynamic_Array = lex(string_new(string), contents, allocator);
+
+        var parser: Parser = parser_create(&tokens, allocator);
+        var file: Ast_File = parse_file(&parser);
 
         i = i + 1;
     };

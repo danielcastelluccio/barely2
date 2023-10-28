@@ -29,6 +29,7 @@ type Token_Kind : enum {
     Greater_Equal,
 
     Identifier,
+    Keyword,
     Number,
     String,
     Character,
@@ -36,15 +37,47 @@ type Token_Kind : enum {
 
 type Token : struct {
     kind: Token_Kind,
-    data: String
+    data: String,
+    location: Location,
 }
 
-proc lex(contents: String, allocator: Allocator) {
+type Location : struct {
+    file: String,
+    row: uint,
+    column: uint,
+}
+
+proc write_token(writer: Writer, pointer: ptr) {
+    var token: Token = @cast(*Token, pointer).*;
+
+    if token.kind == Left_Parenthesis {
+        write!(writer, "(");
+    } else if token.kind == Right_Parenthesis {
+        write!(writer, ")");
+    } else if token.kind == Left_Curly_Brace {
+        write!(writer, "{");
+    } else if token.kind == Right_Curly_Brace {
+        write!(writer, "}");
+    } else if token.kind == Identifier {
+        write!(writer, "{}", token.data);
+    } else if token.kind == Keyword {
+        write!(writer, "{}", token.data);
+    } else {
+        write!(writer, "Unknown");
+    };
+}
+
+proc lex(file: String, contents: String, allocator: Allocator): Dynamic_Array {
+    append_custom_write(@build(Custom_Write, "token", write_token));
+
     var tokens: Dynamic_Array = dynamic_array_new!(contents.length / 3, allocator, $type Token);
     var in_string: bool = false;
     var in_character: bool = false;
     var in_comment: bool = false;
     var buffer_start: uint = 0;
+
+    var row: uint = 1;
+    var column: uint = 1;
 
     var i: uint = 0;
     while i < contents.length {
@@ -55,10 +88,16 @@ proc lex(contents: String, allocator: Allocator) {
         };
 
         if in_comment {
-            if character == '\n' {
-                in_comment = false;
-            };
             i = i + 1;
+
+            if character == '\n' {
+                row = row + 1;
+                column = 1;
+
+                in_comment = false;
+
+                buffer_start = i;
+            };
         } else if in_string || in_character {
             var a: uint;
             if character == '"' || character == '\'' {
@@ -71,58 +110,65 @@ proc lex(contents: String, allocator: Allocator) {
                     kind = Character;
                 };
 
-                dynamic_array_append!(&tokens, @build(Token, kind, substring), $type Token);
+                var location: Location = @build(Location, file, row, column);
+                dynamic_array_append!(&tokens, @build(Token, kind, substring, location), $type Token);
                 in_string = false;
                 in_character = false;
+
+                column = column + (i - buffer_start) + 2;
+
                 i = i + 1;
                 buffer_start = i;
             } else {
                 i = i + 1;
             };
         } else {
-            if      character == '|' && next_character == '|' handle_lex_token(contents, &tokens, &buffer_start, &i, Double_Bar, 2)
-            else if character == '=' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, Double_Equal, 2)
-            else if character == '!' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, Exclamation_Equal, 2)
-            else if character == '<' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, Less_Equal, 2)
-            else if character == '>' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, Greater_Equal, 2)
-            else if character == '&' && next_character == '&' handle_lex_token(contents, &tokens, &buffer_start, &i, Double_Ampersand, 2)
-            else if character == '.' && next_character == '.' handle_lex_token(contents, &tokens, &buffer_start, &i, Double_Period, 2)
-            else if character == '('  handle_lex_token(contents, &tokens, &buffer_start, &i, Left_Parenthesis, 1)
-            else if character == ')'  handle_lex_token(contents, &tokens, &buffer_start, &i, Right_Parenthesis, 1)
-            else if character == '{'  handle_lex_token(contents, &tokens, &buffer_start, &i, Left_Curly_Brace, 1)
-            else if character == '}'  handle_lex_token(contents, &tokens, &buffer_start, &i, Right_Curly_Brace, 1)
-            else if character == '['  handle_lex_token(contents, &tokens, &buffer_start, &i, Left_Brace, 1)
-            else if character == ']'  handle_lex_token(contents, &tokens, &buffer_start, &i, Right_Brace, 1)
-            else if character == ';'  handle_lex_token(contents, &tokens, &buffer_start, &i, Semicolon, 1)
-            else if character == ':'  handle_lex_token(contents, &tokens, &buffer_start, &i, Colon, 1)
-            else if character == '.'  handle_lex_token(contents, &tokens, &buffer_start, &i, Period, 1)
-            else if character == ','  handle_lex_token(contents, &tokens, &buffer_start, &i, Comma, 1)
-            else if character == '+'  handle_lex_token(contents, &tokens, &buffer_start, &i, Plus, 1)
-            else if character == '-'  handle_lex_token(contents, &tokens, &buffer_start, &i, Minus, 1)
-            else if character == '*'  handle_lex_token(contents, &tokens, &buffer_start, &i, Asterisk, 1)
-            else if character == '%'  handle_lex_token(contents, &tokens, &buffer_start, &i, Percent, 1)
-            else if character == '!'  handle_lex_token(contents, &tokens, &buffer_start, &i, Exclamation, 1)
-            else if character == '='  handle_lex_token(contents, &tokens, &buffer_start, &i, Equals, 2)
-            else if character == '<'  handle_lex_token(contents, &tokens, &buffer_start, &i, Greater, 2)
-            else if character == '>'  handle_lex_token(contents, &tokens, &buffer_start, &i, Less, 2)
-            else if character == '&'  handle_lex_token(contents, &tokens, &buffer_start, &i, Ampersand, 2)
-            else if character == ' '  handle_lex_token(contents, &tokens, &buffer_start, &i, Invalid, 1)
-            else if character == '\n' handle_lex_token(contents, &tokens, &buffer_start, &i, Invalid, 1)
-            else if character == '/' {
+            if      character == '|' && next_character == '|' handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Bar, 2)
+            else if character == '=' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Equal, 2)
+            else if character == '!' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Exclamation_Equal, 2)
+            else if character == '<' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less_Equal, 2)
+            else if character == '>' && next_character == '=' handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater_Equal, 2)
+            else if character == '&' && next_character == '&' handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Ampersand, 2)
+            else if character == '.' && next_character == '.' handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Period, 2)
+            else if character == '('  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Left_Parenthesis, 1)
+            else if character == ')'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Right_Parenthesis, 1)
+            else if character == '{'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Left_Curly_Brace, 1)
+            else if character == '}'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Right_Curly_Brace, 1)
+            else if character == '['  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Left_Brace, 1)
+            else if character == ']'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Right_Brace, 1)
+            else if character == ';'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Semicolon, 1)
+            else if character == ':'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Colon, 1)
+            else if character == '.'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Period, 1)
+            else if character == ','  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Comma, 1)
+            else if character == '+'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Plus, 1)
+            else if character == '-'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Minus, 1)
+            else if character == '*'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Asterisk, 1)
+            else if character == '%'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Percent, 1)
+            else if character == '!'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Exclamation, 1)
+            else if character == '='  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Equals, 2)
+            else if character == '<'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater, 2)
+            else if character == '>'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less, 2)
+            else if character == '&'  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Ampersand, 2)
+            else if character == ' '  handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Invalid, 1)
+            else if character == '\n' {
+                handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Invalid, 1);
+                column = 1;
+                row = row + 1;
+            } else if character == '/' {
                 if next_character == '/' {
-                    handle_lex_token(contents, &tokens, &buffer_start, &i, Invalid, 2);
+                    handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Invalid, 2);
                     in_comment = true;
                 } else {
-                    handle_lex_token(contents, &tokens, &buffer_start, &i, Slash, 1);
+                    handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Slash, 1);
                 };
             } else if character == '"' {
                 in_string = true;
-                lex_buffer(contents, &tokens, &buffer_start, &i);
+                lex_buffer(contents, &tokens, &buffer_start, &i, file, &row, &column);
                 i = i + 1;
                 buffer_start = i;
             } else if character == '\'' {
                 in_character = true;
-                lex_buffer(contents, &tokens, &buffer_start, &i);
+                lex_buffer(contents, &tokens, &buffer_start, &i, file, &row, &column);
                 i = i + 1;
                 buffer_start = i;
             } else {
@@ -131,58 +177,45 @@ proc lex(contents: String, allocator: Allocator) {
         };
     };
 
-    var i: uint = 0;
-    while i < tokens.count {
-        var token: Token = dynamic_array_get!(&tokens, i, $type Token);
-
-        if token.kind == Identifier {
-            print!("Ident: {}\n", token.data);
-        } else if token.kind == Number {
-            print!("Number: {}\n", token.data);
-        } else if token.kind == String {
-            print!("String: \"{}\"\n", token.data);
-        } else if token.kind == Character {
-            print!("Character: '{}'\n", token.data);
-        } else if token.kind == Left_Parenthesis {
-            print!("LeftParen\n");
-        } else if token.kind == Right_Parenthesis {
-            print!("RightParen\n");
-        } else if token.kind == Left_Curly_Brace {
-            print!("LeftCurly\n");
-        } else if token.kind == Right_Curly_Brace {
-            print!("RightCurly\n");
-        } else if token.kind == Comma {
-            print!("Comma\n");
-        } else if token.kind == Semicolon {
-            print!("Semicolon\n");
-        } else if token.kind == Colon {
-            print!("Colon\n");
-        } else if token.kind == Equals {
-            print!("Equals\n");
-        } else {
-            print!("Unknown\n");
-        };
-        i = i + 1;
-    };
+    return tokens;
 }
 
-proc handle_lex_token(contents: String, tokens: *Dynamic_Array, buffer_start: *uint, index: *uint, token_kind: Token_Kind, token_length: uint) {
-    lex_buffer(contents, tokens, buffer_start, index);
+proc handle_lex_token(contents: String, tokens: *Dynamic_Array, buffer_start: *uint, index: *uint, file: String, row: *uint, column: *uint, token_kind: Token_Kind, token_length: uint) {
+    lex_buffer(contents, tokens, buffer_start, index, file, row, column);
     if token_kind != Invalid {
-        dynamic_array_append!(tokens, @build(Token, token_kind, string_new_empty()), $type Token);
+        var location: Location = @build(Location, file, row.*, column.*);
+        dynamic_array_append!(tokens, @build(Token, token_kind, string_new_empty(), location), $type Token);
     };
     index.* = index.* + token_length;
+    column.* = column.* + token_length;
     buffer_start.* = index.*;
 }
 
-proc lex_buffer(contents: String, tokens: *Dynamic_Array, buffer_start: *uint, index: *uint) {
+proc is_keyword(string: String): bool {
+    if string_equal(string, string_new("proc")) {
+        return true;
+    };
+
+    return false;
+}
+
+proc lex_buffer(contents: String, tokens: *Dynamic_Array, buffer_start: *uint, index: *uint, file: String, row: *uint, column: *uint) {
     if (buffer_start.* - index.*) > 0 {
         var token_kind: Token_Kind = Identifier;
         var substring: String = string_from_range(contents, buffer_start.*, index.*);
         if substring.pointer[0] >= '0' && substring.pointer[0] <= '9' {
             token_kind = Number;
+        } else if is_keyword(substring) {
+            token_kind = Keyword;
         };
 
-        dynamic_array_append!(tokens, @build(Token, token_kind, substring), $type Token);
+        var location: Location = @build(Location, file, row.*, column.*);
+        dynamic_array_append!(tokens, @build(Token, token_kind, substring, location), $type Token);
+
+        column.* = column.* + (index.* - buffer_start.*);
     };
+}
+
+proc create_basic_token(kind: Token_Kind): Token {
+    return @build(Token, kind, @init(String), @init(Location));
 }

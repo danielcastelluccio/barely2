@@ -1,5 +1,10 @@
-proc assert_(condition: bool, file: *[]uint8, line: uint) {
+proc assert_(condition: bool, file: *[]byte, line: uint) {
     if !condition {
         print!("{}:{}: Assertion failed!\n", file, line);
+        panic();
     };
+}
+
+proc panic() {
+    var _: uint = @syscall1(60, 1);
 }
