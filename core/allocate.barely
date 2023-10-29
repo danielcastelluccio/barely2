@@ -7,6 +7,12 @@ proc allocate_size(allocator: Allocator, size: uint): ptr {
     return allocator.procedure(allocator.data, size);
 }
 
+macro allocate!($expr, $type): $expr {
+    ($allocator, $type) {
+        @cast(*$type, allocate_size($allocator, @sizeof($type)))
+    }
+}
+
 macro allocate_value!($expr, $expr, $type): $expr {
     ($allocator, $value, $type) {
         var allocated: *$type = @cast(*$type, allocate_size($allocator, @sizeof($type)));
