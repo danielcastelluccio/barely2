@@ -233,7 +233,10 @@ void output_statement_fasm_linux_x86_64(Ast_Statement* statement, Output_State* 
         }
         case Statement_Return: {
             Ast_Statement_Return* return_ = &statement->data.return_;
-            output_expression_fasm_linux_x86_64(return_->expression, state);
+            if (return_->expression != NULL) {
+                output_expression_fasm_linux_x86_64(return_->expression, state);
+            }
+
             output_actual_return_fasm_linux_x86_64(state);
             break;
         }

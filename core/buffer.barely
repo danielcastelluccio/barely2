@@ -1,0 +1,54 @@
+type Buffer : struct {
+    data: *[]byte,
+    index: uint,
+    capacity: uint,
+    allocator: Allocator
+}
+
+proc buffer_create(capacity: uint, allocator: Allocator): Buffer {
+    var buffer: Buffer = @init(Buffer);
+    buffer.data = @cast(*[]byte, allocate_size(allocator, capacity));
+    buffer.capacity = capacity;
+    buffer.allocator = allocator;
+    return buffer;
+}
+
+proc buffer_resize(buffer: *Buffer, size: uint) {
+    var data_new: ptr = allocate_size(buffer.allocator, size);
+    
+    memory_copy(@cast(ptr, buffer.data), data_new, buffer.index);
+
+    buffer.data = @cast(*[]byte, data_new);
+    buffer.capacity = size;
+}
+
+proc buffer_push_byte(buffer: *Buffer, value: byte) {
+    while buffer.index + 1 > buffer.capacity {
+        buffer_resize(buffer, buffer.capacity * 2);
+    };
+
+    buffer.data[buffer.index] = value;
+    buffer.index = buffer.index + 1;
+}
+
+proc buffer_push_uint64(buffer: *Buffer, value: uint64) {
+    while buffer.index + 8 > buffer.capacity {
+        buffer_resize(buffer, buffer.capacity * 2);
+    };
+
+    memory_copy(@cast(ptr, &value), @cast(ptr, &buffer.data[buffer.index]), 8);
+    buffer.index = buffer.index + 8;
+}
+
+proc buffer_push_data(buffer: *Buffer, pointer: ptr, size: uint) {
+    while buffer.index + size > buffer.capacity {
+        buffer_resize(buffer, buffer.capacity * 2);
+    };
+
+    memory_copy(pointer, @cast(ptr, &buffer.data[buffer.index]), size);
+    buffer.index = buffer.index + size;
+}
+
+proc buffer_push_string(buffer: *Buffer, string: String) {
+    buffer_push_data(buffer, @cast(ptr, string.pointer), string.length);
+}

@@ -47,3 +47,7 @@ proc _dynamic_array_get(array: *Dynamic_Array, index: uint, inner_size: uint): p
 macro dynamic_array_get!($expr, $expr, $type): $expr {
     ($array, $index, $item_type) @cast(*$item_type, _dynamic_array_get($array, $index, @sizeof($item_type))).*
 }
+
+macro dynamic_array_get_ref!($expr, $expr, $type): $expr {
+    ($array, $index, $item_type) @cast(*$item_type, _dynamic_array_get($array, $index, @sizeof($item_type)))
+}

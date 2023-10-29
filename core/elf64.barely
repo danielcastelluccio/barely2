@@ -1,0 +1,128 @@
+type Elf64_Header : struct {
+    magic:                 [4]byte,
+    arch:                  uint8,
+    endianness:            uint8,
+    version:               uint8,
+    abi:                   uint8,
+    abi_version:           uint8,
+    padding:               [7]byte,
+    file_type:             uint16,
+    instruction_set:       uint16,
+    version2:              uint32,
+    entry:                 uint64,
+    program_header_offset: uint64,
+    section_header:        uint64,
+    flags:                 uint32,
+    header_size:           uint16,
+    program_header_size:   uint16,
+    program_header_count:  uint16,
+    section_header_size:   uint16,
+    section_header_count:  uint16,
+    section_header_names:  uint16,
+
+}
+
+type Elf64_Program_Header : struct {
+    segment_type:     uint32,
+    flags:            uint32,
+    file_offset:      uint64,
+    virtual_offset:   uint64,
+    physical_address: uint64,
+    file_size:        uint64,
+    virtual_size:     uint64,
+    alignment:        uint64,
+}
+
+proc elf64_header_create(): Elf64_Header {
+    var header: Elf64_Header = @init(Elf64_Header);
+
+    header.magic[0] = 127;
+    header.magic[1] = 'E';
+    header.magic[2] = 'L';
+    header.magic[3] = 'F';
+
+    header.arch = 2;
+
+    header.version = 1;
+    header.version2 = 1;
+
+    header.program_header_offset = 64;
+    header.header_size = 64;
+
+    header.program_header_size = 56;
+
+    return header;
+}
+
+type Elf64_Endianness : enum {
+    Big,
+    Little
+}
+
+proc elf64_header_set_endianness(header: *Elf64_Header, endianness: Elf64_Endianness) {
+    if endianness == Big {
+        header.endianness = 2;
+    } else {
+        header.endianness = 1;
+    };
+}
+
+type Elf64_Abi : enum {
+    Linux
+}
+
+proc elf64_header_set_abi(header: *Elf64_Header, abi: Elf64_Abi) {
+    if abi == Linux {
+        header.abi = 3;
+    } else {
+        assert_(false, @file, @line);
+    };
+}
+
+type Elf64_File_Type : enum {
+    Executable
+}
+
+proc elf64_header_set_type(header: *Elf64_Header, file_type: Elf64_File_Type) {
+    if file_type == Executable {
+        header.file_type = 2;
+    } else {
+        assert_(false, @file, @line);
+    };
+}
+
+type Elf64_Instruction_Set : enum {
+    X86_64
+}
+
+proc elf64_header_set_instruction_set(header: *Elf64_Header, instruction_set: Elf64_Instruction_Set) {
+    if instruction_set == X86_64 {
+        header.instruction_set = 62;
+    } else {
+        assert_(false, @file, @line);
+    };
+}
+
+proc elf64_program_header_create(): Elf64_Program_Header {
+    return @init(Elf64_Program_Header);
+}
+
+type Elf64_Segment_Type : enum {
+    Loadable
+}
+
+proc elf64_program_header_set_type(program_header: *Elf64_Program_Header, segment_type: Elf64_Segment_Type) {
+    if segment_type == Loadable {
+        program_header.segment_type = 1;
+    } else {
+        assert_(false, @file, @line);
+    };
+}
+
+const Elf64_Segment_Executable : 1
+const Elf64_Segment_Writable : 2
+const Elf64_Segment_Readable : 4
+
+proc elf64_program_header_set_flags(program_header: *Elf64_Program_Header, flags: uint) {
+    program_header.flags = @cast(uint32, flags);
+}

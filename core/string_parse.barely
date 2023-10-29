@@ -1,0 +1,13 @@
+proc string_to_uint(s: String): uint {
+    var result: uint = 0;
+
+    var i: uint = 0;
+    while i < s.length {
+        var number: uint8 = @cast(uint8, s.pointer[i]) - 48;
+        result = result * 10;
+        result = result + @cast(uint, number);
+        i = i + 1;
+    };
+
+    return result;
+}

@@ -1,0 +1,109 @@
+type Barely_Ast_Location : struct {
+    file: String,
+    row: uint,
+    col: uint,
+}
+
+type Barely_Ast_Identifier : struct {
+    name: String,
+}
+
+type Barely_Ast_File : struct {
+    items: Dynamic_Array, // Barely_Ast_Item
+}
+
+type Barely_Ast_Item : struct {
+    kind: enum {
+        Procedure,
+    },
+    data: union {
+        procedure: Barely_Ast_Item_Procedure,
+    },
+}
+
+type Barely_Ast_Item_Procedure : struct {
+    name: String,
+    arguments: Dynamic_Array, // Barely_Ast_Declaration
+    returns: Dynamic_Array,   // Barely_Ast_Type
+    body: Barely_Ast_Expression,
+    end_location: Barely_Ast_Location,
+    //has_implicit_return: bool;
+}
+
+type Barely_Ast_Statement : struct {
+    kind: enum {
+        Expression,
+    },
+    data: union {
+        expression: Barely_Ast_Statement_Expression,
+    },
+}
+
+type Barely_Ast_Statement_Expression : struct {
+    expression: Barely_Ast_Expression,
+    stack_check: bool,
+}
+
+type Barely_Ast_Expression : struct {
+    kind: enum {
+        Block,
+        Retrieve,
+        Invoke,
+        Number,
+        String,
+        Syscall,
+    },
+    data: union {
+        block: Barely_Ast_Block,
+        retrieve: Barely_Ast_Retrieve,
+        invoke: Barely_Ast_Invoke,
+        number: Barely_Ast_Number,
+        string: Barely_Ast_String,
+        syscall: Barely_Ast_Syscall,
+    },
+}
+
+type Barely_Ast_Type : struct {
+}
+
+type Barely_Ast_Declaration : struct {
+    name: String,
+    type_: Barely_Ast_Type,
+}
+
+type Barely_Ast_Block : struct {
+    statements: Dynamic_Array, // Barely_Ast_Statement
+}
+
+type Barely_Ast_Retrieve : struct {
+    kind: enum {
+        Identifier,
+    },
+    data: union {
+        identifier: Barely_Ast_Identifier,
+    },
+}
+
+type Barely_Ast_Invoke : struct {
+    procedure: *Barely_Ast_Expression,
+    arguments: Dynamic_Array, // Barely_Ast_Expression
+}
+
+type Barely_Ast_Number : struct {
+    kind: enum {
+        Integer,
+        Float,
+    },
+    data: union {
+        integer: uint,
+    },
+}
+
+type Barely_Ast_String : struct {
+    value: String,
+}
+
+type Barely_Ast_Syscall : struct {
+    arg_count: uint,
+    arguments: Dynamic_Array, // Barely_Ast_Expression
+}

@@ -529,14 +529,16 @@ Ast_Statement parse_statement(Parser_State* state) {
         result.kind = Statement_Declare;
         result.data.declare = node;
     } else if (token == Token_Keyword && strcmp(state->tokens->elements[state->index].data, "return") == 0) {
-        Ast_Statement_Return node;
+        Ast_Statement_Return node = {};
         node.location = state->tokens->elements[state->index].location;
 
         consume(state);
 
-        Ast_Expression* expression = malloc(sizeof(*expression));
-        *expression = parse_multiple_expression(state);
-        node.expression = expression;
+        if (peek(state) != Token_Semicolon) {
+            Ast_Expression* expression = malloc(sizeof(*expression));
+            *expression = parse_multiple_expression(state);
+            node.expression = expression;
+        }
 
         consume_check(state, Token_Semicolon);
 

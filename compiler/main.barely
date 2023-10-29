@@ -4,22 +4,26 @@ proc entry2(argc: uint, argv: *[]*[]byte) {
     custom_writes = &custom_writes_data;
 
     var stdout_file: File = @build(File, STDOUT);
-    var stdout: Writer = create_file_writer(&stdout_file);
+    var stdout: Writer = file_writer_create(&stdout_file);
 
     var allocator: Allocator = create_brk_allocator();
+
+    var ast_file: Barely_Ast_File;
 
     var i: uint = 1;
     while i < argc {
         var string: *[]byte = argv[i];
 
-        var file: File = open_file_for_reading(string);
-        var contents: String = read_file_to_string(file, allocator);
+        var file: File = file_open_for_reading(string);
+        var contents: String = file_read_to_string(file, allocator);
 
-        var tokens: Dynamic_Array = lex(string_new(string), contents, allocator);
+        var tokens: Dynamic_Array = barely_lex(string_new(string), contents, allocator);
 
-        var parser: Parser = parser_create(&tokens, allocator);
-        var file: Ast_File = parse_file(&parser);
+        var parser: Parser = barely_parser_create(&tokens, allocator);
+        ast_file = barely_parse_file(&parser);
 
         i = i + 1;
     };
+
+    barely_elf_linux_x64_gen(ast_file, allocator);
 }

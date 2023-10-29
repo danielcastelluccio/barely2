@@ -1,0 +1,192 @@
+type Barely_Elf_Linux_X64_State : struct {
+    code_buffer: Buffer,
+    data_buffer: Buffer,
+    string_references: Dynamic_Array, // Barely_Elf_Linux_X64_String_Reference
+    main_offset: uint,
+}
+
+type Barely_Elf_Linux_X64_String_Reference : struct {
+    deferred: X64_Deferred_Value,
+    string_offset: uint,
+}
+
+proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
+    var output: Buffer = buffer_create(4096, allocator);
+
+    var state: Barely_Elf_Linux_X64_State = @build(Barely_Elf_Linux_X64_State, 
+        buffer_create(1024, allocator), 
+        buffer_create(1024, allocator), 
+        dynamic_array_new!(256, allocator, $type Barely_Elf_Linux_X64_String_Reference), 
+        0);
+
+    var entry: X64_Deferred_Value = x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX);
+    x64_push_call_register64(&state.code_buffer, RAX);
+    x64_push_mov_register64_literal64(&state.code_buffer, RAX, 60);
+    x64_push_syscall(&state.code_buffer);
+
+    var i: uint = 0;
+    while i < file.items.count {
+        var item: *Barely_Ast_Item = dynamic_array_get_ref!(&file.items, i, $type Barely_Ast_Item);
+        barely_elf_linux_x64_gen_item(&state, item);
+        i = i + 1;
+    };
+
+    var header_size: uint = 64 + 56 * 2;
+    var code_offset: uint = header_size + 4294967296;
+    var data_offset: uint = code_offset + state.code_buffer.index + 4096;
+
+    x64_deferred_value_set(&entry, &state.code_buffer, @cast(uint64, code_offset + state.main_offset));
+
+    var i: uint = 0;
+    while i < state.string_references.count {
+        var reference: Barely_Elf_Linux_X64_String_Reference = dynamic_array_get!(&state.string_references, i, $type Barely_Elf_Linux_X64_String_Reference);
+        x64_deferred_value_set(&reference.deferred, &state.code_buffer, @cast(uint64, data_offset + reference.string_offset));
+        i = i + 1;
+    };
+
+    var header: Elf64_Header = elf64_header_create();
+    elf64_header_set_endianness(&header, Little);
+    elf64_header_set_abi(&header, Linux);
+    elf64_header_set_type(&header, Executable);
+    elf64_header_set_instruction_set(&header, X86_64);
+    header.program_header_count = 2;
+    header.entry = @cast(uint64, code_offset);
+
+    var code_header: Elf64_Program_Header = elf64_program_header_create();
+    elf64_program_header_set_type(&code_header, Loadable);
+    elf64_program_header_set_flags(&code_header, Elf64_Segment_Readable + Elf64_Segment_Executable);
+    code_header.file_offset = @cast(uint64, header_size);
+    code_header.file_size = @cast(uint64, state.code_buffer.index);
+    code_header.virtual_offset = @cast(uint64, code_offset);
+    code_header.virtual_size = @cast(uint64, state.code_buffer.index);
+    code_header.alignment = 4096;
+
+    var data_header: Elf64_Program_Header = elf64_program_header_create();
+    elf64_program_header_set_type(&data_header, Loadable);
+    elf64_program_header_set_flags(&data_header, Elf64_Segment_Readable);
+    data_header.file_offset = @cast(uint64, header_size + state.code_buffer.index);
+    data_header.file_size = @cast(uint64, state.data_buffer.index);
+    data_header.virtual_offset = @cast(uint64, code_offset + state.code_buffer.index + 4096);
+    data_header.virtual_size = @cast(uint64, state.data_buffer.index);
+    data_header.alignment = 4096;
+
+    buffer_push_data(&output, @cast(ptr, &header), @sizeof(Elf64_Header));
+    buffer_push_data(&output, @cast(ptr, &code_header), @sizeof(Elf64_Program_Header));
+    buffer_push_data(&output, @cast(ptr, &data_header), @sizeof(Elf64_Program_Header));
+    buffer_push_data(&output, @cast(ptr, state.code_buffer.data), state.code_buffer.index);
+    buffer_push_data(&output, @cast(ptr, state.data_buffer.data), state.data_buffer.index);
+
+    var output_file: File = file_open_for_writing("output2");
+    var writer: Writer = file_writer_create(&output_file);
+    write_buffer(writer, output.data, output.index);
+    file_close(output_file);
+}
+
+proc barely_elf_linux_x64_gen_item(state: *Barely_Elf_Linux_X64_State, item: *Barely_Ast_Item) {
+    if item.kind == Procedure {
+        barely_elf_linux_x64_gen_procedure(state, &item.data.procedure);
+    } else {
+        assert_(false, @file, @line);
+    };
+}
+
+proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, procedure: *Barely_Ast_Item_Procedure) {
+    if string_equal(procedure.name, string_new("main")) {
+        state.main_offset = state.code_buffer.index;
+    };
+    
+    x64_push_push_register64(&state.code_buffer, RBP);
+    x64_push_mov_register64_register64(&state.code_buffer, RBP, RSP);
+
+    barely_elf_linux_x64_gen_expression(state, &procedure.body);
+
+    x64_push_mov_register64_register64(&state.code_buffer, RSP, RBP);
+    x64_push_pop_register64(&state.code_buffer, RBP);
+    x64_push_ret(&state.code_buffer);
+}
+
+proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, expression: *Barely_Ast_Expression) {
+    if expression.kind == Block {
+        barely_elf_linux_x64_gen_block(state, &expression.data.block);
+    } else if expression.kind == Syscall {
+        barely_elf_linux_x64_gen_syscall(state, &expression.data.syscall);
+    } else if expression.kind == Number {
+        barely_elf_linux_x64_gen_number(state, &expression.data.number);
+    } else if expression.kind == String {
+        barely_elf_linux_x64_gen_string(state, &expression.data.string);
+    } else {
+        assert_(false, @file, @line);
+    };
+}
+
+proc barely_elf_linux_x64_gen_invoke(state: *Barely_Elf_Linux_X64_State, invoke: *Barely_Ast_Invoke) {
+    barely_elf_linux_x64_gen_expression(state, invoke.procedure);
+}
+
+proc barely_elf_linux_x64_gen_syscall(state: *Barely_Elf_Linux_X64_State, syscall: *Barely_Ast_Syscall) {
+    var i: uint = 0;
+    while i < syscall.arguments.count {
+        var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&syscall.arguments, i, $type Barely_Ast_Expression);
+        barely_elf_linux_x64_gen_expression(state, argument);
+        i = i + 1;
+    };
+
+    if syscall.arg_count > 5 {
+        x64_push_pop_register64(&state.code_buffer, R9);
+    };
+
+    if syscall.arg_count > 4 {
+        x64_push_pop_register64(&state.code_buffer, R8);
+    };
+
+    if syscall.arg_count > 3 {
+        x64_push_pop_register64(&state.code_buffer, R10);
+    };
+
+    if syscall.arg_count > 2 {
+        x64_push_pop_register64(&state.code_buffer, RDX);
+    };
+
+    if syscall.arg_count > 1 {
+        x64_push_pop_register64(&state.code_buffer, RSI);
+    };
+
+    if syscall.arg_count > 0 {
+        x64_push_pop_register64(&state.code_buffer, RDI);
+    };
+
+    x64_push_pop_register64(&state.code_buffer, RAX);
+    x64_push_syscall(&state.code_buffer);
+}
+
+proc barely_elf_linux_x64_gen_number(state: *Barely_Elf_Linux_X64_State, number: *Barely_Ast_Number) {
+    x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
+    x64_push_push_register64(&state.code_buffer, RAX);
+}
+
+proc barely_elf_linux_x64_gen_string(state: *Barely_Elf_Linux_X64_State, string: *Barely_Ast_String) {
+    var string_ref: Barely_Elf_Linux_X64_String_Reference = @build(Barely_Elf_Linux_X64_String_Reference,
+        x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX),
+        state.data_buffer.index);
+    dynamic_array_append!(&state.string_references, string_ref, $type Barely_Elf_Linux_X64_String_Reference);
+    buffer_push_string(&state.data_buffer, string.value);
+
+    x64_push_push_register64(&state.code_buffer, RAX);
+}
+
+proc barely_elf_linux_x64_gen_block(state: *Barely_Elf_Linux_X64_State, block: *Barely_Ast_Block) {
+    var i: uint = 0;
+    while i < block.statements.count {
+        var statement: *Barely_Ast_Statement = dynamic_array_get_ref!(&block.statements, i, $type Barely_Ast_Statement);
+        barely_elf_linux_x64_gen_statement(state, statement);
+        i = i + 1;
+    };
+}
+
+proc barely_elf_linux_x64_gen_statement(state: *Barely_Elf_Linux_X64_State, statement: *Barely_Ast_Statement) {
+    if statement.kind == Expression {
+        barely_elf_linux_x64_gen_expression(state, &statement.data.expression.expression);
+    } else {
+        assert_(false, @file, @line);
+    };
+}

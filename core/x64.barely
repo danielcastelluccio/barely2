@@ -1,0 +1,135 @@
+const X64_REXW : 72
+
+const X64_DEADBEEF : 3735928559
+
+type X64_Register64 : enum {
+    RAX,
+    RBX,
+    RCX,
+    RDX,
+    RSI,
+    RDI,
+    RSP,
+    RBP,
+    R8,
+    R9,
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15,
+}
+
+proc x64_register64_to_index(register: X64_Register64): byte {
+    if register == RAX {
+        return 0;
+    } else if register == RCX {
+        return 1;
+    } else if register == RDX {
+        return 2;
+    } else if register == RBX {
+        return 3;
+    } else if register == RSP {
+        return 4;
+    } else if register == RBP {
+        return 5;
+    } else if register == RSI {
+        return 6;
+    } else if register == RDI {
+        return 7;
+    } else if register == R8 {
+        return 0;
+    } else if register == R9 {
+        return 1;
+    } else if register == R10 {
+        return 2;
+    } else if register == R11 {
+        return 3;
+    } else if register == R12 {
+        return 4;
+    } else if register == R13 {
+        return 5;
+    } else if register == R14 {
+        return 6;
+    } else if register == R15 {
+        return 7;
+    };
+
+    assert_(false, @file, @line);
+    return 0;
+}
+
+proc x64_register64_special(register: X64_Register64): bool {
+    if register == R8 ||
+        register == R9 ||
+        register == R10 ||
+        register == R11 ||
+        register == R12 ||
+        register == R13 ||
+        register == R14 ||
+        register == R15 {
+        return true;
+    };
+    return false;
+}
+
+type X64_Deferred_Value : struct {
+    location: uint
+}
+
+proc x64_deferred_value_set(deferred: *X64_Deferred_Value, output: *Buffer, value: uint64) {
+    memory_copy(@cast(ptr, &value), @cast(ptr, output.data) + deferred.location, 8);
+}
+
+proc x64_push_mov_register64_literal64(output: *Buffer, register: X64_Register64, value: uint64) {
+    buffer_push_byte(output, X64_REXW);
+    buffer_push_byte(output, 184 + x64_register64_to_index(register));
+    buffer_push_uint64(output, value);
+}
+
+proc x64_push_mov_register64_literal64_deferred(output: *Buffer, register: X64_Register64): X64_Deferred_Value {
+    buffer_push_byte(output, X64_REXW);
+    buffer_push_byte(output, 184 + x64_register64_to_index(register));
+    var location: uint = output.index;
+    buffer_push_uint64(output, X64_DEADBEEF);
+    return @build(X64_Deferred_Value, location);
+}
+
+proc x64_push_mov_register64_register64(output: *Buffer, register_to: X64_Register64, register_from: X64_Register64) {
+    buffer_push_byte(output, X64_REXW);
+    buffer_push_byte(output, 137);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register_to) + x64_register64_to_index(register_from) * 8);
+}
+
+proc x64_push_syscall(output: *Buffer) {
+    buffer_push_byte(output, 15);
+    buffer_push_byte(output, 5);
+}
+
+proc x64_push_push_register64(output: *Buffer, register: X64_Register64) {
+    if x64_register64_special(register) {
+        buffer_push_byte(output, 65);
+        buffer_push_byte(output, 72 + x64_register64_to_index(register));
+    } else {
+        buffer_push_byte(output, 80 + x64_register64_to_index(register));
+    };
+}
+
+proc x64_push_pop_register64(output: *Buffer, register: X64_Register64) {
+    if x64_register64_special(register) {
+        buffer_push_byte(output, 65);
+        buffer_push_byte(output, 80 + x64_register64_to_index(register));
+    } else {
+        buffer_push_byte(output, 88 + x64_register64_to_index(register));
+    };
+}
+
+proc x64_push_call_register64(output: *Buffer, register: X64_Register64) {
+    buffer_push_byte(output, 255);
+    buffer_push_byte(output, 208 + x64_register64_to_index(register));
+}
+
+proc x64_push_ret(output: *Buffer) {
+    buffer_push_byte(output, 195);
+}

@@ -10,47 +10,47 @@ type File : struct {
     descriptor: uint
 }
 
-proc open_file_for_writing(path: *[]byte): File {
+proc file_open_for_writing(path: *[]byte): File {
     return @build(File, @syscall3(2, path, WRONLY + CREAT + TRUNC, 452));
 }
 
-proc open_file_for_reading(path: *[]byte): File {
+proc file_open_for_reading(path: *[]byte): File {
     return @build(File, @syscall3(2, path, RDONLY, 452));
 }
 
-proc close_file(file: File) {
+proc file_close(file: File) {
     var _: uint = @syscall1(3, file.descriptor);
 }
 
-proc create_file_writer(file: *File): Writer {
-    return @build(Writer, @cast(ptr, file), write_file);
+proc file_writer_create(file: *File): Writer {
+    return @build(Writer, @cast(ptr, file), file_write);
 }
 
-proc create_file_reader(file: *File): Reader {
-    return @build(Reader, @cast(ptr, file), read_file);
+proc file_reader_create(file: *File): Reader {
+    return @build(Reader, @cast(ptr, file), file_read);
 }
 
-proc write_file(data: ptr, string: *[]byte, length: uint) {
+proc file_write(data: ptr, string: *[]byte, length: uint) {
     var file: *File = @cast(*File, data);
     var _: uint = @syscall3(1, file.descriptor, string, length);
 }
 
-proc read_file(pointer: ptr, string: *[]byte, length: uint): uint {
+proc file_read(pointer: ptr, string: *[]byte, length: uint): uint {
     var file: *File = @cast(*File, pointer);
     return @syscall3(0, file.descriptor, string, length);
 }
 
-proc get_file_size(file: File): uint {
+proc file_get_size(file: File): uint {
     var stat: Stat;
     sys_fstat(file.descriptor, &stat);
     return stat.size;
 }
 
-proc read_file_to_string(file: File, allocator: Allocator): String {
-    var size: uint = get_file_size(file);
+proc file_read_to_string(file: File, allocator: Allocator): String {
+    var size: uint = file_get_size(file);
     var result: ptr = allocate_size(allocator, size);
 
-    var reader: Reader = create_file_reader(&file);
+    var reader: Reader = file_reader_create(&file);
     var _: uint = read_string(reader, @cast(*[]byte, result), size);
 
     return @build(String, @cast(*[]byte, result), size);

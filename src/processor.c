@@ -1091,17 +1091,19 @@ void process_statement(Ast_Statement* statement, Process_State* state) {
         }
         case Statement_Return: {
             Ast_Statement_Return* return_ = &statement->data.return_;
-            if (return_->expression->kind == Expression_Multiple) {
-                size_t declare_index = 0;
-                for (size_t i = 0; i < return_->expression->data.multiple.expressions.count; i++) {
-                    size_t stack_start = state->stack.count;
-                    state->wanted_type = state->generic.current_returns.elements[declare_index];
-                    process_expression(return_->expression->data.multiple.expressions.elements[i], state);
-                    declare_index += state->stack.count - stack_start;
+            if (return_->expression != NULL) {
+                if (return_->expression->kind == Expression_Multiple) {
+                    size_t declare_index = 0;
+                    for (size_t i = 0; i < return_->expression->data.multiple.expressions.count; i++) {
+                        size_t stack_start = state->stack.count;
+                        state->wanted_type = state->generic.current_returns.elements[declare_index];
+                        process_expression(return_->expression->data.multiple.expressions.elements[i], state);
+                        declare_index += state->stack.count - stack_start;
+                    }
+                } else {
+                    state->wanted_type = state->generic.current_returns.elements[state->generic.current_returns.count - 1];
+                    process_expression(return_->expression, state);
                 }
-            } else {
-                state->wanted_type = state->generic.current_returns.elements[state->generic.current_returns.count - 1];
-                process_expression(return_->expression, state);
             }
 
             check_return(state, &return_->location);

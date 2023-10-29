@@ -33,6 +33,10 @@ proc write_uint(writer: Writer, value: uint) {
     writer.procedure(writer.data, &buffer, length);
 }
 
+proc write_buffer(writer: Writer, buffer: *[]byte, size: uint) {
+    writer.procedure(writer.data, buffer, size);
+}
+
 proc write_raw_string(writer: Writer, value: *[]byte) {
     writer.procedure(writer.data, value, raw_string_length(value));
 }
