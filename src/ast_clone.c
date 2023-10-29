@@ -397,6 +397,13 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             result.data.build = build_out;
             break;
         }
+        case Expression_Init: {
+            Ast_Expression_Init* init_in = &expression.data.init;
+            Ast_Expression_Init init_out = {};
+            init_out.type = clone_type(init_in->type);
+            result.data.init = init_out;
+            break;
+        }
         case Expression_Number: {
             result.data.number = expression.data.number;
             break;
@@ -410,6 +417,10 @@ Ast_Expression clone_expression(Ast_Expression expression) {
             break;
         }
         case Expression_Null: {
+            break;
+        }
+        case Expression_Boolean: {
+            result.data.boolean = expression.data.boolean;
             break;
         }
         case Expression_Multiple: {
