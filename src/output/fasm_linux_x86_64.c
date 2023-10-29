@@ -551,7 +551,7 @@ void output_expression_fasm_linux_x86_64(Ast_Expression* expression, Output_Stat
                             }
                             stringbuffer_appendstring(&state->instructions, "  sub rsp, 2\n");
                             stringbuffer_appendstring(&state->instructions, "  mov [rsp], ax\n");
-                        } else if (is_internal_type(Type_UInt8, &operator_type)) {
+                        } else if (is_internal_type(Type_UInt8, &operator_type) || is_internal_type(Type_Byte, &operator_type)) {
                             stringbuffer_appendstring(&state->instructions, "  mov bl, [rsp]\n");
                             stringbuffer_appendstring(&state->instructions, "  mov al, [rsp+1]\n");
                             stringbuffer_appendstring(&state->instructions, "  add rsp, 2\n");

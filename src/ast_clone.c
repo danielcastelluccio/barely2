@@ -113,6 +113,7 @@ Ast_Statement clone_statement(Ast_Statement statement) {
                         assign_part_out.data.parent.expression = malloc(sizeof(Ast_Expression));
                         *assign_part_out.data.parent.expression = clone_expression(*assign_part_in->data.parent.expression);
                         assign_part_out.data.parent.name = assign_part_in->data.parent.name;
+                        assign_part_out.data.parent.needs_reference = assign_part_in->data.parent.needs_reference;
                         break;
                     }
                     case Retrieve_Assign_Array: {

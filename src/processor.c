@@ -17,7 +17,7 @@ bool is_number_type(Ast_Type* type) {
     if (type->kind == Type_Internal) {
         Ast_Type_Internal internal = type->data.internal;
 
-        if (internal == Type_UInt || internal == Type_UInt64 || internal == Type_UInt32 || internal == Type_UInt16 || internal == Type_UInt8 || internal == Type_Float64) {
+        if (internal == Type_UInt || internal == Type_UInt64 || internal == Type_UInt32 || internal == Type_UInt16 || internal == Type_UInt8 || internal == Type_Float64 || internal == Type_Byte) {
             return true;
         }
     }
