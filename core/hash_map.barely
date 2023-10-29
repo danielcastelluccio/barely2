@@ -1,0 +1,96 @@
+type Hash_Map : struct {
+    data: *[]Hash_Map_Bucket,
+    capacity: uint,
+    allocator: Allocator
+    hash_function: *proc(ptr): uint
+}
+
+type Hash_Map_Bucket : struct {
+    entry: *Hash_Map_Bucket_Entry
+}
+
+type Hash_Map_Bucket_Entry : struct {
+    hash: uint,
+    value: ptr,
+    next: *Hash_Map_Bucket_Entry
+}
+
+proc _hash_map_new(capacity: uint, allocator: Allocator, hash_function: *proc(ptr): uint): Hash_Map {
+    var result: Hash_Map = @build(Hash_Map, null, capacity, allocator, hash_function);
+    result.data = @cast(*[]Hash_Map_Bucket, allocate_size(allocator, capacity * @sizeof(Hash_Map_Bucket)));
+
+    var i: uint = 0;
+    while i < capacity {
+        result.data[i] = @init(Hash_Map_Bucket);
+        i = i + 1;
+    };
+
+    return result;
+}
+
+macro hash_map_new!($expr, $expr, $expr, $type, $type): $expr {
+    ($capacity, $allocator, $hash_function, $key_type, $value_type) _hash_map_new($capacity, $allocator, $hash_function)
+}
+
+proc _hash_map_insert(map: *Hash_Map, key: ptr, value: ptr, value_size: uint) {
+    var hash: uint = map.hash_function(key);
+    var bucket_index: uint = hash % map.capacity;
+    var bucket: *Hash_Map_Bucket = &map.data[bucket_index];
+
+    var new_entry: *Hash_Map_Bucket_Entry = allocate!(map.allocator, $type Hash_Map_Bucket_Entry);
+    new_entry.hash = hash;
+    new_entry.next = null;
+    new_entry.value = allocate_size(map.allocator, value_size);
+    memory_copy(value, new_entry.value, value_size);
+
+    if bucket.entry == null {
+        bucket.entry = new_entry;
+    } else {
+        var entry: *Hash_Map_Bucket_Entry = bucket.entry;
+        while entry.next != null {
+            entry = entry.next;
+        };
+
+        entry.next = new_entry;
+    };
+}
+
+macro hash_map_insert!($expr, $expr, $expr, $type, $type): $expr {
+    ($map, $key, $value, $key_type, $value_type) {
+        var key_var: $key_type = $key;
+        var value_var: $value_type = $value;
+        _hash_map_insert($map, @cast(ptr, &key_var), @cast(ptr, &value_var), @sizeof($value_type));
+    }
+}
+
+proc _hash_map_get(map: *Hash_Map, key: ptr, value_size: uint): ptr {
+    var hash: uint = map.hash_function(key);
+    var bucket_index: uint = hash % map.capacity;
+    var bucket: *Hash_Map_Bucket = &map.data[bucket_index];
+
+    if bucket.entry == null {
+        return null;
+    } else {
+        var entry: *Hash_Map_Bucket_Entry = bucket.entry;
+        while entry != null {
+            if entry.hash == hash {
+                return entry.value;
+            };
+            entry = entry.next;
+        };
+    };
+
+    return null;
+}
+
+macro hash_map_get!($expr, $expr, $type, $type): $expr {
+    ($map, $key, $key_type, $value_type) {
+        var key_var: $key_type = $key;
+        var pointer: *$value_type = @cast(*$value_type, _hash_map_get($map, @cast(ptr, &key_var), @sizeof($value_type)));
+        if pointer != null {
+            pointer.*, true
+        } else {
+            @init($value_type), false
+        }
+    }
+}

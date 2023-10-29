@@ -54,3 +54,15 @@ proc raw_string_length(string: *[]byte): uint {
     };
     return size;
 }
+
+proc string_hash(string: *String): uint {
+    var result: uint = 5381;
+
+    var i: uint = 0;
+    while i < string.length {
+        result = result * 33 + @cast(uint, @cast(uint8, string.pointer[i]));
+        i = i + 1;
+    };
+
+    return result;
+}
