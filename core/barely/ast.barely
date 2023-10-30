@@ -68,7 +68,8 @@ type Barely_Ast_Expression : struct {
         Invoke,
         Number,
         String,
-        Syscall
+        Syscall,
+        Multiple
     },
     data: union {
         block: Barely_Ast_Block,
@@ -76,7 +77,8 @@ type Barely_Ast_Expression : struct {
         invoke: Barely_Ast_Invoke,
         number: Barely_Ast_Number,
         string: Barely_Ast_String,
-        syscall: Barely_Ast_Syscall
+        syscall: Barely_Ast_Syscall,
+        multiple: Barely_Ast_Multiple,
     },
 }
 
@@ -126,4 +128,8 @@ type Barely_Ast_String : struct {
 type Barely_Ast_Syscall : struct {
     arg_count: uint,
     arguments: Dynamic_Array, // Barely_Ast_Expression
+}
+
+type Barely_Ast_Multiple : struct {
+    expressions: Dynamic_Array // Barely_Ast_Expression
 }

@@ -165,6 +165,8 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
         barely_elf_linux_x64_gen_number(state, &expression.data.number);
     } else if expression.kind == String {
         barely_elf_linux_x64_gen_string(state, &expression.data.string);
+    } else if expression.kind == Multiple {
+        barely_elf_linux_x64_gen_multiple(state, &expression.data.multiple);
     } else {
         assert_(false, @file, @line);
     };
@@ -283,6 +285,15 @@ proc barely_elf_linux_x64_gen_string(state: *Barely_Elf_Linux_X64_State, string:
     x64_push_push_register64(&state.code_buffer, RAX);
 }
 
+proc barely_elf_linux_x64_gen_multiple(state: *Barely_Elf_Linux_X64_State, multiple: *Barely_Ast_Multiple) {
+    var i: uint = 0;
+    while i < multiple.expressions.count {
+        var expression: *Barely_Ast_Expression = dynamic_array_get_ref!(&multiple.expressions, i, $type Barely_Ast_Expression);
+        barely_elf_linux_x64_gen_expression(state, expression);
+        i = i + 1;
+    };
+}
+
 proc barely_elf_linux_x64_gen_block(state: *Barely_Elf_Linux_X64_State, block: *Barely_Ast_Block) {
     var i: uint = 0;
     while i < block.statements.count {
@@ -313,7 +324,7 @@ proc barely_elf_linux_x64_gen_declaration(state: *Barely_Elf_Linux_X64_State, de
 
     var i: uint = 0;
     while i < declaration.declarations.count {
-        var declaration: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&declaration.declarations, i, $type Barely_Ast_Name_Type);
+        var declaration: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&declaration.declarations, declaration.declarations.count - i - 1, $type Barely_Ast_Name_Type);
         hash_map_insert!(&state.local_variables, declaration.name, state.local_variable_index, $type String, $type uint);
         state.local_variable_index = state.local_variable_index + barely_elf_linux_x64_get_size(declaration.type_);
 
@@ -332,7 +343,7 @@ proc barely_elf_linux_x64_gen_assign(state: *Barely_Elf_Linux_X64_State, assign:
 
     var i: uint = 0;
     while i < assign.parts.count {
-        var assign_part: *Barely_Ast_Assign_Part = dynamic_array_get_ref!(&assign.parts, i, $type Barely_Ast_Assign_Part);
+        var assign_part: *Barely_Ast_Assign_Part = dynamic_array_get_ref!(&assign.parts, assign.parts.count - i - 1, $type Barely_Ast_Assign_Part);
         barely_elf_linux_x64_gen_assign_part(state, assign_part);
         i = i + 1;
     };

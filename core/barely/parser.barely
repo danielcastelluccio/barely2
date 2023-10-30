@@ -156,6 +156,30 @@ proc barely_parse_invoke_expression_arguments(parser: *Parser): Dynamic_Array {
     return result;
 }
 
+proc barely_parse_expression_multiple(parser: *Parser): Barely_Ast_Expression {
+    var result: Barely_Ast_Expression;
+
+    var multiple: Barely_Ast_Multiple;
+    multiple.expressions = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Expression);
+
+    var continue: bool = true;
+    while continue {
+        var expression: Barely_Ast_Expression = barely_parse_expression(parser);
+        dynamic_array_append!(&multiple.expressions, expression, $type Barely_Ast_Expression);
+
+        if barely_peek_token_kind(parser) == Comma {
+            barely_consume_check_token(parser, Comma);
+            continue = true;
+        } else {
+            continue = false;
+        };
+    };
+
+    result.kind = Multiple;
+    result.data.multiple = multiple;
+    return result;
+}
+
 proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
     var result: Barely_Ast_Expression;
 
@@ -271,12 +295,17 @@ proc barely_parse_declaration(parser: *Parser): Barely_Ast_Declaration {
 
         dynamic_array_append!(&result.declarations, @build(Barely_Ast_Name_Type, name, type_), $type Barely_Ast_Name_Type);
 
-        continue = barely_peek_token_kind(parser) == Comma;
+        if barely_peek_token_kind(parser) == Comma {
+            barely_consume_check_token(parser, Comma);
+            continue = true;
+        } else {
+            continue = false;
+        };
     };
 
     if barely_peek_token_kind(parser) == Equals {
         barely_consume_check_token(parser, Equals);
-        result.expression = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+        result.expression = allocate_value!(parser.allocator, barely_parse_expression_multiple(parser), $type Barely_Ast_Expression);
     } else if barely_peek_token_kind(parser) == Semicolon {
         result.expression = null;
     } else {
@@ -291,7 +320,7 @@ proc barely_parse_declaration(parser: *Parser): Barely_Ast_Declaration {
 proc barely_parse_statement_expression_or_assign(parser: *Parser): Barely_Ast_Statement {
     var result: Barely_Ast_Statement;
     result.kind = Expression;
-    result.data.expression.expression = barely_parse_expression(parser);
+    result.data.expression.expression = barely_parse_expression_multiple(parser);
 
     if barely_peek_token_kind(parser) == Equals {
         barely_consume_check_token(parser, Equals);
@@ -299,13 +328,20 @@ proc barely_parse_statement_expression_or_assign(parser: *Parser): Barely_Ast_St
         var assign: Barely_Ast_Assign;
         assign.parts = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Assign_Part);
 
-        assert_(result.data.expression.expression.kind == Retrieve, @file, @line);
-        var assign_part: Barely_Ast_Assign_Part;
-        // HACK
-        assign_part = @cast(*Barely_Ast_Assign_Part, @cast(ptr, &result.data.expression.expression.data.retrieve)).*;
-        dynamic_array_append!(&assign.parts, assign_part, $type Barely_Ast_Assign_Part);
+        assert_(result.data.expression.expression.kind == Multiple, @file, @line);
 
-        assign.expression = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+        var multiple: *Barely_Ast_Multiple = &result.data.expression.expression.data.multiple;
+        var i: uint = 0;
+        while i < multiple.expressions.count {
+            var expression: *Barely_Ast_Expression = dynamic_array_get_ref!(&multiple.expressions, i, $type Barely_Ast_Expression);
+
+            // HACK: need to do weird pointer casting stuff
+            var assign_part: Barely_Ast_Assign_Part = @cast(*Barely_Ast_Assign_Part, @cast(ptr, &expression.data.retrieve)).*;
+            dynamic_array_append!(&assign.parts, assign_part, $type Barely_Ast_Assign_Part);
+            i = i + 1;
+        };
+
+        assign.expression = allocate_value!(parser.allocator, barely_parse_expression_multiple(parser), $type Barely_Ast_Expression);
 
         result.kind = Assign;
         result.data.assign = assign;
