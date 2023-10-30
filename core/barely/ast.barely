@@ -34,11 +34,13 @@ type Barely_Ast_Item_Procedure : struct {
 type Barely_Ast_Statement : struct {
     kind: enum {
         Expression,
-        Declaration
+        Declaration,
+        Assign
     },
     data: union {
         expression: Barely_Ast_Statement_Expression,
-        declaration: Barely_Ast_Declaration
+        declaration: Barely_Ast_Declaration,
+        assign: Barely_Ast_Assign
     },
 }
 
@@ -50,6 +52,13 @@ type Barely_Ast_Declaration : struct {
 type Barely_Ast_Statement_Expression : struct {
     expression: Barely_Ast_Expression,
     stack_check: bool
+}
+
+type Barely_Ast_Assign_Part : Barely_Ast_Retrieve_Assign
+
+type Barely_Ast_Assign : struct {
+    parts: Dynamic_Array, // Barely_Ast_Assign_Part
+    expression: *Barely_Ast_Expression
 }
 
 type Barely_Ast_Expression : struct {
@@ -84,7 +93,7 @@ type Barely_Ast_Block : struct {
     statements: Dynamic_Array // Barely_Ast_Statement
 }
 
-type Barely_Ast_Retrieve : struct {
+type Barely_Ast_Retrieve_Assign : struct {
     kind: enum {
         Identifier
     },
@@ -92,6 +101,8 @@ type Barely_Ast_Retrieve : struct {
         identifier: String
     },
 }
+
+type Barely_Ast_Retrieve : Barely_Ast_Retrieve_Assign
 
 type Barely_Ast_Invoke : struct {
     procedure: *Barely_Ast_Expression,

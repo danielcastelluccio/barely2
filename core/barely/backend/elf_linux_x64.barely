@@ -297,6 +297,8 @@ proc barely_elf_linux_x64_gen_statement(state: *Barely_Elf_Linux_X64_State, stat
         barely_elf_linux_x64_gen_expression(state, &statement.data.expression.expression);
     } else if statement.kind == Declaration {
         barely_elf_linux_x64_gen_declaration(state, &statement.data.declaration);
+    } else if statement.kind == Assign {
+        barely_elf_linux_x64_gen_assign(state, &statement.data.assign);
     } else {
         assert_(false, @file, @line);
     };
@@ -306,7 +308,7 @@ proc barely_elf_linux_x64_gen_declaration(state: *Barely_Elf_Linux_X64_State, de
     var expression: *Barely_Ast_Expression = declaration.expression;
 
     if expression != null {
-        barely_elf_linux_x64_gen_expression(state, declaration.expression);
+        barely_elf_linux_x64_gen_expression(state, expression);
     };
 
     var i: uint = 0;
@@ -323,4 +325,28 @@ proc barely_elf_linux_x64_gen_declaration(state: *Barely_Elf_Linux_X64_State, de
 
         i = i + 1;
     };
+}
+
+proc barely_elf_linux_x64_gen_assign(state: *Barely_Elf_Linux_X64_State, assign: *Barely_Ast_Assign) {
+    barely_elf_linux_x64_gen_expression(state, assign.expression);
+
+    var i: uint = 0;
+    while i < assign.parts.count {
+        var assign_part: *Barely_Ast_Assign_Part = dynamic_array_get_ref!(&assign.parts, i, $type Barely_Ast_Assign_Part);
+        barely_elf_linux_x64_gen_assign_part(state, assign_part);
+        i = i + 1;
+    };
+}
+
+proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, assign_part: *Barely_Ast_Assign_Part) {
+    if assign_part.kind == Identifier {
+        var local_index: uint, found: bool = hash_map_get!(&state.local_variables, assign_part.data.identifier, $type String, $type uint);
+        if found {
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8)), RAX);
+            return;
+        };
+    };
+
+    assert_(false, @file, @line);
 }

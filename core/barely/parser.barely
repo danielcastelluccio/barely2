@@ -244,9 +244,7 @@ proc barely_parse_statement(parser: *Parser): Barely_Ast_Statement {
 
     var token_kind: Barely_Token_Kind = barely_peek_token_kind(parser);
     if token_kind == Identifier {
-        var expression: Barely_Ast_Statement_Expression = barely_parse_statement_expression(parser);
-        result.kind = Expression;
-        result.data.expression = expression;
+        result = barely_parse_statement_expression_or_assign(parser);
     } else if token_kind == Keyword {
         var declaration: Barely_Ast_Declaration = barely_parse_declaration(parser);
         result.kind = Declaration;
@@ -290,15 +288,36 @@ proc barely_parse_declaration(parser: *Parser): Barely_Ast_Declaration {
     return result;
 }
 
-proc barely_parse_statement_expression(parser: *Parser): Barely_Ast_Statement_Expression {
-    var result: Barely_Ast_Statement_Expression;
-    result.expression = barely_parse_expression(parser);
+proc barely_parse_statement_expression_or_assign(parser: *Parser): Barely_Ast_Statement {
+    var result: Barely_Ast_Statement;
+    result.kind = Expression;
+    result.data.expression.expression = barely_parse_expression(parser);
 
-    if barely_peek_token_kind(parser) == Semicolon {
+    if barely_peek_token_kind(parser) == Equals {
+        barely_consume_check_token(parser, Equals);
+
+        var assign: Barely_Ast_Assign;
+        assign.parts = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Assign_Part);
+
+        assert_(result.data.expression.expression.kind == Retrieve, @file, @line);
+        var assign_part: Barely_Ast_Assign_Part;
+        // HACK
+        assign_part = @cast(*Barely_Ast_Assign_Part, @cast(ptr, &result.data.expression.expression.data.retrieve)).*;
+        dynamic_array_append!(&assign.parts, assign_part, $type Barely_Ast_Assign_Part);
+
+        assign.expression = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+
+        result.kind = Assign;
+        result.data.assign = assign;
+
         barely_consume_check_token(parser, Semicolon);
-        result.stack_check = true;
     } else {
-        result.stack_check = false;
+        if barely_peek_token_kind(parser) == Semicolon {
+            barely_consume_check_token(parser, Semicolon);
+            result.data.expression.stack_check = true;
+        } else {
+            result.data.expression.stack_check = false;
+        };
     };
 
     return result;
