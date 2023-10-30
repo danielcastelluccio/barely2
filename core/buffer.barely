@@ -40,6 +40,15 @@ proc buffer_push_uint64(buffer: *Buffer, value: uint64) {
     buffer.index = buffer.index + 8;
 }
 
+proc buffer_push_uint32(buffer: *Buffer, value: uint32) {
+    while buffer.index + 4 > buffer.capacity {
+        buffer_resize(buffer, buffer.capacity * 2);
+    };
+
+    memory_copy(@cast(ptr, &value), @cast(ptr, &buffer.data[buffer.index]), 4);
+    buffer.index = buffer.index + 4;
+}
+
 proc buffer_push_data(buffer: *Buffer, pointer: ptr, size: uint) {
     while buffer.index + size > buffer.capacity {
         buffer_resize(buffer, buffer.capacity * 2);

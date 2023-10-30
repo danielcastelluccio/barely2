@@ -87,7 +87,7 @@ proc barely_parse_procedure_item(parser: *Parser): Barely_Ast_Item_Procedure {
     // TODO: parse arguments
     barely_consume_check_token(parser, Left_Parenthesis);
     barely_consume_check_token(parser, Right_Parenthesis);
-    result.arguments = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Declaration);
+    result.arguments = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Name_Type);
 
     // TODO: parse returns
     result.returns = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Type);
@@ -100,7 +100,7 @@ proc barely_parse_procedure_item(parser: *Parser): Barely_Ast_Item_Procedure {
 proc barely_get_special_invoke_name(procedure: Barely_Ast_Expression): bool, String {
     if procedure.kind == Retrieve {
         if procedure.data.retrieve.kind == Identifier {
-            var name: String = procedure.data.retrieve.data.identifier.name;
+            var name: String = procedure.data.retrieve.data.identifier;
             if string_equal_length(name, string_new("@"), 1) {
                 return true, name;
             };
@@ -190,7 +190,7 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
 proc barely_parse_retrieve_identifier(parser: *Parser): Barely_Ast_Retrieve {
     var result: Barely_Ast_Retrieve;
     result.kind = Identifier;
-    result.data.identifier.name = barely_consume_token_data(parser);
+    result.data.identifier = barely_consume_token_data(parser);
     return result;
 }
 
@@ -226,16 +226,66 @@ proc barely_parse_string(parser: *Parser): Barely_Ast_String {
     return result;
 }
 
-proc barely_parse_statement(parser: *Parser): Barely_Ast_Statement {
-    var result: Barely_Ast_Statement;
+proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
+    var result: Barely_Ast_Type;
 
     if barely_peek_token_kind(parser) == Identifier {
-        var expression: Barely_Ast_Statement_Expression = barely_parse_statement_expression(parser);
-        result.kind = Expression;
-        result.data.expression = expression;
+        result.kind = Identifier;
+        result.data.identifier = barely_consume_token_data(parser);
     } else {
         assert_(false, @file, @line);
     };
+
+    return result;
+}
+
+proc barely_parse_statement(parser: *Parser): Barely_Ast_Statement {
+    var result: Barely_Ast_Statement;
+
+    var token_kind: Barely_Token_Kind = barely_peek_token_kind(parser);
+    if token_kind == Identifier {
+        var expression: Barely_Ast_Statement_Expression = barely_parse_statement_expression(parser);
+        result.kind = Expression;
+        result.data.expression = expression;
+    } else if token_kind == Keyword {
+        var declaration: Barely_Ast_Declaration = barely_parse_declaration(parser);
+        result.kind = Declaration;
+        result.data.declaration = declaration;
+    } else {
+        assert_(false, @file, @line);
+    };
+
+    return result;
+}
+
+proc barely_parse_declaration(parser: *Parser): Barely_Ast_Declaration {
+    var result: Barely_Ast_Declaration;
+
+    var keyword: String = barely_consume_token_data(parser);
+
+    result.declarations = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Name_Type);
+    var continue: bool = true;
+    while continue {
+        barely_peek_check_token(parser, Identifier);
+        var name: String = barely_consume_token_data(parser);
+        barely_consume_check_token(parser, Colon);
+        var type_: Barely_Ast_Type = barely_parse_type(parser);
+
+        dynamic_array_append!(&result.declarations, @build(Barely_Ast_Name_Type, name, type_), $type Barely_Ast_Name_Type);
+
+        continue = barely_peek_token_kind(parser) == Comma;
+    };
+
+    if barely_peek_token_kind(parser) == Equals {
+        barely_consume_check_token(parser, Equals);
+        result.expression = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+    } else if barely_peek_token_kind(parser) == Semicolon {
+        result.expression = null;
+    } else {
+        assert_(false, @file, @line);
+    };
+
+    barely_consume_check_token(parser, Semicolon);
 
     return result;
 }

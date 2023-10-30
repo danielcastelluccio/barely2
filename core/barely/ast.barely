@@ -4,8 +4,9 @@ type Barely_Ast_Location : struct {
     col: uint,
 }
 
-type Barely_Ast_Identifier : struct {
+type Barely_Ast_Name_Type : struct {
     name: String,
+    type_: Barely_Ast_Type
 }
 
 type Barely_Ast_File : struct {
@@ -23,7 +24,7 @@ type Barely_Ast_Item : struct {
 
 type Barely_Ast_Item_Procedure : struct {
     name: String,
-    arguments: Dynamic_Array, // Barely_Ast_Declaration
+    arguments: Dynamic_Array, // Barely_Ast_Type_Name
     returns: Dynamic_Array,   // Barely_Ast_Type
     body: Barely_Ast_Expression,
     end_location: Barely_Ast_Location,
@@ -33,15 +34,22 @@ type Barely_Ast_Item_Procedure : struct {
 type Barely_Ast_Statement : struct {
     kind: enum {
         Expression,
+        Declaration
     },
     data: union {
         expression: Barely_Ast_Statement_Expression,
+        declaration: Barely_Ast_Declaration
     },
+}
+
+type Barely_Ast_Declaration : struct {
+    declarations: Dynamic_Array, // Barely_Ast_Name_Type
+    expression: *Barely_Ast_Expression
 }
 
 type Barely_Ast_Statement_Expression : struct {
     expression: Barely_Ast_Expression,
-    stack_check: bool,
+    stack_check: bool
 }
 
 type Barely_Ast_Expression : struct {
@@ -51,7 +59,7 @@ type Barely_Ast_Expression : struct {
         Invoke,
         Number,
         String,
-        Syscall,
+        Syscall
     },
     data: union {
         block: Barely_Ast_Block,
@@ -59,28 +67,29 @@ type Barely_Ast_Expression : struct {
         invoke: Barely_Ast_Invoke,
         number: Barely_Ast_Number,
         string: Barely_Ast_String,
-        syscall: Barely_Ast_Syscall,
+        syscall: Barely_Ast_Syscall
     },
 }
 
 type Barely_Ast_Type : struct {
-}
-
-type Barely_Ast_Declaration : struct {
-    name: String,
-    type_: Barely_Ast_Type,
+    kind: enum {
+        Identifier
+    },
+    data: union {
+        identifier: String
+    }
 }
 
 type Barely_Ast_Block : struct {
-    statements: Dynamic_Array, // Barely_Ast_Statement
+    statements: Dynamic_Array // Barely_Ast_Statement
 }
 
 type Barely_Ast_Retrieve : struct {
     kind: enum {
-        Identifier,
+        Identifier
     },
     data: union {
-        identifier: Barely_Ast_Identifier,
+        identifier: String
     },
 }
 

@@ -5,7 +5,10 @@ type Barely_Elf_Linux_X64_State : struct {
     string_references: Dynamic_Array, // Barely_Elf_Linux_X64_String_Reference
     procedure_references: Dynamic_Array, // Barely_Elf_Linux_X64_Procedure_Reference
     procedure_locations: Hash_Map, // String, uint
+    local_variables: Hash_Map, // String, uint
+    local_variable_index: uint,
     main_offset: uint,
+    allocator: Allocator,
 }
 
 type Barely_Elf_Linux_X64_String_Reference : struct {
@@ -22,6 +25,10 @@ proc hash_string(value: ptr): uint {
     return string_hash(@cast(*String, value));
 }
 
+proc barely_elf_linux_x64_get_size(type_: Barely_Ast_Type): uint {
+    return 8;
+}
+
 proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
     var output: Buffer = buffer_create(4096, allocator);
 
@@ -32,7 +39,10 @@ proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
         dynamic_array_new!(256, allocator, $type Barely_Elf_Linux_X64_String_Reference), 
         dynamic_array_new!(256, allocator, $type Barely_Elf_Linux_X64_Procedure_Reference),
         hash_map_new!(32, allocator, hash_string, $type String, $type uint),
-        0);
+        hash_map_new!(0, allocator, hash_string, $type String, $type uint),
+        0,
+        0,
+        allocator);
 
     var entry: X64_Deferred_Value = x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX);
     x64_push_call_register64(&state.code_buffer, RAX);
@@ -118,6 +128,9 @@ proc barely_elf_linux_x64_gen_item(state: *Barely_Elf_Linux_X64_State, item: *Ba
 }
 
 proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, procedure: *Barely_Ast_Item_Procedure) {
+    state.local_variables = hash_map_new!(16, state.allocator, hash_string, $type String, $type uint);
+    state.local_variable_index = 0;
+
     hash_map_insert!(&state.procedure_locations, procedure.name, state.code_buffer.index, $type String, $type uint);
     if string_equal(procedure.name, string_new("main")) {
         state.main_offset = state.code_buffer.index;
@@ -126,7 +139,13 @@ proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, proc
     x64_push_push_register64(&state.code_buffer, RBP);
     x64_push_mov_register64_register64(&state.code_buffer, RBP, RSP);
 
+    // Kind of a hack because I don't want to support 32 bit deferred values
+    var deferred: X64_Deferred_Value = x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX);
+    x64_push_sub_register64_register64(&state.code_buffer, RSP, RAX);
+
     barely_elf_linux_x64_gen_expression(state, &procedure.body);
+
+    x64_deferred_value_set(&deferred, &state.code_buffer, @cast(uint64, state.local_variable_index));
 
     x64_push_mov_register64_register64(&state.code_buffer, RSP, RBP);
     x64_push_pop_register64(&state.code_buffer, RBP);
@@ -151,14 +170,14 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
     };
 }
 
-proc barely_resolve_identifier_global(state: *Barely_Elf_Linux_X64_State, identifier: Barely_Ast_Identifier): bool, *Barely_Ast_Item {
+proc barely_resolve_identifier_global(state: *Barely_Elf_Linux_X64_State, identifier: String): bool, *Barely_Ast_Item {
     var i: uint = 0;
     while i < state.file.items.count {
         var item: *Barely_Ast_Item = dynamic_array_get_ref!(&state.file.items, i, $type Barely_Ast_Item);
         var found: bool = false;
 
         if item.kind == Procedure {
-            if string_equal(item.data.procedure.name, identifier.name) {
+            if string_equal(item.data.procedure.name, identifier) {
                 found = true;
             };
         };
@@ -182,11 +201,21 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
 
                 var procedure_ref: Barely_Elf_Linux_X64_Procedure_Reference = @build(Barely_Elf_Linux_X64_Procedure_Reference,
                     deferred,
-                    retrieve.data.identifier.name);
+                    retrieve.data.identifier);
                 dynamic_array_append!(&state.procedure_references, procedure_ref, $type Barely_Elf_Linux_X64_Procedure_Reference);
+                return;
             };
         };
+
+        var local_index: uint, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier, $type String, $type uint);
+        if found {
+            x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
+            x64_push_push_register64(&state.code_buffer, RAX);
+            return;
+        };
     };
+
+    assert_(false, @file, @line);
 }
 
 proc barely_elf_linux_x64_gen_invoke(state: *Barely_Elf_Linux_X64_State, invoke: *Barely_Ast_Invoke) {
@@ -266,7 +295,32 @@ proc barely_elf_linux_x64_gen_block(state: *Barely_Elf_Linux_X64_State, block: *
 proc barely_elf_linux_x64_gen_statement(state: *Barely_Elf_Linux_X64_State, statement: *Barely_Ast_Statement) {
     if statement.kind == Expression {
         barely_elf_linux_x64_gen_expression(state, &statement.data.expression.expression);
+    } else if statement.kind == Declaration {
+        barely_elf_linux_x64_gen_declaration(state, &statement.data.declaration);
     } else {
         assert_(false, @file, @line);
+    };
+}
+
+proc barely_elf_linux_x64_gen_declaration(state: *Barely_Elf_Linux_X64_State, declaration: *Barely_Ast_Declaration) {
+    var expression: *Barely_Ast_Expression = declaration.expression;
+
+    if expression != null {
+        barely_elf_linux_x64_gen_expression(state, declaration.expression);
+    };
+
+    var i: uint = 0;
+    while i < declaration.declarations.count {
+        var declaration: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&declaration.declarations, i, $type Barely_Ast_Name_Type);
+        hash_map_insert!(&state.local_variables, declaration.name, state.local_variable_index, $type String, $type uint);
+        state.local_variable_index = state.local_variable_index + barely_elf_linux_x64_get_size(declaration.type_);
+
+        var local_index: uint, found: bool = hash_map_get!(&state.local_variables, declaration.name, $type String, $type uint);
+        if expression != null {
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8)), RAX);
+        };
+
+        i = i + 1;
     };
 }
