@@ -5,6 +5,11 @@ proc assert_(condition: bool, file: *[]byte, line: uint) {
     };
 }
 
+proc unreachable(file: *[]byte, line: uint) {
+    print!("{}:{}: Unreachable reached!\n", file, line);
+    panic();
+}
+
 proc panic() {
     var _: uint = @syscall1(60, 1);
 }

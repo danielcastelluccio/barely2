@@ -16,15 +16,22 @@ type Barely_Ast_File : struct {
 type Barely_Ast_Item : struct {
     kind: enum {
         Procedure,
+        Type
     },
     data: union {
         procedure: Barely_Ast_Item_Procedure,
+        type_: Barely_Ast_Item_Type
     },
+}
+
+type Barely_Ast_Item_Type : struct {
+    name: String,
+    type_: Barely_Ast_Type
 }
 
 type Barely_Ast_Item_Procedure : struct {
     name: String,
-    arguments: Dynamic_Array, // Barely_Ast_Type_Name
+    arguments: Dynamic_Array, // Barely_Ast_Name_Type
     returns: Dynamic_Array,   // Barely_Ast_Type
     body: Barely_Ast_Expression,
     end_location: Barely_Ast_Location,
@@ -84,11 +91,23 @@ type Barely_Ast_Expression : struct {
 
 type Barely_Ast_Type : struct {
     kind: enum {
-        Identifier
+        Internal,
+        Identifier,
+        Struct
     },
     data: union {
-        identifier: String
+        internal: Barely_Ast_Type_Internal,
+        identifier: String,
+        struct_: Barely_Ast_Type_Struct
     }
+}
+
+type Barely_Ast_Type_Struct : struct {
+    items: Dynamic_Array // Barely_Ast_Name_Type
+}
+
+type Barely_Ast_Type_Internal : enum {
+    Uint
 }
 
 type Barely_Ast_Block : struct {
@@ -97,11 +116,18 @@ type Barely_Ast_Block : struct {
 
 type Barely_Ast_Retrieve_Assign : struct {
     kind: enum {
-        Identifier
+        Identifier,
+        Parent
     },
     data: union {
-        identifier: String
+        identifier: String,
+        parent: Barely_Ast_Retrieve_Assign_Parent
     },
+}
+
+type Barely_Ast_Retrieve_Assign_Parent : struct {
+    parent: *Barely_Ast_Expression,
+    item: String
 }
 
 type Barely_Ast_Retrieve : Barely_Ast_Retrieve_Assign

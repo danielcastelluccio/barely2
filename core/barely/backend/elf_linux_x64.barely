@@ -8,7 +8,7 @@ type Barely_Elf_Linux_X64_State : struct {
     local_variables: Hash_Map, // String, uint
     local_variable_index: uint,
     main_offset: uint,
-    allocator: Allocator,
+    allocator: Allocator
 }
 
 type Barely_Elf_Linux_X64_String_Reference : struct {
@@ -25,8 +25,41 @@ proc hash_string(value: ptr): uint {
     return string_hash(@cast(*String, value));
 }
 
-proc barely_elf_linux_x64_get_size(type_: Barely_Ast_Type): uint {
-    return 8;
+proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Barely_Ast_Type): uint {
+    if type_.kind == Internal {
+        var internal: Barely_Ast_Type_Internal = type_.data.internal;
+        if internal == Uint {
+            return 8;
+        } else {
+            unreachable(@file, @line);
+        };
+    } else if type_.kind == Struct {
+        var struct_: Barely_Ast_Type_Struct = type_.data.struct_;
+        var size: uint = 0;
+        var i: uint = 0;
+        while i < struct_.items.count {
+            var item: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&struct_.items, i, $type Barely_Ast_Name_Type);
+            size = size + barely_elf_linux_x64_get_size(state, item.type_);
+            i = i + 1;
+        };
+        return size;
+    } else if type_.kind == Identifier {
+        var i: uint = 0;
+        while i < state.file.items.count {
+            var item: *Barely_Ast_Item = dynamic_array_get_ref!(&state.file.items, i, $type Barely_Ast_Item);
+            if item.kind == Type {
+                if string_equal(item.data.type_.name, type_.data.identifier) {
+                    return barely_elf_linux_x64_get_size(state, item.data.type_.type_);
+                };
+            };
+            i = i + 1;
+        };
+
+        unreachable(@file, @line);
+    };
+
+    unreachable(@file, @line);
+    return 0;
 }
 
 proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
@@ -122,8 +155,9 @@ proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
 proc barely_elf_linux_x64_gen_item(state: *Barely_Elf_Linux_X64_State, item: *Barely_Ast_Item) {
     if item.kind == Procedure {
         barely_elf_linux_x64_gen_procedure(state, &item.data.procedure);
+    } else if item.kind == Type {
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
 }
 
@@ -168,7 +202,7 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
     } else if expression.kind == Multiple {
         barely_elf_linux_x64_gen_multiple(state, &expression.data.multiple);
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
 }
 
@@ -215,9 +249,11 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
             x64_push_push_register64(&state.code_buffer, RAX);
             return;
         };
+    } else if retrieve.kind == Parent {
+        unreachable(@file, @line);
     };
 
-    assert_(false, @file, @line);
+    unreachable(@file, @line);
 }
 
 proc barely_elf_linux_x64_gen_invoke(state: *Barely_Elf_Linux_X64_State, invoke: *Barely_Ast_Invoke) {
@@ -311,7 +347,7 @@ proc barely_elf_linux_x64_gen_statement(state: *Barely_Elf_Linux_X64_State, stat
     } else if statement.kind == Assign {
         barely_elf_linux_x64_gen_assign(state, &statement.data.assign);
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
 }
 
@@ -326,7 +362,7 @@ proc barely_elf_linux_x64_gen_declaration(state: *Barely_Elf_Linux_X64_State, de
     while i < declaration.declarations.count {
         var declaration: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&declaration.declarations, declaration.declarations.count - i - 1, $type Barely_Ast_Name_Type);
         hash_map_insert!(&state.local_variables, declaration.name, state.local_variable_index, $type String, $type uint);
-        state.local_variable_index = state.local_variable_index + barely_elf_linux_x64_get_size(declaration.type_);
+        state.local_variable_index = state.local_variable_index + barely_elf_linux_x64_get_size(state, declaration.type_);
 
         var local_index: uint, found: bool = hash_map_get!(&state.local_variables, declaration.name, $type String, $type uint);
         if expression != null {
@@ -359,5 +395,5 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
         };
     };
 
-    assert_(false, @file, @line);
+    unreachable(@file, @line);
 }

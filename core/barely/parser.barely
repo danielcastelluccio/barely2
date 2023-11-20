@@ -66,12 +66,31 @@ proc barely_parse_item(parser: *Parser): Barely_Ast_Item {
             var procedure: Barely_Ast_Item_Procedure  = barely_parse_procedure_item(parser);
             result.kind = Procedure;
             result.data.procedure = procedure;
+        } else if string_equal(keyword, string_new("type")) {
+            var type_: Barely_Ast_Item_Type  = barely_parse_type_item(parser);
+            result.kind = Type;
+            result.data.type_ = type_;
         } else {
-            assert_(false, @file, @line);
+            unreachable(@file, @line);
         };
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
+
+    return result;
+}
+
+proc barely_parse_type_item(parser: *Parser): Barely_Ast_Item_Type {
+    var result: Barely_Ast_Item_Type;
+
+    barely_consume_check_token(parser, Keyword);
+
+    barely_peek_check_token(parser, Identifier);
+    result.name = barely_consume_token_data(parser);
+
+    barely_consume_check_token(parser, Colon);
+
+    result.type_ = barely_parse_type(parser);
 
     return result;
 }
@@ -123,7 +142,7 @@ proc barely_parse_invoke_like(parser: *Parser, procedure: Barely_Ast_Expression)
             result.kind = Syscall;
             result.data.syscall = syscall;
         } else {
-            assert_(false, @file, @line);
+            unreachable(@file, @line);
         };
     } else {
         var invoke: Barely_Ast_Invoke;
@@ -134,6 +153,21 @@ proc barely_parse_invoke_like(parser: *Parser, procedure: Barely_Ast_Expression)
         result.data.invoke = invoke;
     };
 
+    return result;
+}
+
+proc barely_parse_retrieve_parent(parser: *Parser, parent: Barely_Ast_Expression): Barely_Ast_Retrieve {
+    var result: Barely_Ast_Retrieve;
+
+    barely_consume_check_token(parser, Period);
+
+    barely_peek_check_token(parser, Identifier);
+    var item: String = barely_consume_token_data(parser);
+
+    result.kind = Parent;
+    result.data.parent = @build(Barely_Ast_Retrieve_Assign_Parent,
+        allocate_value!(parser.allocator, parent, $type Barely_Ast_Expression),
+        item);
     return result;
 }
 
@@ -201,11 +235,24 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
         result.kind = Retrieve;
         result.data.retrieve = retrieve;
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
 
-    if barely_peek_token_kind(parser) == Left_Parenthesis {
-        result = barely_parse_invoke_like(parser, result);
+    var continue: bool = true;
+    while continue {
+        continue = false;
+
+        if barely_peek_token_kind(parser) == Left_Parenthesis {
+            result = barely_parse_invoke_like(parser, result);
+            continue = true;
+        };
+
+        if barely_peek_token_kind(parser) == Period {
+            var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_parent(parser, result);
+            result.kind = Retrieve;
+            result.data.retrieve = retrieve;
+            continue = true;
+        };
     };
 
     return result;
@@ -253,11 +300,49 @@ proc barely_parse_string(parser: *Parser): Barely_Ast_String {
 proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
     var result: Barely_Ast_Type;
 
-    if barely_peek_token_kind(parser) == Identifier {
-        result.kind = Identifier;
-        result.data.identifier = barely_consume_token_data(parser);
+    var token_kind: Barely_Token_Kind = barely_peek_token_kind(parser);
+    if token_kind == Identifier {
+        var name: String = barely_consume_token_data(parser);
+
+        if string_equal(name, string_new("uint")) {
+            result.kind = Internal;
+            result.data.internal = Uint;
+        } else {
+            result.kind = Identifier;
+            result.data.identifier = name;
+        };
+    } else if token_kind == Keyword {
+        var keyword: String = barely_consume_token_data(parser);
+
+        if string_equal(keyword, string_new("struct")) {
+            var struct_: Barely_Ast_Type_Struct;
+
+            barely_consume_check_token(parser, Left_Curly_Brace);
+
+            struct_.items = dynamic_array_new!(4, parser.allocator, $type Barely_Ast_Name_Type);
+            while barely_peek_token_kind(parser) != Right_Curly_Brace {
+                barely_peek_check_token(parser, Identifier);
+                var name: String = barely_consume_token_data(parser);
+                barely_consume_check_token(parser, Colon);
+                var type_: Barely_Ast_Type = barely_parse_type(parser);
+
+                var name_type: Barely_Ast_Name_Type = @build(Barely_Ast_Name_Type, name, type_);
+                dynamic_array_append!(&struct_.items, name_type, $type Barely_Ast_Name_Type);
+
+                if barely_peek_token_kind(parser) == Comma {
+                    barely_consume_check_token(parser, Comma);
+                };
+            };
+
+            barely_consume_check_token(parser, Right_Curly_Brace);
+
+            result.kind = Struct;
+            result.data.struct_ = struct_;
+        } else {
+            unreachable(@file, @line);
+        };
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
 
     return result;
@@ -274,7 +359,7 @@ proc barely_parse_statement(parser: *Parser): Barely_Ast_Statement {
         result.kind = Declaration;
         result.data.declaration = declaration;
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
 
     return result;
@@ -309,7 +394,7 @@ proc barely_parse_declaration(parser: *Parser): Barely_Ast_Declaration {
     } else if barely_peek_token_kind(parser) == Semicolon {
         result.expression = null;
     } else {
-        assert_(false, @file, @line);
+        unreachable(@file, @line);
     };
 
     barely_consume_check_token(parser, Semicolon);
