@@ -76,7 +76,8 @@ type Barely_Ast_Expression : struct {
         Number,
         String,
         Syscall,
-        Multiple
+        Multiple,
+        Reference
     },
     data: union {
         block: Barely_Ast_Block,
@@ -86,6 +87,7 @@ type Barely_Ast_Expression : struct {
         string: Barely_Ast_String,
         syscall: Barely_Ast_Syscall,
         multiple: Barely_Ast_Multiple,
+        reference: Barely_Ast_Reference
     },
 }
 
@@ -94,18 +96,24 @@ type Barely_Ast_Type : struct {
         Internal,
         Identifier,
         Struct,
-        Array
+        Array,
+        Pointer
     },
     data: union {
         internal: Barely_Ast_Type_Internal,
         identifier: String,
         struct_: Barely_Ast_Type_Struct,
-        array: Barely_Ast_Type_Array
+        array: Barely_Ast_Type_Array,
+        pointer: Barely_Ast_Type_Pointer,
     }
 }
 
 type Barely_Ast_Type_Array : struct {
     size: *Barely_Ast_Type,
+    inner: *Barely_Ast_Type
+}
+
+type Barely_Ast_Type_Pointer : struct {
     inner: *Barely_Ast_Type
 }
 
@@ -167,4 +175,8 @@ type Barely_Ast_Syscall : struct {
 
 type Barely_Ast_Multiple : struct {
     expressions: Dynamic_Array // Barely_Ast_Expression
+}
+
+type Barely_Ast_Reference : struct {
+    inner: *Barely_Ast_Expression,
 }

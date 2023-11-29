@@ -55,6 +55,8 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
         };
 
         unreachable(@file, @line);
+    } else if type_.kind == Pointer {
+        return 8;
     };
 
     unreachable(@file, @line);
@@ -74,6 +76,8 @@ proc barely_elf_linux_x64_get_item_storage(state: *Barely_Elf_Linux_X64_State, p
         };
         assert_(item.kind == Type, @file, @line);
         return barely_elf_linux_x64_get_item_storage(state, &item.data.type_.type_, item_name);
+    } else if parent_type.kind == Pointer {
+        return barely_elf_linux_x64_get_item_storage(state, parent_type.data.pointer.inner, item_name);
     };
 
     assert_(parent_type.kind == Struct, @file, @line);
@@ -238,6 +242,8 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
         barely_elf_linux_x64_gen_string(state, &expression.data.string);
     } else if expression.kind == Multiple {
         barely_elf_linux_x64_gen_multiple(state, &expression.data.multiple);
+    } else if expression.kind == Reference {
+        barely_elf_linux_x64_gen_reference(state, &expression.data.reference);
     } else {
         unreachable(@file, @line);
     };
@@ -272,7 +278,10 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
             return;
         };
     } else if retrieve.kind == Parent {
-        state.process.in_reference = true;
+        if retrieve.data.parent.parent_type.kind != Pointer {
+            state.process.in_reference = true;
+        };
+
         barely_elf_linux_x64_gen_expression(state, retrieve.data.parent.parent);
         x64_push_pop_register64(&state.code_buffer, RAX);
 
@@ -362,6 +371,11 @@ proc barely_elf_linux_x64_gen_multiple(state: *Barely_Elf_Linux_X64_State, multi
     };
 }
 
+proc barely_elf_linux_x64_gen_reference(state: *Barely_Elf_Linux_X64_State, reference: *Barely_Ast_Reference) {
+    state.process.in_reference = true;
+    barely_elf_linux_x64_gen_expression(state, reference.inner);
+}
+
 proc barely_elf_linux_x64_gen_block(state: *Barely_Elf_Linux_X64_State, block: *Barely_Ast_Block) {
     var i: uint = 0;
     while i < block.statements.count {
@@ -428,8 +442,10 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
     } else if assign_part.kind == Parent {
         x64_push_pop_register64(&state.code_buffer, RBX);
 
-        // TODO: this needs to conditionally happen, only when the parent type is not already a pointer
-        state.process.in_reference = true;
+        if assign_part.data.parent.parent_type.kind != Pointer {
+            state.process.in_reference = true;
+        };
+
         barely_elf_linux_x64_gen_expression(state, assign_part.data.parent.parent);
         x64_push_pop_register64(&state.code_buffer, RAX);
 

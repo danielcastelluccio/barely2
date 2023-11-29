@@ -235,6 +235,10 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
         var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_identifier(parser);
         result.kind = Retrieve;
         result.data.retrieve = retrieve;
+    } else if kind == Ampersand {
+        var reference: Barely_Ast_Reference = barely_parse_reference(parser);
+        result.kind = Reference;
+        result.data.reference = reference;
     } else {
         unreachable(@file, @line);
     };
@@ -256,6 +260,13 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
         };
     };
 
+    return result;
+}
+
+proc barely_parse_reference(parser: *Parser): Barely_Ast_Reference {
+    barely_consume_check_token(parser, Ampersand);
+    var result: Barely_Ast_Reference;
+    result.inner = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
     return result;
 }
 
@@ -342,6 +353,14 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
         } else {
             unreachable(@file, @line);
         };
+    } else if token_kind == Asterisk {
+        barely_consume_check_token(parser, Asterisk);
+
+        var pointer: Barely_Ast_Type_Pointer = @init(Barely_Ast_Type_Pointer);
+        pointer.inner = allocate_value!(parser.allocator, barely_parse_type(parser), $type Barely_Ast_Type);
+
+        result.kind = Pointer;
+        result.data.pointer = pointer;
     } else {
         unreachable(@file, @line);
     };

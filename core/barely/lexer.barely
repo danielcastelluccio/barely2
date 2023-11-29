@@ -58,6 +58,12 @@ proc barely_write_token(writer: Writer, pointer: ptr) {
         write!(writer, "{");
     } else if token.kind == Right_Curly_Brace {
         write!(writer, "}");
+    } else if token.kind == Colon {
+        write!(writer, ":");
+    } else if token.kind == Ampersand {
+        write!(writer, "&");
+    } else if token.kind == Semicolon {
+        write!(writer, ";");
     } else if token.kind == Identifier {
         write!(writer, "{}", token.data);
     } else if token.kind == Keyword {
@@ -148,7 +154,7 @@ proc barely_lex(file: String, contents: String, allocator: Allocator): Dynamic_A
             else if character == '='  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Equals, 2)
             else if character == '<'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater, 2)
             else if character == '>'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less, 2)
-            else if character == '&'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Ampersand, 2)
+            else if character == '&'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Ampersand, 1)
             else if character == ' '  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Invalid, 1)
             else if character == '\n' {
                 barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Invalid, 1);

@@ -95,7 +95,7 @@ proc write_internal(writer: Writer, string: *[]byte, index: uint, data: ptr): ui
 
 macro write!($expr..): $expr {
     (writer_in, string_in, args..) {
-        var writer: Writer = writer_in;
+        var $writer: Writer = writer_in;
         var string: *[]byte = string_in;
         var _i: uint = 0;
         var _length: uint = raw_string_length(string);
@@ -106,7 +106,7 @@ macro write!($expr..): $expr {
 
         while _i < _length {
             if string[_i] == '{' && string[_i + 1] != '{' {
-                writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+                $writer.procedure($writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
 
                 var counter: uint = 0;
 
@@ -117,12 +117,12 @@ macro write!($expr..): $expr {
                 last_write = _i;
             } else {
                 if string[_i] == '{' && string[_i + 1] == '{' {
-                    writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+                    $writer.procedure($writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
                     _i = _i + 1;
                     last_write = _i;
                 };
                 if string[_i] == '}' && string[_i + 1] == '}' {
-                    writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+                    $writer.procedure($writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
                     _i = _i + 1;
                     last_write = _i;
                 };
@@ -130,7 +130,7 @@ macro write!($expr..): $expr {
             };
         };
 
-        writer.procedure(writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
+        $writer.procedure($writer.data, @cast(*[]byte, @cast(ptr, &string[last_write])), _i - last_write);
     },
     (writer_in, string_in) {
         write_raw_string(writer_in, string_in);
