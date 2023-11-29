@@ -103,10 +103,26 @@ proc barely_parse_procedure_item(parser: *Parser): Barely_Ast_Item_Procedure {
     barely_peek_check_token(parser, Identifier);
     result.name = barely_consume_token_data(parser);
 
-    // TODO: parse arguments
     barely_consume_check_token(parser, Left_Parenthesis);
-    barely_consume_check_token(parser, Right_Parenthesis);
+
     result.arguments = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Name_Type);
+    while barely_peek_token_kind(parser) != Right_Parenthesis {
+        if barely_peek_token_kind(parser) == Comma {
+            barely_consume_check_token(parser, Comma);
+        } else {
+            var argument: Barely_Ast_Name_Type;
+
+            barely_peek_check_token(parser, Identifier);
+            argument.name = barely_consume_token_data(parser);
+
+            barely_consume_check_token(parser, Colon);
+
+            argument.type_ = barely_parse_type(parser);
+
+            dynamic_array_append!(&result.arguments, argument, $type Barely_Ast_Name_Type);
+        };
+    };
+    barely_consume_check_token(parser, Right_Parenthesis);
 
     // TODO: parse returns
     result.returns = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Type);

@@ -105,6 +105,7 @@ proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
     var state: Barely_Elf_Linux_X64_State = @build(Barely_Elf_Linux_X64_State, 
         @build(Barely_Process_State, 
             &file,
+            null,
             hash_map_new!(0, allocator, hash_string, $type String, $type Barely_Ast_Type),
             false,
             allocator
@@ -203,6 +204,7 @@ proc barely_elf_linux_x64_gen_item(state: *Barely_Elf_Linux_X64_State, item: *Ba
 }
 
 proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, procedure: *Barely_Ast_Item_Procedure) {
+    state.process.procedure = procedure;
     state.process.local_variables = hash_map_new!(16, state.process.allocator, hash_string, $type String, $type Barely_Ast_Type);
     state.local_variables = hash_map_new!(16, state.process.allocator, hash_string, $type String, $type uint);
     state.local_variable_index = 0;
@@ -250,6 +252,21 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
     };
 }
 
+proc barely_elf_linux_x64_resolve_argument_location(state: *Barely_Elf_Linux_X64_State, name: String): uint {
+    var result: uint = 0;
+    var i: uint = 0;
+    while i < state.process.procedure.arguments.count {
+        var argument: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&state.process.procedure.arguments, state.process.procedure.arguments.count - i - 1, $type Barely_Ast_Name_Type);
+        if string_equal(argument.name, name) {
+            return result;
+        };
+        result = result + barely_elf_linux_x64_get_size(state, argument.type_);
+        i = i + 1;
+    };
+
+    return @init(uint);
+}
+
 proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retrieve: *Barely_Ast_Retrieve) {
     if retrieve.kind == Identifier {
         var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(&state.process, retrieve.data.identifier);
@@ -277,6 +294,27 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
                 assert_(size == 8, @file, @line);
                 x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
                 x64_push_push_register64(&state.code_buffer, RAX);
+            };
+            state.process.in_reference = false;
+            return;
+        };
+
+        var argument_type: Barely_Ast_Type, found: bool = barely_resolve_argument(&state.process, retrieve.data.identifier);
+        if found {
+            var argument_location: uint = barely_elf_linux_x64_resolve_argument_location(state, retrieve.data.identifier);
+
+            var size: uint = barely_elf_linux_x64_get_size(state, argument_type);
+            if size > 8 {
+                unreachable(@file, @line);
+            } else {
+                if state.process.in_reference {
+                    x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, argument_location + 16));
+                    x64_push_push_register64(&state.code_buffer, RAX);
+                } else {
+                    assert_(size == 8, @file, @line);
+                    x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, argument_location + 16));
+                    x64_push_push_register64(&state.code_buffer, RAX);
+                };
             };
             state.process.in_reference = false;
             return;

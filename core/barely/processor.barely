@@ -1,0 +1,276 @@
+type Barely_Process_State : struct {
+    file: *Barely_Ast_File,
+    procedure: *Barely_Ast_Item_Procedure,
+    local_variables: Hash_Map, // String, Barely_Ast_Type
+    in_reference: bool,
+    allocator: Allocator,
+    stack: Dynamic_Array, // Barely_Ast_Type
+}
+
+proc barely_process(file: Barely_Ast_File, allocator: Allocator) {
+    var state: Barely_Process_State = @build(Barely_Process_State,
+        &file,
+        null,
+        hash_map_new!(0, allocator, hash_string, $type String, $type Barely_Ast_Type),
+        false,
+        allocator,
+        dynamic_array_new!(16, allocator, null, $type Barely_Ast_Type));
+
+    var i: uint = 0;
+    while i < file.items.count {
+        var item: *Barely_Ast_Item = dynamic_array_get_ref!(&file.items, i, $type Barely_Ast_Item);
+        barely_process_item(&state, item);
+        i = i + 1;
+    };
+}
+
+proc barely_process_item(state: *Barely_Process_State, item: *Barely_Ast_Item) {
+    if item.kind == Procedure {
+        barely_process_procedure(state, &item.data.procedure);
+    } else if item.kind == Type {
+    } else {
+        unreachable(@file, @line);
+    };
+}
+
+proc barely_process_procedure(state: *Barely_Process_State, procedure: *Barely_Ast_Item_Procedure) {
+    state.local_variables = hash_map_new!(16, state.allocator, hash_string, $type String, $type Barely_Ast_Type);
+    state.procedure = procedure;
+    
+    barely_process_expression(state, &procedure.body);
+}
+
+proc barely_process_expression(state: *Barely_Process_State, expression: *Barely_Ast_Expression) {
+    if expression.kind == Block {
+        barely_process_block(state, &expression.data.block);
+    } else if expression.kind == Retrieve {
+        barely_process_retrieve(state, &expression.data.retrieve);
+    } else if expression.kind == Invoke {
+        barely_process_invoke(state, &expression.data.invoke);
+    } else if expression.kind == Syscall {
+        barely_process_syscall(state, &expression.data.syscall);
+    } else if expression.kind == Number {
+        barely_process_number(state, &expression.data.number);
+    } else if expression.kind == String {
+        barely_process_string(state, &expression.data.string);
+    } else if expression.kind == Multiple {
+        barely_process_multiple(state, &expression.data.multiple);
+    } else if expression.kind == Reference {
+        barely_process_reference(state, &expression.data.reference);
+    } else {
+        unreachable(@file, @line);
+    };
+}
+
+proc barely_resolve_identifier_global(state: *Barely_Process_State, identifier: String): bool, *Barely_Ast_Item {
+    var i: uint = 0;
+    while i < state.file.items.count {
+        var item: *Barely_Ast_Item = dynamic_array_get_ref!(&state.file.items, i, $type Barely_Ast_Item);
+        var found: bool = false;
+
+        if item.kind == Procedure {
+            if string_equal(item.data.procedure.name, identifier) {
+                found = true;
+            };
+        } else if item.kind == Type {
+            if string_equal(item.data.type_.name, identifier) {
+                found = true;
+            };
+        };
+
+        if found {
+            return true, item;
+        };
+
+        i = i + 1;
+    };
+    return false, @init(*Barely_Ast_Item);
+}
+
+proc barely_resolve_argument(state: *Barely_Process_State, name: String): Barely_Ast_Type, bool {
+    var i: uint = 0;
+    while i < state.procedure.arguments.count {
+        var argument: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&state.procedure.arguments, i, $type Barely_Ast_Name_Type);
+        if string_equal(argument.name, name) {
+            return argument.type_, true;
+        };
+        i = i + 1;
+    };
+
+    return @init(Barely_Ast_Type), false;
+}
+
+proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast_Retrieve) {
+    if retrieve.kind == Identifier {
+        var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, retrieve.data.identifier);
+        if valid {
+            if resolved.kind == Procedure {
+                return;
+            };
+        };
+
+        var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier, $type String, $type Barely_Ast_Type);
+        if found {
+            dynamic_array_append!(&state.stack, local_type, $type Barely_Ast_Type);
+            if state.in_reference {
+                
+            } else {
+                
+            };
+            state.in_reference = false;
+            return;
+        };
+
+        var argument_type: Barely_Ast_Type, found: bool = barely_resolve_argument(state, retrieve.data.identifier);
+        if found {
+            dynamic_array_append!(&state.stack, argument_type, $type Barely_Ast_Type);
+            if state.in_reference {
+                
+            } else {
+                
+            };
+            state.in_reference = false;
+            return;
+        };
+    } else if retrieve.kind == Parent {
+        barely_process_expression(state, retrieve.data.parent.parent);
+        retrieve.data.parent.parent_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+        return;
+    };
+
+    unreachable(@file, @line);
+}
+
+proc barely_process_invoke(state: *Barely_Process_State, invoke: *Barely_Ast_Invoke) {
+    var i: uint = 0;
+    while i < invoke.arguments.count {
+        var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&invoke.arguments, i, $type Barely_Ast_Expression);
+        barely_process_expression(state, argument);
+        i = i + 1;
+    };
+
+    barely_process_expression(state, invoke.procedure);
+}
+
+proc barely_process_syscall(state: *Barely_Process_State, syscall: *Barely_Ast_Syscall) {
+    var i: uint = 0;
+    while i < syscall.arguments.count {
+        var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&syscall.arguments, i, $type Barely_Ast_Expression);
+        barely_process_expression(state, argument);
+        i = i + 1;
+    };
+
+    if syscall.arg_count > 5 {
+    };
+
+    if syscall.arg_count > 4 {
+    };
+
+    if syscall.arg_count > 3 {
+    };
+
+    if syscall.arg_count > 2 {
+    };
+
+    if syscall.arg_count > 1 {
+    };
+
+    if syscall.arg_count > 0 {
+    };
+}
+
+proc barely_process_number(state: *Barely_Process_State, number: *Barely_Ast_Number) {
+}
+
+proc barely_process_string(state: *Barely_Process_State, string: *Barely_Ast_String) {
+}
+
+proc barely_process_multiple(state: *Barely_Process_State, multiple: *Barely_Ast_Multiple) {
+    var i: uint = 0;
+    while i < multiple.expressions.count {
+        var expression: *Barely_Ast_Expression = dynamic_array_get_ref!(&multiple.expressions, i, $type Barely_Ast_Expression);
+        barely_process_expression(state, expression);
+        i = i + 1;
+    };
+}
+
+proc barely_process_reference(state: *Barely_Process_State, reference: *Barely_Ast_Reference) {
+    state.in_reference = true;
+    barely_process_expression(state, reference.inner);
+}
+
+proc barely_process_block(state: *Barely_Process_State, block: *Barely_Ast_Block) {
+    var i: uint = 0;
+    while i < block.statements.count {
+        var statement: *Barely_Ast_Statement = dynamic_array_get_ref!(&block.statements, i, $type Barely_Ast_Statement);
+        barely_process_statement(state, statement);
+        i = i + 1;
+    };
+}
+
+proc barely_process_statement(state: *Barely_Process_State, statement: *Barely_Ast_Statement) {
+    if statement.kind == Expression {
+        barely_process_expression(state, &statement.data.expression.expression);
+    } else if statement.kind == Declaration {
+        barely_process_declaration(state, &statement.data.declaration);
+    } else if statement.kind == Assign {
+        barely_process_assign(state, &statement.data.assign);
+    } else {
+        unreachable(@file, @line);
+    };
+}
+
+proc barely_process_declaration(state: *Barely_Process_State, declaration: *Barely_Ast_Declaration) {
+    var expression: *Barely_Ast_Expression = declaration.expression;
+
+    if expression != null {
+        barely_process_expression(state, expression);
+    };
+
+    var i: uint = 0;
+    while i < declaration.declarations.count {
+        var declaration: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&declaration.declarations, declaration.declarations.count - i - 1, $type Barely_Ast_Name_Type);
+        hash_map_insert!(&state.local_variables, declaration.name, declaration.type_, $type String, $type Barely_Ast_Type);
+
+        if expression != null {
+            barely_process_expression(state, expression);
+        };
+
+        i = i + 1;
+    };
+}
+
+proc barely_process_assign(state: *Barely_Process_State, assign: *Barely_Ast_Assign) {
+    barely_process_expression(state, assign.expression);
+
+    var i: uint = 0;
+    while i < assign.parts.count {
+        var assign_part: *Barely_Ast_Assign_Part = dynamic_array_get_ref!(&assign.parts, assign.parts.count - i - 1, $type Barely_Ast_Assign_Part);
+        barely_process_assign_part(state, assign_part);
+        i = i + 1;
+    };
+}
+
+proc barely_process_assign_part(state: *Barely_Process_State, assign_part: *Barely_Ast_Assign_Part) {
+    if assign_part.kind == Identifier {
+        var _: Barely_Ast_Type, found: bool = hash_map_get!(&state.local_variables, assign_part.data.identifier, $type String, $type Barely_Ast_Type);
+        if found {
+            return;
+        };
+    } else if assign_part.kind == Parent {
+        barely_process_expression(state, assign_part.data.parent.parent);
+        assign_part.data.parent.parent_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+        return;
+    };
+
+    unreachable(@file, @line);
+}
+
+proc barely_retrieve_item_type(state: *Barely_Process_State, parent_type: *Barely_Ast_Type, item: String): Barely_Ast_Type {
+    assert_(parent_type.kind == Struct, @file, @line);
+    return @init(Barely_Ast_Type);
+}
+
+proc string_compare_ptr(s1: ptr, s2: ptr): uint {
+    return string_compare(@cast(*String, s1).*, @cast(*String, s2).*);
+}
