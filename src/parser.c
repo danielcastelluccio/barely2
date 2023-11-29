@@ -933,6 +933,7 @@ Ast_Expression parse_expression_without_operators(Parser_State* state) {
             running = true;
             Ast_Expression_Retrieve node = {};
             node.kind = Retrieve_Assign_Parent;
+            node.location = state->tokens->elements[state->index].location;
 
             consume(state);
 

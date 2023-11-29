@@ -203,6 +203,7 @@ proc barely_elf_linux_x64_gen_item(state: *Barely_Elf_Linux_X64_State, item: *Ba
 }
 
 proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, procedure: *Barely_Ast_Item_Procedure) {
+    state.process.local_variables = hash_map_new!(16, state.process.allocator, hash_string, $type String, $type Barely_Ast_Type);
     state.local_variables = hash_map_new!(16, state.process.allocator, hash_string, $type String, $type uint);
     state.local_variable_index = 0;
 
@@ -220,7 +221,7 @@ proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, proc
 
     barely_elf_linux_x64_gen_expression(state, &procedure.body);
 
-    x64_deferred_value_set(&deferred, &state.code_buffer, @cast(uint64, state.local_variable_index));
+    x64_deferred_value_set(&deferred, &state.code_buffer, @cast(uint64, state.local_variable_index + 8));
 
     x64_push_mov_register64_register64(&state.code_buffer, RSP, RBP);
     x64_push_pop_register64(&state.code_buffer, RBP);
@@ -267,10 +268,13 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
 
         var local_index: uint, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier, $type String, $type uint);
         if found {
-            if state.process.in_reference {
+            var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.process.local_variables, retrieve.data.identifier, $type String, $type Barely_Ast_Type);
+            var size: uint = barely_elf_linux_x64_get_size(state, local_type);
+            if state.process.in_reference || size > 8 {
                 x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
                 x64_push_push_register64(&state.code_buffer, RAX);
             } else {
+                assert_(size == 8, @file, @line);
                 x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
                 x64_push_push_register64(&state.code_buffer, RAX);
             };
@@ -278,6 +282,9 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
             return;
         };
     } else if retrieve.kind == Parent {
+        var in_reference: bool = state.process.in_reference;
+        state.process.in_reference = false;
+
         if retrieve.data.parent.parent_type.kind != Pointer {
             state.process.in_reference = true;
         };
@@ -286,11 +293,15 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
         x64_push_pop_register64(&state.code_buffer, RAX);
 
         var item_data: Barely_Elf_Linux_X64_Item_Storage = barely_elf_linux_x64_get_item_storage(state, &retrieve.data.parent.parent_type, retrieve.data.parent.item);
-        assert_(item_data.size == 8, @file, @line);
 
-        x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, item_data.location));
-
-        x64_push_push_register64(&state.code_buffer, RBX);
+        if in_reference {
+            x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, item_data.location));
+            x64_push_push_register64(&state.code_buffer, RBX);
+        } else {
+            assert_(item_data.size == 8, @file, @line);
+            x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, item_data.location));
+            x64_push_push_register64(&state.code_buffer, RBX);
+        };
         return;
     };
 
@@ -407,13 +418,31 @@ proc barely_elf_linux_x64_gen_declaration(state: *Barely_Elf_Linux_X64_State, de
     var i: uint = 0;
     while i < declaration.declarations.count {
         var declaration: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&declaration.declarations, declaration.declarations.count - i - 1, $type Barely_Ast_Name_Type);
-        hash_map_insert!(&state.local_variables, declaration.name, state.local_variable_index, $type String, $type uint);
         state.local_variable_index = state.local_variable_index + barely_elf_linux_x64_get_size(state, declaration.type_);
+        hash_map_insert!(&state.local_variables, declaration.name, state.local_variable_index, $type String, $type uint);
+        hash_map_insert!(&state.process.local_variables, declaration.name, declaration.type_, $type String, $type Barely_Ast_Type);
 
         var local_index: uint, found: bool = hash_map_get!(&state.local_variables, declaration.name, $type String, $type uint);
         if expression != null {
             x64_push_pop_register64(&state.code_buffer, RAX);
-            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8)), RAX);
+
+            var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.process.local_variables, declaration.name, $type String, $type Barely_Ast_Type);
+            var size: uint = barely_elf_linux_x64_get_size(state, local_type);
+            if size > 8 {
+                var j: uint = 0;
+                while j < size {
+                    if j + 8 <= size {
+                        x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RCX, RAX, @cast(uint32, j));
+                        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8) + j), RCX);
+                        j = j + 8;
+                    } else {
+                        unreachable(@file, @line);
+                    };
+                };
+            } else {
+                assert_(size == 8, @file, @line);
+                x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8)), RAX);
+            };
         };
 
         i = i + 1;
@@ -435,8 +464,24 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
     if assign_part.kind == Identifier {
         var local_index: uint, found: bool = hash_map_get!(&state.local_variables, assign_part.data.identifier, $type String, $type uint);
         if found {
-            x64_push_pop_register64(&state.code_buffer, RAX);
-            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8)), RAX);
+            var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.process.local_variables, assign_part.data.identifier, $type String, $type Barely_Ast_Type);
+            var size: uint = barely_elf_linux_x64_get_size(state, local_type);
+            if size > 8 {
+                var i: uint = 0;
+                while i < size {
+                    if i + 8 <= size {
+                        x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RCX, RAX, @cast(uint32, i));
+                        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8) + i), RCX);
+                        i = i + 8;
+                    } else {
+                        unreachable(@file, @line);
+                    };
+                };
+            } else {
+                assert_(size == 8, @file, @line);
+                x64_push_pop_register64(&state.code_buffer, RAX);
+                x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8)), RAX);
+            };
             return;
         };
     } else if assign_part.kind == Parent {
@@ -450,9 +495,21 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
         x64_push_pop_register64(&state.code_buffer, RAX);
 
         var item_data: Barely_Elf_Linux_X64_Item_Storage = barely_elf_linux_x64_get_item_storage(state, &assign_part.data.parent.parent_type, assign_part.data.parent.item);
-        assert_(item_data.size == 8, @file, @line);
-
-        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, item_data.location), RBX);
+        if item_data.size > 8 {
+            var i: uint = 0;
+            while i < item_data.size {
+                if i + 8 <= item_data.size {
+                    x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RCX, RBX, @cast(uint32, i));
+                    x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, item_data.location + i), RCX);
+                    i = i + 8;
+                } else {
+                    unreachable(@file, @line);
+                };
+            };
+        } else {
+            assert_(item_data.size == 8, @file, @line);
+            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, item_data.location), RBX);
+        };
         return;
     };
 
