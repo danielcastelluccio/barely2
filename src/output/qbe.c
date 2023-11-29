@@ -557,7 +557,9 @@ void output_statement_qbe(Ast_Statement* statement, Output_State* state) {
         }
         case Statement_Return: {
             Ast_Statement_Return* return_ = &statement->data.return_;
-            output_expression_qbe(return_->expression, state);
+            if (return_->expression != NULL) {
+                output_expression_qbe(return_->expression, state);
+            }
             output_actual_return_qbe(state);
             break;
         }

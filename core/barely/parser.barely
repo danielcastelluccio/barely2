@@ -47,7 +47,7 @@ proc barely_peek_token_data(parser: *Parser): String {
 proc barely_parse_file(parser: *Parser): Barely_Ast_File {
     var result: Barely_Ast_File;
 
-    result.items = dynamic_array_new!(32, parser.allocator, $type Barely_Ast_Item);
+    result.items = dynamic_array_new!(32, parser.allocator, null, $type Barely_Ast_Item);
     while parser.tokens_index < parser.tokens.count {
         var node: Barely_Ast_Item = barely_parse_item(parser);
         dynamic_array_append!(&result.items, node, $type Barely_Ast_Item);
@@ -106,10 +106,10 @@ proc barely_parse_procedure_item(parser: *Parser): Barely_Ast_Item_Procedure {
     // TODO: parse arguments
     barely_consume_check_token(parser, Left_Parenthesis);
     barely_consume_check_token(parser, Right_Parenthesis);
-    result.arguments = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Name_Type);
+    result.arguments = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Name_Type);
 
     // TODO: parse returns
-    result.returns = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Type);
+    result.returns = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Type);
 
     result.body = barely_parse_expression(parser);
 
@@ -172,7 +172,7 @@ proc barely_parse_retrieve_parent(parser: *Parser, parent: Barely_Ast_Expression
 }
 
 proc barely_parse_invoke_expression_arguments(parser: *Parser): Dynamic_Array {
-    var result: Dynamic_Array = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Expression);
+    var result: Dynamic_Array = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Expression);
 
     barely_consume_check_token(parser, Left_Parenthesis);
 
@@ -194,7 +194,7 @@ proc barely_parse_expression_multiple(parser: *Parser): Barely_Ast_Expression {
     var result: Barely_Ast_Expression;
 
     var multiple: Barely_Ast_Multiple;
-    multiple.expressions = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Expression);
+    multiple.expressions = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Expression);
 
     var continue: bool = true;
     while continue {
@@ -270,7 +270,7 @@ proc barely_parse_block(parser: *Parser): Barely_Ast_Block {
 
     barely_consume_check_token(parser, Left_Curly_Brace);
 
-    result.statements = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Statement);
+    result.statements = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Statement);
     while barely_peek_token_kind(parser) != Right_Curly_Brace {
         var statement: Barely_Ast_Statement = barely_parse_statement(parser);
         dynamic_array_append!(&result.statements, statement, $type Barely_Ast_Statement);
@@ -319,7 +319,7 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
 
             barely_consume_check_token(parser, Left_Curly_Brace);
 
-            struct_.items = dynamic_array_new!(4, parser.allocator, $type Barely_Ast_Name_Type);
+            struct_.items = dynamic_array_new!(4, parser.allocator, null, $type Barely_Ast_Name_Type);
             while barely_peek_token_kind(parser) != Right_Curly_Brace {
                 barely_peek_check_token(parser, Identifier);
                 var name: String = barely_consume_token_data(parser);
@@ -370,7 +370,7 @@ proc barely_parse_declaration(parser: *Parser): Barely_Ast_Declaration {
 
     var keyword: String = barely_consume_token_data(parser);
 
-    result.declarations = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Name_Type);
+    result.declarations = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Name_Type);
     var continue: bool = true;
     while continue {
         barely_peek_check_token(parser, Identifier);
@@ -411,7 +411,7 @@ proc barely_parse_statement_expression_or_assign(parser: *Parser): Barely_Ast_St
         barely_consume_check_token(parser, Equals);
 
         var assign: Barely_Ast_Assign;
-        assign.parts = dynamic_array_new!(1, parser.allocator, $type Barely_Ast_Assign_Part);
+        assign.parts = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Assign_Part);
 
         assert_(result.data.expression.expression.kind == Multiple, @file, @line);
 

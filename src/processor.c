@@ -1647,6 +1647,7 @@ void process_expression(Ast_Expression* expression, Process_State* state) {
 
                                 type.kind = Type_Procedure;
                                 type.data.procedure = procedure_type;
+
                                 stack_type_push(&state->stack, create_pointer_type(type));
                                 break;
                             }

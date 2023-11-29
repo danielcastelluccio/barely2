@@ -37,6 +37,31 @@ proc string_equal(s1: String, s2: String): bool {
     return true;
 }
 
+proc string_compare(s1: String, s2: String): uint {
+    if s1.length != s2.length { 
+        if s1.length > s2.length {
+            return 1;
+        } else {
+            // Needs signed integers
+            return 1;
+        };
+    };
+
+    var i: uint = 0;
+    while i < s1.length {
+        if s1.pointer[i] != s2.pointer[i] {
+            if s1.pointer[i] > s2.pointer[i] {
+                return 1;
+            } else {
+                return 1;
+            };
+        };
+        i = i + 1;
+    };
+
+    return 0;
+}
+
 proc string_equal_length(s1: String, s2: String, length: uint): bool {
     var i: uint = 0;
     while i < length {

@@ -3,16 +3,17 @@ type Dynamic_Array : struct {
     capacity: uint,
     count: uint,
     allocator: Allocator,
+    compare_function: *proc(ptr, ptr): uint
 }
 
-proc _dynamic_array_new(capacity: uint, allocator: Allocator, inner_size: uint): Dynamic_Array {
-    var result: Dynamic_Array = @build(Dynamic_Array, null, capacity, 0, allocator);
+proc _dynamic_array_new(capacity: uint, allocator: Allocator, inner_size: uint, compare_function: *proc(ptr, ptr): uint): Dynamic_Array {
+    var result: Dynamic_Array = @build(Dynamic_Array, null, capacity, 0, allocator, compare_function);
     _dynamic_array_resize(&result, capacity, inner_size);
     return result;
 }
 
-macro dynamic_array_new!($expr, $expr, $type): $expr {
-    ($capacity, $allocator, $type) _dynamic_array_new($capacity, $allocator, @sizeof($type))
+macro dynamic_array_new!($expr, $expr, $expr, $type): $expr {
+    ($capacity, $allocator, $compare_function, $type) _dynamic_array_new($capacity, $allocator, @sizeof($type), $compare_function)
 }
 
 proc _dynamic_array_resize(array: *Dynamic_Array, size: uint, inner_size: uint) {
@@ -50,4 +51,28 @@ macro dynamic_array_get!($expr, $expr, $type): $expr {
 
 macro dynamic_array_get_ref!($expr, $expr, $type): $expr {
     ($array, $index, $item_type) @cast(*$item_type, _dynamic_array_get($array, $index, @sizeof($item_type)))
+}
+
+proc _dynamic_array_contains(array: *Dynamic_Array, value: ptr, inner_size: uint): bool {
+    if array.compare_function == null {
+        unreachable(@file, @line);
+    };
+
+    var i: uint = 0;
+    while i < array.count {
+        if array.compare_function(value, _dynamic_array_get(array, i, inner_size)) == 0 {
+            return true;
+        };
+
+        i = i + 1;
+    };
+
+    return false;
+}
+
+macro dynamic_array_contains!($expr, $expr, $type): $expr {
+    ($array, $item, $item_type) {
+        var item_var: $item_type = $item;
+        _dynamic_array_contains($array, @cast(ptr, &item_var), @sizeof($item_type))
+    }
 }

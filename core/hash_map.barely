@@ -1,7 +1,7 @@
 type Hash_Map : struct {
     data: *[]Hash_Map_Bucket,
     capacity: uint,
-    allocator: Allocator
+    allocator: Allocator,
     hash_function: *proc(ptr): uint
 }
 

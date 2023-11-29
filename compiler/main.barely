@@ -25,5 +25,6 @@ proc entry2(argc: uint, argv: *[]*[]byte) {
         i = i + 1;
     };
 
+    barely_process(ast_file, allocator);
     barely_elf_linux_x64_gen(ast_file, allocator);
 }

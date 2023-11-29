@@ -148,6 +148,13 @@ proc x64_push_mov_register64_register64_pointer_offset(output: *Buffer, register
     buffer_push_uint32(output, offset);
 }
 
+proc x64_push_lea_register64_register64_pointer_offset(output: *Buffer, register_to: X64_Register64, register_from: X64_Register64, offset: uint32) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 141);
+    buffer_push_byte(output, 128 + x64_register64_to_index(register_to) * 8 + x64_register64_to_index(register_from));
+    buffer_push_uint32(output, offset);
+}
+
 proc x64_push_sub_register64_literal32(output: *Buffer, register: X64_Register64, value: uint32) {
     buffer_push_byte(output, 72);
     buffer_push_byte(output, 129);

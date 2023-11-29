@@ -70,7 +70,7 @@ proc barely_write_token(writer: Writer, pointer: ptr) {
 proc barely_lex(file: String, contents: String, allocator: Allocator): Dynamic_Array {
     append_custom_write(@build(Custom_Write, "token", barely_write_token));
 
-    var tokens: Dynamic_Array = dynamic_array_new!(contents.length / 3, allocator, $type Barely_Token);
+    var tokens: Dynamic_Array = dynamic_array_new!(contents.length / 3, allocator, null, $type Barely_Token);
     var in_string: bool = false;
     var in_character: bool = false;
     var in_comment: bool = false;

@@ -1,5 +1,5 @@
 type Barely_Elf_Linux_X64_State : struct {
-    file: *Barely_Ast_File,
+    process: Barely_Process_State,
     code_buffer: Buffer,
     data_buffer: Buffer,
     string_references: Dynamic_Array, // Barely_Elf_Linux_X64_String_Reference
@@ -8,7 +8,6 @@ type Barely_Elf_Linux_X64_State : struct {
     local_variables: Hash_Map, // String, uint
     local_variable_index: uint,
     main_offset: uint,
-    allocator: Allocator
 }
 
 type Barely_Elf_Linux_X64_String_Reference : struct {
@@ -45,8 +44,8 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
         return size;
     } else if type_.kind == Identifier {
         var i: uint = 0;
-        while i < state.file.items.count {
-            var item: *Barely_Ast_Item = dynamic_array_get_ref!(&state.file.items, i, $type Barely_Ast_Item);
+        while i < state.process.file.items.count {
+            var item: *Barely_Ast_Item = dynamic_array_get_ref!(&state.process.file.items, i, $type Barely_Ast_Item);
             if item.kind == Type {
                 if string_equal(item.data.type_.name, type_.data.identifier) {
                     return barely_elf_linux_x64_get_size(state, item.data.type_.type_);
@@ -66,16 +65,20 @@ proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
     var output: Buffer = buffer_create(4096, allocator);
 
     var state: Barely_Elf_Linux_X64_State = @build(Barely_Elf_Linux_X64_State, 
-        &file,
+        @build(Barely_Process_State, 
+            &file,
+            hash_map_new!(0, allocator, hash_string, $type String, $type Barely_Ast_Type),
+            false,
+            allocator
+            dynamic_array_new!(16, allocator, null, $type Barely_Ast_Type)),
         buffer_create(1024, allocator), 
         buffer_create(1024, allocator), 
-        dynamic_array_new!(256, allocator, $type Barely_Elf_Linux_X64_String_Reference), 
-        dynamic_array_new!(256, allocator, $type Barely_Elf_Linux_X64_Procedure_Reference),
+        dynamic_array_new!(256, allocator, null, $type Barely_Elf_Linux_X64_String_Reference), 
+        dynamic_array_new!(256, allocator, null, $type Barely_Elf_Linux_X64_Procedure_Reference),
         hash_map_new!(32, allocator, hash_string, $type String, $type uint),
         hash_map_new!(0, allocator, hash_string, $type String, $type uint),
         0,
-        0,
-        allocator);
+        0);
 
     var entry: X64_Deferred_Value = x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX);
     x64_push_call_register64(&state.code_buffer, RAX);
@@ -162,7 +165,7 @@ proc barely_elf_linux_x64_gen_item(state: *Barely_Elf_Linux_X64_State, item: *Ba
 }
 
 proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, procedure: *Barely_Ast_Item_Procedure) {
-    state.local_variables = hash_map_new!(16, state.allocator, hash_string, $type String, $type uint);
+    state.local_variables = hash_map_new!(16, state.process.allocator, hash_string, $type String, $type uint);
     state.local_variable_index = 0;
 
     hash_map_insert!(&state.procedure_locations, procedure.name, state.code_buffer.index, $type String, $type uint);
@@ -206,30 +209,9 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
     };
 }
 
-proc barely_resolve_identifier_global(state: *Barely_Elf_Linux_X64_State, identifier: String): bool, *Barely_Ast_Item {
-    var i: uint = 0;
-    while i < state.file.items.count {
-        var item: *Barely_Ast_Item = dynamic_array_get_ref!(&state.file.items, i, $type Barely_Ast_Item);
-        var found: bool = false;
-
-        if item.kind == Procedure {
-            if string_equal(item.data.procedure.name, identifier) {
-                found = true;
-            };
-        };
-
-        if found {
-            return true, item;
-        };
-
-        i = i + 1;
-    };
-    return false, @init(*Barely_Ast_Item);
-}
-
 proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retrieve: *Barely_Ast_Retrieve) {
     if retrieve.kind == Identifier {
-        var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, retrieve.data.identifier);
+        var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(&state.process, retrieve.data.identifier);
         if valid {
             if resolved.kind == Procedure {
                 var deferred: X64_Deferred_Value = x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX);
@@ -245,12 +227,26 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
 
         var local_index: uint, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier, $type String, $type uint);
         if found {
-            x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
-            x64_push_push_register64(&state.code_buffer, RAX);
+            if state.process.in_reference {
+                x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
+                x64_push_push_register64(&state.code_buffer, RAX);
+            } else {
+                x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
+                x64_push_push_register64(&state.code_buffer, RAX);
+            };
+            state.process.in_reference = false;
             return;
         };
     } else if retrieve.kind == Parent {
-        unreachable(@file, @line);
+        state.process.in_reference = true;
+        barely_elf_linux_x64_gen_expression(state, retrieve.data.parent.parent);
+        x64_push_pop_register64(&state.code_buffer, RAX);
+
+        // TODO: this does not actually work (0 offset always)
+        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, 0), RBX);
+
+        x64_push_push_register64(&state.code_buffer, RBX);
+        return;
     };
 
     unreachable(@file, @line);
@@ -393,6 +389,16 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
             x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (local_index + 8)), RAX);
             return;
         };
+    } else if assign_part.kind == Parent {
+        x64_push_pop_register64(&state.code_buffer, RBX);
+
+        state.process.in_reference = true;
+        barely_elf_linux_x64_gen_expression(state, assign_part.data.parent.parent);
+        x64_push_pop_register64(&state.code_buffer, RAX);
+
+        // TODO: this does not actually work (0 offset always)
+        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, 0), RBX);
+        return;
     };
 
     unreachable(@file, @line);

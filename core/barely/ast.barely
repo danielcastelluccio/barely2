@@ -93,13 +93,20 @@ type Barely_Ast_Type : struct {
     kind: enum {
         Internal,
         Identifier,
-        Struct
+        Struct,
+        Array
     },
     data: union {
         internal: Barely_Ast_Type_Internal,
         identifier: String,
-        struct_: Barely_Ast_Type_Struct
+        struct_: Barely_Ast_Type_Struct,
+        array: Barely_Ast_Type_Array
     }
+}
+
+type Barely_Ast_Type_Array : struct {
+    size: *Barely_Ast_Type,
+    inner: *Barely_Ast_Type
 }
 
 type Barely_Ast_Type_Struct : struct {
@@ -107,7 +114,8 @@ type Barely_Ast_Type_Struct : struct {
 }
 
 type Barely_Ast_Type_Internal : enum {
-    Uint
+    Uint,
+    Byte
 }
 
 type Barely_Ast_Block : struct {
