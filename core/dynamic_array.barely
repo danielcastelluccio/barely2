@@ -45,12 +45,21 @@ proc _dynamic_array_get(array: *Dynamic_Array, index: uint, inner_size: uint): p
     return array.data + inner_size * index;
 }
 
+proc _dynamic_array_pop(array: *Dynamic_Array, inner_size: uint): ptr {
+    array.count = array.count - 1;
+    return array.data + inner_size * array.count;
+}
+
 macro dynamic_array_get!($expr, $expr, $type): $expr {
     ($array, $index, $item_type) @cast(*$item_type, _dynamic_array_get($array, $index, @sizeof($item_type))).*
 }
 
 macro dynamic_array_get_ref!($expr, $expr, $type): $expr {
     ($array, $index, $item_type) @cast(*$item_type, _dynamic_array_get($array, $index, @sizeof($item_type)))
+}
+
+macro dynamic_array_pop!($expr, $type): $expr {
+    ($array, $item_type) @cast(*$item_type, _dynamic_array_pop($array, @sizeof($item_type))).*
 }
 
 proc _dynamic_array_contains(array: *Dynamic_Array, value: ptr, inner_size: uint): bool {

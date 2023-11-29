@@ -135,7 +135,8 @@ type Barely_Ast_Retrieve_Assign : struct {
 
 type Barely_Ast_Retrieve_Assign_Parent : struct {
     parent: *Barely_Ast_Expression,
-    item: String
+    item: String,
+    parent_type: Barely_Ast_Type,
 }
 
 type Barely_Ast_Retrieve : Barely_Ast_Retrieve_Assign

@@ -167,7 +167,8 @@ proc barely_parse_retrieve_parent(parser: *Parser, parent: Barely_Ast_Expression
     result.kind = Parent;
     result.data.parent = @build(Barely_Ast_Retrieve_Assign_Parent,
         allocate_value!(parser.allocator, parent, $type Barely_Ast_Expression),
-        item);
+        item
+        @init(Barely_Ast_Type));
     return result;
 }
 

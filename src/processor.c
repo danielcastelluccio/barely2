@@ -519,7 +519,11 @@ void apply_macro_values_type(Ast_Type* type, void* state_in) {
 
 void process_run_macro(Ast_RunMacro* run_macro, Ast_Macro_Syntax_Kind kind, Process_State* state) {
     Resolved resolved = resolve(&state->generic, run_macro->identifier);
-    assert(resolved.kind == Resolved_Item && resolved.data.item->kind == Item_Macro);
+    if (resolved.kind != Resolved_Item || resolved.data.item->kind != Item_Macro) {
+        print_error_stub(&run_macro->location);
+        printf("Could not find macro!\n");
+        exit(1);
+    }
     Ast_Item_Macro* macro = &resolved.data.item->data.macro;
 
     assert(macro->return_.kind == kind);

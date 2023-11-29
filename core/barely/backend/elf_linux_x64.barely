@@ -61,6 +61,40 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
     return 0;
 }
 
+type Barely_Elf_Linux_X64_Item_Storage : struct {
+    location: uint,
+    size: uint,
+}
+
+proc barely_elf_linux_x64_get_item_storage(state: *Barely_Elf_Linux_X64_State, parent_type: *Barely_Ast_Type, item_name: String): Barely_Elf_Linux_X64_Item_Storage {
+    if parent_type.kind == Identifier {
+        var found: bool, item: *Barely_Ast_Item = barely_resolve_identifier_global(&state.process, parent_type.data.identifier);
+        if !found {
+            assert_(false, @file, @line);
+        };
+        assert_(item.kind == Type, @file, @line);
+        return barely_elf_linux_x64_get_item_storage(state, &item.data.type_.type_, item_name);
+    };
+
+    assert_(parent_type.kind == Struct, @file, @line);
+
+    var struct_: *Barely_Ast_Type_Struct = &parent_type.data.struct_;
+    
+    var result: Barely_Elf_Linux_X64_Item_Storage = @init(Barely_Elf_Linux_X64_Item_Storage);
+    var i: uint = 0;
+    while i < struct_.items.count {
+        var item: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&struct_.items, i, $type Barely_Ast_Name_Type);
+        if string_equal(item.name, item_name) {
+            result.size = barely_elf_linux_x64_get_size(state, item.type_);
+            return result;
+        };
+        result.location = result.location + barely_elf_linux_x64_get_size(state, item.type_);
+        i = i + 1;
+    };
+
+    return @init(Barely_Elf_Linux_X64_Item_Storage);
+}
+
 proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
     var output: Buffer = buffer_create(4096, allocator);
 
@@ -242,8 +276,10 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
         barely_elf_linux_x64_gen_expression(state, retrieve.data.parent.parent);
         x64_push_pop_register64(&state.code_buffer, RAX);
 
-        // TODO: this does not actually work (0 offset always)
-        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, 0), RBX);
+        var item_data: Barely_Elf_Linux_X64_Item_Storage = barely_elf_linux_x64_get_item_storage(state, &retrieve.data.parent.parent_type, retrieve.data.parent.item);
+        assert_(item_data.size == 8, @file, @line);
+
+        x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, item_data.location));
 
         x64_push_push_register64(&state.code_buffer, RBX);
         return;
@@ -392,12 +428,15 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
     } else if assign_part.kind == Parent {
         x64_push_pop_register64(&state.code_buffer, RBX);
 
+        // TODO: this needs to conditionally happen, only when the parent type is not already a pointer
         state.process.in_reference = true;
         barely_elf_linux_x64_gen_expression(state, assign_part.data.parent.parent);
         x64_push_pop_register64(&state.code_buffer, RAX);
 
-        // TODO: this does not actually work (0 offset always)
-        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, 0), RBX);
+        var item_data: Barely_Elf_Linux_X64_Item_Storage = barely_elf_linux_x64_get_item_storage(state, &assign_part.data.parent.parent_type, assign_part.data.parent.item);
+        assert_(item_data.size == 8, @file, @line);
+
+        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, item_data.location), RBX);
         return;
     };
 
