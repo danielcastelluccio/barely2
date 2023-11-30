@@ -206,6 +206,8 @@ proc barely_is_keyword(string: String): bool {
         return true;
     } else if string_equal(string, string_new("struct")) {
         return true;
+    } else if string_equal(string, string_new("return")) {
+        return true;
     };
 
     return false;

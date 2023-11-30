@@ -42,13 +42,19 @@ type Barely_Ast_Statement : struct {
     kind: enum {
         Expression,
         Declaration,
-        Assign
+        Assign,
+        Return
     },
     data: union {
         expression: Barely_Ast_Statement_Expression,
         declaration: Barely_Ast_Declaration,
-        assign: Barely_Ast_Assign
+        assign: Barely_Ast_Assign,
+        return_: Barely_Ast_Return
     },
+}
+
+type Barely_Ast_Return : struct {
+    expression: *Barely_Ast_Expression
 }
 
 type Barely_Ast_Declaration : struct {
@@ -97,7 +103,8 @@ type Barely_Ast_Type : struct {
         Identifier,
         Struct,
         Array,
-        Pointer
+        Pointer,
+        Procedure
     },
     data: union {
         internal: Barely_Ast_Type_Internal,
@@ -105,6 +112,7 @@ type Barely_Ast_Type : struct {
         struct_: Barely_Ast_Type_Struct,
         array: Barely_Ast_Type_Array,
         pointer: Barely_Ast_Type_Pointer,
+        procedure: Barely_Ast_Type_Procedure
     }
 }
 
@@ -115,6 +123,11 @@ type Barely_Ast_Type_Array : struct {
 
 type Barely_Ast_Type_Pointer : struct {
     inner: *Barely_Ast_Type
+}
+
+type Barely_Ast_Type_Procedure : struct {
+    arguments: Dynamic_Array, // Barely_Ast_Type
+    returns: Dynamic_Array // Barely_Ast_Type
 }
 
 type Barely_Ast_Type_Struct : struct {
@@ -152,6 +165,7 @@ type Barely_Ast_Retrieve : Barely_Ast_Retrieve_Assign
 type Barely_Ast_Invoke : struct {
     procedure: *Barely_Ast_Expression,
     arguments: Dynamic_Array, // Barely_Ast_Expression
+    procedure_type: Barely_Ast_Type
 }
 
 type Barely_Ast_Number : struct {

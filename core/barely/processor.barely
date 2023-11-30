@@ -105,6 +105,28 @@ proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast
         var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, retrieve.data.identifier);
         if valid {
             if resolved.kind == Procedure {
+                var procedure_type: Barely_Ast_Type_Procedure = @build(
+                    Barely_Ast_Type_Procedure,
+                    dynamic_array_new!(1, state.allocator, null, $type Barely_Ast_Type),
+                    dynamic_array_new!(1, state.allocator, null, $type Barely_Ast_Type));
+
+                var i: uint = 0;
+                while i < resolved.data.procedure.arguments.count {
+                    dynamic_array_append!(&procedure_type.arguments, dynamic_array_get_ref!(&resolved.data.procedure.arguments, i, $type Barely_Ast_Name_Type).type_, $type Barely_Ast_Type);
+                    i = i + 1;
+                };
+
+                var i: uint = 0;
+                while i < resolved.data.procedure.returns.count {
+                    dynamic_array_append!(&procedure_type.returns, dynamic_array_get!(&resolved.data.procedure.returns, i, $type Barely_Ast_Type), $type Barely_Ast_Type);
+                    i = i + 1;
+                };
+
+                var type_: Barely_Ast_Type;
+                type_.kind = Procedure;
+                type_.data.procedure = procedure_type;
+
+                dynamic_array_append!(&state.stack, type_, $type Barely_Ast_Type);
                 return;
             };
         };
@@ -150,6 +172,8 @@ proc barely_process_invoke(state: *Barely_Process_State, invoke: *Barely_Ast_Inv
     };
 
     barely_process_expression(state, invoke.procedure);
+
+    invoke.procedure_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
 }
 
 proc barely_process_syscall(state: *Barely_Process_State, syscall: *Barely_Ast_Syscall) {
@@ -215,8 +239,18 @@ proc barely_process_statement(state: *Barely_Process_State, statement: *Barely_A
         barely_process_declaration(state, &statement.data.declaration);
     } else if statement.kind == Assign {
         barely_process_assign(state, &statement.data.assign);
+    } else if statement.kind == Return {
+        barely_process_return(state, &statement.data.return_);
     } else {
         unreachable(@file, @line);
+    };
+}
+
+proc barely_process_return(state: *Barely_Process_State, return_: *Barely_Ast_Return) {
+    var expression: *Barely_Ast_Expression = return_.expression;
+
+    if expression != null {
+        barely_process_expression(state, expression);
     };
 }
 

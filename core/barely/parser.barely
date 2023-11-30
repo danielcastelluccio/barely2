@@ -124,8 +124,18 @@ proc barely_parse_procedure_item(parser: *Parser): Barely_Ast_Item_Procedure {
     };
     barely_consume_check_token(parser, Right_Parenthesis);
 
-    // TODO: parse returns
     result.returns = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Type);
+    if barely_peek_token_kind(parser) == Colon {
+        barely_consume_check_token(parser, Colon);
+        var continuing: bool = true;
+        while continuing {
+            dynamic_array_append!(&result.returns, barely_parse_type(parser), $type Barely_Ast_Type);
+            continuing = barely_peek_token_kind(parser) == Comma;
+            if continuing {
+                barely_consume_check_token(parser, Comma);
+            };
+        };
+    };
 
     result.body = barely_parse_expression(parser);
 
@@ -391,9 +401,16 @@ proc barely_parse_statement(parser: *Parser): Barely_Ast_Statement {
     if token_kind == Identifier {
         result = barely_parse_statement_expression_or_assign(parser);
     } else if token_kind == Keyword {
-        var declaration: Barely_Ast_Declaration = barely_parse_declaration(parser);
-        result.kind = Declaration;
-        result.data.declaration = declaration;
+        var keyword: String = barely_peek_token_data(parser);
+        if string_equal(keyword, string_new("var")) {
+            var declaration: Barely_Ast_Declaration = barely_parse_declaration(parser);
+            result.kind = Declaration;
+            result.data.declaration = declaration;
+        } else {
+            var return_: Barely_Ast_Return = barely_parse_return(parser);
+            result.kind = Return;
+            result.data.return_ = return_;
+        };
     } else {
         unreachable(@file, @line);
     };
@@ -401,10 +418,24 @@ proc barely_parse_statement(parser: *Parser): Barely_Ast_Statement {
     return result;
 }
 
+proc barely_parse_return(parser: *Parser): Barely_Ast_Return {
+    var result: Barely_Ast_Return = @init(Barely_Ast_Return);
+
+    barely_consume_check_token(parser, Keyword);
+
+    if barely_peek_token_kind(parser) != Semicolon {
+        result.expression = allocate_value!(parser.allocator, barely_parse_expression_multiple(parser), $type Barely_Ast_Expression);
+    };
+
+    barely_consume_check_token(parser, Semicolon);
+
+    return result;
+}
+
 proc barely_parse_declaration(parser: *Parser): Barely_Ast_Declaration {
     var result: Barely_Ast_Declaration;
 
-    var keyword: String = barely_consume_token_data(parser);
+    barely_consume_check_token(parser, Keyword);
 
     result.declarations = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Name_Type);
     var continue: bool = true;

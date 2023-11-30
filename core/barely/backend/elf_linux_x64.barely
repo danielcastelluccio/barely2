@@ -221,6 +221,14 @@ proc barely_elf_linux_x64_gen_procedure(state: *Barely_Elf_Linux_X64_State, proc
     var deferred: X64_Deferred_Value = x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX);
     x64_push_sub_register64_register64(&state.code_buffer, RSP, RAX);
 
+    var i: uint = 0;
+    while i < state.process.procedure.returns.count {
+        var return_type: Barely_Ast_Type = dynamic_array_get!(&state.process.procedure.returns, i, $type Barely_Ast_Type);
+        var return_type_size: uint = barely_elf_linux_x64_get_size(state, return_type);
+        state.local_variable_index = state.local_variable_index + return_type_size;
+        i = i + 1;
+    };
+
     var argument_stack_location: uint = 0;
     var i: uint = 0;
     while i < procedure.arguments.count {
@@ -402,6 +410,27 @@ proc barely_elf_linux_x64_gen_invoke(state: *Barely_Elf_Linux_X64_State, invoke:
 
     x64_push_pop_register64(&state.code_buffer, RAX);
     x64_push_call_register64(&state.code_buffer, RAX);
+
+    var procedure_type: *Barely_Ast_Type_Procedure = &invoke.procedure_type.data.procedure;
+    if procedure_type.returns.count > 0 {
+        var total_returns_size: uint = 0;
+        var i: uint = 0;
+        while i < procedure_type.returns.count {
+            var return_type: Barely_Ast_Type = dynamic_array_get!(&procedure_type.returns, i, $type Barely_Ast_Type);
+            var return_type_size: uint = barely_elf_linux_x64_get_size(state, return_type);
+
+            if return_type_size > 8 {
+                unreachable(@file, @line);
+            } else {
+                assert_(return_type_size == 8, @file, @line);
+                x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, total_returns_size));
+                x64_push_push_register64(&state.code_buffer, RBX);
+            };
+
+            total_returns_size = total_returns_size + return_type_size;
+            i = i + 1;
+        };
+    };
 }
 
 proc barely_elf_linux_x64_gen_syscall(state: *Barely_Elf_Linux_X64_State, syscall: *Barely_Ast_Syscall) {
@@ -485,6 +514,8 @@ proc barely_elf_linux_x64_gen_statement(state: *Barely_Elf_Linux_X64_State, stat
         barely_elf_linux_x64_gen_declaration(state, &statement.data.declaration);
     } else if statement.kind == Assign {
         barely_elf_linux_x64_gen_assign(state, &statement.data.assign);
+    } else if statement.kind == Return {
+        barely_elf_linux_x64_gen_return(state, &statement.data.return_);
     } else {
         unreachable(@file, @line);
     };
@@ -529,6 +560,35 @@ proc barely_elf_linux_x64_gen_declaration(state: *Barely_Elf_Linux_X64_State, de
 
         i = i + 1;
     };
+}
+
+proc barely_elf_linux_x64_gen_return(state: *Barely_Elf_Linux_X64_State, return_: *Barely_Ast_Return) {
+    if return_.expression != null {
+        barely_elf_linux_x64_gen_expression(state, return_.expression);
+    };
+
+    var return_size_index: uint = 0;
+    var i: uint = 0;
+    while i < state.process.procedure.returns.count {
+        var return_type: Barely_Ast_Type = dynamic_array_get!(&state.process.procedure.returns, i, $type Barely_Ast_Type);
+        var return_type_size: uint = barely_elf_linux_x64_get_size(state, return_type);
+        if return_type_size > 8 {
+            unreachable(@file, @line);
+        } else {
+            assert_(return_type_size == 8, @file, @line);
+
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (return_size_index + 8)), RAX);
+        };
+        return_size_index = return_size_index + return_type_size;
+        i = i + 1;
+    };
+
+    x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - 8));
+
+    x64_push_mov_register64_register64(&state.code_buffer, RSP, RBP);
+    x64_push_pop_register64(&state.code_buffer, RBP);
+    x64_push_ret(&state.code_buffer);
 }
 
 proc barely_elf_linux_x64_gen_assign(state: *Barely_Elf_Linux_X64_State, assign: *Barely_Ast_Assign) {
