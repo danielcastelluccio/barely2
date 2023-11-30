@@ -167,3 +167,9 @@ proc x64_push_sub_register64_register64(output: *Buffer, register: X64_Register6
     buffer_push_byte(output, 41);
     buffer_push_byte(output, 192 + x64_register64_to_index(register) + x64_register64_to_index(other_register) * 8);
 }
+
+proc x64_push_add_register64_register64(output: *Buffer, register: X64_Register64, other_register: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 1);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register) + x64_register64_to_index(other_register) * 8);
+}
