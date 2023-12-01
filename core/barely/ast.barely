@@ -102,6 +102,7 @@ type Barely_Ast_Type : struct {
         Internal,
         Identifier,
         Struct,
+        Union,
         Array,
         Pointer,
         Procedure
@@ -110,6 +111,7 @@ type Barely_Ast_Type : struct {
         internal: Barely_Ast_Type_Internal,
         identifier: String,
         struct_: Barely_Ast_Type_Struct,
+        union_: Barely_Ast_Type_Union,
         array: Barely_Ast_Type_Array,
         pointer: Barely_Ast_Type_Pointer,
         procedure: Barely_Ast_Type_Procedure
@@ -131,6 +133,10 @@ type Barely_Ast_Type_Procedure : struct {
 }
 
 type Barely_Ast_Type_Struct : struct {
+    items: Dynamic_Array // Barely_Ast_Name_Type
+}
+
+type Barely_Ast_Type_Union : struct {
     items: Dynamic_Array // Barely_Ast_Name_Type
 }
 

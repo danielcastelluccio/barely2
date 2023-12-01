@@ -34,12 +34,26 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
             unreachable(@file, @line);
         };
     } else if type_.kind == Struct {
-        var struct_: Barely_Ast_Type_Struct = type_.data.struct_;
+        var struct_: *Barely_Ast_Type_Struct = &type_.data.struct_;
         var size: uint = 0;
         var i: uint = 0;
         while i < struct_.items.count {
             var item: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&struct_.items, i, $type Barely_Ast_Name_Type);
             size = size + barely_elf_linux_x64_get_size(state, item.type_);
+            i = i + 1;
+        };
+        return size;
+    } else if type_.kind == Union {
+        var union_: *Barely_Ast_Type_Union = &type_.data.union_;
+        var size: uint = 0;
+        var i: uint = 0;
+        while i < union_.items.count {
+            var item: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&union_.items, i, $type Barely_Ast_Name_Type);
+            var item_size: uint = barely_elf_linux_x64_get_size(state, item.type_);
+            if item_size > size {
+                size = item_size;
+            };
+
             i = i + 1;
         };
         return size;
@@ -81,20 +95,35 @@ proc barely_elf_linux_x64_get_item_storage(state: *Barely_Elf_Linux_X64_State, p
         return barely_elf_linux_x64_get_item_storage(state, parent_type.data.pointer.inner, item_name);
     };
 
-    assert_(parent_type.kind == Struct, @file, @line);
+    if parent_type.kind == Struct {
+        var struct_: *Barely_Ast_Type_Struct = &parent_type.data.struct_;
 
-    var struct_: *Barely_Ast_Type_Struct = &parent_type.data.struct_;
-    
-    var result: Barely_Elf_Linux_X64_Item_Storage = @init(Barely_Elf_Linux_X64_Item_Storage);
-    var i: uint = 0;
-    while i < struct_.items.count {
-        var item: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&struct_.items, i, $type Barely_Ast_Name_Type);
-        if string_equal(item.name, item_name) {
-            result.size = barely_elf_linux_x64_get_size(state, item.type_);
-            return result;
+        var result: Barely_Elf_Linux_X64_Item_Storage = @init(Barely_Elf_Linux_X64_Item_Storage);
+        var i: uint = 0;
+        while i < struct_.items.count {
+            var item: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&struct_.items, i, $type Barely_Ast_Name_Type);
+            if string_equal(item.name, item_name) {
+                result.size = barely_elf_linux_x64_get_size(state, item.type_);
+                return result;
+            };
+            result.location = result.location + barely_elf_linux_x64_get_size(state, item.type_);
+            i = i + 1;
         };
-        result.location = result.location + barely_elf_linux_x64_get_size(state, item.type_);
-        i = i + 1;
+    } else if parent_type.kind == Union {
+        var union_: *Barely_Ast_Type_Union = &parent_type.data.union_;
+
+        var result: Barely_Elf_Linux_X64_Item_Storage = @init(Barely_Elf_Linux_X64_Item_Storage);
+        var i: uint = 0;
+        while i < union_.items.count {
+            var item: *Barely_Ast_Name_Type = dynamic_array_get_ref!(&union_.items, i, $type Barely_Ast_Name_Type);
+            if string_equal(item.name, item_name) {
+                result.size = barely_elf_linux_x64_get_size(state, item.type_);
+                return result;
+            };
+            i = i + 1;
+        };
+    } else {
+        unreachable(@file, @line);
     };
 
     return @init(Barely_Elf_Linux_X64_Item_Storage);

@@ -376,6 +376,30 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
 
             result.kind = Struct;
             result.data.struct_ = struct_;
+        } else if string_equal(keyword, string_new("union")) {
+            var union_: Barely_Ast_Type_Union;
+
+            barely_consume_check_token(parser, Left_Curly_Brace);
+
+            union_.items = dynamic_array_new!(4, parser.allocator, null, $type Barely_Ast_Name_Type);
+            while barely_peek_token_kind(parser) != Right_Curly_Brace {
+                barely_peek_check_token(parser, Identifier);
+                var name: String = barely_consume_token_data(parser);
+                barely_consume_check_token(parser, Colon);
+                var type_: Barely_Ast_Type = barely_parse_type(parser);
+
+                var name_type: Barely_Ast_Name_Type = @build(Barely_Ast_Name_Type, name, type_);
+                dynamic_array_append!(&union_.items, name_type, $type Barely_Ast_Name_Type);
+
+                if barely_peek_token_kind(parser) == Comma {
+                    barely_consume_check_token(parser, Comma);
+                };
+            };
+
+            barely_consume_check_token(parser, Right_Curly_Brace);
+
+            result.kind = Union;
+            result.data.union_ = union_;
         } else {
             unreachable(@file, @line);
         };
