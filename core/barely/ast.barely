@@ -105,7 +105,8 @@ type Barely_Ast_Type : struct {
         Union,
         Array,
         Pointer,
-        Procedure
+        Procedure,
+        Number
     },
     data: union {
         internal: Barely_Ast_Type_Internal,
@@ -114,13 +115,18 @@ type Barely_Ast_Type : struct {
         union_: Barely_Ast_Type_Union,
         array: Barely_Ast_Type_Array,
         pointer: Barely_Ast_Type_Pointer,
-        procedure: Barely_Ast_Type_Procedure
+        procedure: Barely_Ast_Type_Procedure,
+        number: Barely_Ast_Type_Number
     }
 }
 
 type Barely_Ast_Type_Array : struct {
     size: *Barely_Ast_Type,
     inner: *Barely_Ast_Type
+}
+
+type Barely_Ast_Type_Number : struct {
+    value: uint
 }
 
 type Barely_Ast_Type_Pointer : struct {
@@ -152,12 +158,20 @@ type Barely_Ast_Block : struct {
 type Barely_Ast_Retrieve_Assign : struct {
     kind: enum {
         Identifier,
-        Parent
+        Parent,
+        Array
     },
     data: union {
         identifier: String,
-        parent: Barely_Ast_Retrieve_Assign_Parent
+        parent: Barely_Ast_Retrieve_Assign_Parent,
+        array: Barely_Ast_Retrieve_Assign_Array
     },
+}
+
+type Barely_Ast_Retrieve_Assign_Array : struct {
+    array: *Barely_Ast_Expression,
+    item: *Barely_Ast_Expression,
+    array_type: Barely_Ast_Type,
 }
 
 type Barely_Ast_Retrieve_Assign_Parent : struct {

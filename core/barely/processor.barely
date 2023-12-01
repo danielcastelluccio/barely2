@@ -158,6 +158,12 @@ proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast
         barely_process_expression(state, retrieve.data.parent.parent);
         retrieve.data.parent.parent_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
         return;
+    } else if retrieve.kind == Array {
+        barely_process_expression(state, retrieve.data.array.array);
+        retrieve.data.array.array_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+        barely_process_expression(state, retrieve.data.array.item);
+        dynamic_array_append!(&state.stack, retrieve.data.array.array_type.data.array.inner.*, $type Barely_Ast_Type);
+        return;
     };
 
     unreachable(@file, @line);
@@ -294,6 +300,11 @@ proc barely_process_assign_part(state: *Barely_Process_State, assign_part: *Bare
     } else if assign_part.kind == Parent {
         barely_process_expression(state, assign_part.data.parent.parent);
         assign_part.data.parent.parent_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+        return;
+    } else if assign_part.kind == Array {
+        barely_process_expression(state, assign_part.data.array.array);
+        assign_part.data.array.array_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+        barely_process_expression(state, assign_part.data.array.item);
         return;
     };
 

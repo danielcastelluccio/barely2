@@ -182,6 +182,24 @@ proc barely_parse_invoke_like(parser: *Parser, procedure: Barely_Ast_Expression)
     return result;
 }
 
+proc barely_parse_retrieve_array(parser: *Parser, array: Barely_Ast_Expression): Barely_Ast_Retrieve {
+    var result: Barely_Ast_Retrieve;
+
+    var retrieve: Barely_Ast_Retrieve_Assign_Array = @init(Barely_Ast_Retrieve_Assign_Array);
+    retrieve.array = allocate_value!(parser.allocator, array, $type Barely_Ast_Expression);
+
+    barely_consume_check_token(parser, Left_Brace);
+
+    retrieve.item = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+
+    result.kind = Array;
+    result.data.array = retrieve;
+
+    barely_consume_check_token(parser, Right_Brace);
+
+    return result;
+}
+
 proc barely_parse_retrieve_parent(parser: *Parser, parent: Barely_Ast_Expression): Barely_Ast_Retrieve {
     var result: Barely_Ast_Retrieve;
 
@@ -280,6 +298,13 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
 
         if barely_peek_token_kind(parser) == Period {
             var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_parent(parser, result);
+            result.kind = Retrieve;
+            result.data.retrieve = retrieve;
+            continue = true;
+        };
+
+        if barely_peek_token_kind(parser) == Left_Brace {
+            var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_array(parser, result);
             result.kind = Retrieve;
             result.data.retrieve = retrieve;
             continue = true;
@@ -411,6 +436,26 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
 
         result.kind = Pointer;
         result.data.pointer = pointer;
+    } else if token_kind == Left_Brace {
+        barely_consume_check_token(parser, Left_Brace);
+
+        var array: Barely_Ast_Type_Array = @init(Barely_Ast_Type_Array);
+        array.size = allocate_value!(parser.allocator, barely_parse_type(parser), $type Barely_Ast_Type);
+
+        barely_consume_check_token(parser, Right_Brace);
+
+        array.inner = allocate_value!(parser.allocator, barely_parse_type(parser), $type Barely_Ast_Type);
+
+        result.kind = Array;
+        result.data.array = array;
+    } else if token_kind == Number {
+        var value: String = barely_consume_token_data(parser);
+
+        var number: Barely_Ast_Type_Number = @init(Barely_Ast_Type_Number);
+        number.value = string_to_uint(value);
+
+        result.kind = Number;
+        result.data.number = number;
     } else {
         unreachable(@file, @line);
     };

@@ -57,6 +57,14 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
             i = i + 1;
         };
         return size;
+    } else if type_.kind == Array {
+        var array: *Barely_Ast_Type_Array = &type_.data.array;
+        var size: uint = barely_elf_linux_x64_get_size(state, array.inner.*);
+
+        assert_(array.size.kind == Number, @file, @line);
+        var count: uint = array.size.data.number.value;
+
+        return size * count;
     } else if type_.kind == Identifier {
         var i: uint = 0;
         while i < state.process.file.items.count {
@@ -418,9 +426,45 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
         if in_reference {
             x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, item_data.location));
             x64_push_push_register64(&state.code_buffer, RBX);
+        } else if item_data.size > 8 {
+            x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, item_data.location));
+            x64_push_push_register64(&state.code_buffer, RBX);
         } else {
             assert_(item_data.size == 8, @file, @line);
             x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, item_data.location));
+            x64_push_push_register64(&state.code_buffer, RBX);
+        };
+        return;
+    } else if retrieve.kind == Array {
+        var in_reference: bool = state.process.in_reference;
+        if retrieve.data.parent.parent_type.kind != Pointer {
+            state.process.in_reference = true;
+        };
+
+        barely_elf_linux_x64_gen_expression(state, retrieve.data.array.array);
+        barely_elf_linux_x64_gen_expression(state, retrieve.data.array.item);
+
+        x64_push_pop_register64(&state.code_buffer, RCX);
+        x64_push_pop_register64(&state.code_buffer, RAX);
+
+        var item_size: uint = barely_elf_linux_x64_get_size(state, retrieve.data.array.array_type.data.array.inner.*);
+
+        // Hack until I add multiplication codegen
+        var i: uint = 0;
+        while i < item_size {
+            x64_push_add_register64_register64(&state.code_buffer, RAX, RCX);
+            i = i + 1;
+        };
+
+        if in_reference {
+            x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, 0));
+            x64_push_push_register64(&state.code_buffer, RBX);
+        } else if item_size > 8 {
+            x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, @cast(uint32, 0));
+            x64_push_push_register64(&state.code_buffer, RBX);
+        } else {
+            assert_(item_size == 8, @file, @line);
+            x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RBX, RAX, 0);
             x64_push_push_register64(&state.code_buffer, RBX);
         };
         return;
@@ -586,8 +630,7 @@ proc barely_elf_linux_x64_gen_statement(state: *Barely_Elf_Linux_X64_State, stat
 
     x64_deferred_value_set(&deferred, &state.code_buffer, @cast(uint64, state.statement_extra_stack));
     if state.statement_extra_stack > 0 {
-        x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, state.statement_extra_stack));
-        x64_push_add_register64_register64(&state.code_buffer, RSP, RAX);
+        x64_push_mov_register64_register64(&state.code_buffer, RSP, RDX);
     };
 }
 
@@ -709,14 +752,14 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
             return;
         };
     } else if assign_part.kind == Parent {
-        x64_push_pop_register64(&state.code_buffer, RBX);
-
         if assign_part.data.parent.parent_type.kind != Pointer {
             state.process.in_reference = true;
         };
 
         barely_elf_linux_x64_gen_expression(state, assign_part.data.parent.parent);
         x64_push_pop_register64(&state.code_buffer, RAX);
+
+        x64_push_pop_register64(&state.code_buffer, RBX);
 
         var item_data: Barely_Elf_Linux_X64_Item_Storage = barely_elf_linux_x64_get_item_storage(state, &assign_part.data.parent.parent_type, assign_part.data.parent.item);
         if item_data.size > 8 {
@@ -733,6 +776,44 @@ proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, as
         } else {
             assert_(item_data.size == 8, @file, @line);
             x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, item_data.location), RBX);
+        };
+        return;
+    } else if assign_part.kind == Array {
+        if assign_part.data.parent.parent_type.kind != Pointer {
+            state.process.in_reference = true;
+        };
+
+        barely_elf_linux_x64_gen_expression(state, assign_part.data.array.array);
+        barely_elf_linux_x64_gen_expression(state, assign_part.data.array.item);
+
+        x64_push_pop_register64(&state.code_buffer, RCX);
+        x64_push_pop_register64(&state.code_buffer, RAX);
+
+        x64_push_pop_register64(&state.code_buffer, RBX);
+
+        var item_size: uint = barely_elf_linux_x64_get_size(state, assign_part.data.array.array_type.data.array.inner.*);
+
+        // Hack until I add multiplication codegen
+        var i: uint = 0;
+        while i < item_size {
+            x64_push_add_register64_register64(&state.code_buffer, RAX, RCX);
+            i = i + 1;
+        };
+
+        if item_size > 8 {
+            var i: uint = 0;
+            while i < item_size {
+                if i + 8 <= item_size {
+                    x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RCX, RBX, @cast(uint32, i));
+                    x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, i), RCX);
+                    i = i + 8;
+                } else {
+                    unreachable(@file, @line);
+                };
+            };
+        } else {
+            assert_(item_size == 8, @file, @line);
+            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, 0, RBX);
         };
         return;
     };

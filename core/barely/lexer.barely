@@ -58,6 +58,10 @@ proc barely_write_token(writer: Writer, pointer: ptr) {
         write!(writer, "{");
     } else if token.kind == Right_Curly_Brace {
         write!(writer, "}");
+    } else if token.kind == Left_Brace {
+        write!(writer, "[");
+    } else if token.kind == Right_Brace {
+        write!(writer, "]");
     } else if token.kind == Colon {
         write!(writer, ":");
     } else if token.kind == Ampersand {
@@ -67,6 +71,8 @@ proc barely_write_token(writer: Writer, pointer: ptr) {
     } else if token.kind == Identifier {
         write!(writer, "{}", token.data);
     } else if token.kind == Keyword {
+        write!(writer, "{}", token.data);
+    } else if token.kind == Number {
         write!(writer, "{}", token.data);
     } else {
         write!(writer, "Unknown");
