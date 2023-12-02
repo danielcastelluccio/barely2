@@ -51,6 +51,10 @@ proc barely_process_expression(state: *Barely_Process_State, expression: *Barely
         barely_process_syscall(state, &expression.data.syscall);
     } else if expression.kind == Number {
         barely_process_number(state, &expression.data.number);
+    } else if expression.kind == Boolean {
+        barely_process_boolean(state, &expression.data.boolean);
+    } else if expression.kind == If {
+        barely_process_if(state, &expression.data.if_);
     } else if expression.kind == String {
         barely_process_string(state, &expression.data.string);
     } else if expression.kind == Multiple {
@@ -207,6 +211,17 @@ proc barely_process_syscall(state: *Barely_Process_State, syscall: *Barely_Ast_S
 
     if syscall.arg_count > 0 {
     };
+}
+
+proc barely_process_if(state: *Barely_Process_State, if_: *Barely_Ast_If) {
+    barely_process_expression(state, if_.condition);
+    barely_process_expression(state, if_.true_code);
+    if if_.false_code != null {
+        barely_process_expression(state, if_.false_code);
+    };
+}
+
+proc barely_process_boolean(state: *Barely_Process_State, boolean: *Barely_Ast_Boolean) {
 }
 
 proc barely_process_number(state: *Barely_Process_State, number: *Barely_Ast_Number) {

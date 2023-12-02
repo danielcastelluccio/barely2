@@ -210,6 +210,10 @@ proc barely_is_keyword(string: String): bool {
         return true;
     } else if string_equal(string, string_new("var")) {
         return true;
+    } else if string_equal(string, string_new("if")) {
+        return true;
+    } else if string_equal(string, string_new("else")) {
+        return true;
     } else if string_equal(string, string_new("struct")) {
         return true;
     } else if string_equal(string, string_new("union")) {

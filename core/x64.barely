@@ -75,11 +75,19 @@ proc x64_register64_special(register: X64_Register64): bool {
 }
 
 type X64_Deferred_Value : struct {
-    location: uint
+    location: uint,
+    size: uint,
+    offset: uint
 }
 
-proc x64_deferred_value_set(deferred: *X64_Deferred_Value, output: *Buffer, value: uint64) {
+proc x64_deferred_value_set_uint64(deferred: *X64_Deferred_Value, output: *Buffer, value: uint64) {
+    assert_(deferred.size == 8, @file, @line);
     memory_copy(@cast(ptr, &value), @cast(ptr, output.data) + deferred.location, 8);
+}
+
+proc x64_deferred_value_set_uint32(deferred: *X64_Deferred_Value, output: *Buffer, value: uint32) {
+    assert_(deferred.size == 4, @file, @line);
+    memory_copy(@cast(ptr, &value), @cast(ptr, output.data) + deferred.location, 4);
 }
 
 proc x64_push_mov_register64_literal64(output: *Buffer, register: X64_Register64, value: uint64) {
@@ -93,7 +101,7 @@ proc x64_push_mov_register64_literal64_deferred(output: *Buffer, register: X64_R
     buffer_push_byte(output, 184 + x64_register64_to_index(register));
     var location: uint = output.index;
     buffer_push_uint64(output, X64_DEADBEEF);
-    return @build(X64_Deferred_Value, location);
+    return @build(X64_Deferred_Value, location, 8, 0);
 }
 
 proc x64_push_mov_register64_register64(output: *Buffer, register_to: X64_Register64, register_from: X64_Register64) {
@@ -172,4 +180,31 @@ proc x64_push_add_register64_register64(output: *Buffer, register: X64_Register6
     buffer_push_byte(output, 72);
     buffer_push_byte(output, 1);
     buffer_push_byte(output, 192 + x64_register64_to_index(register) + x64_register64_to_index(other_register) * 8);
+}
+
+proc x64_push_cmp_register64_register64(output: *Buffer, register1: X64_Register64, register2: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 57);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register1) + x64_register64_to_index(register2) * 8);
+}
+
+proc x64_push_jne_deferred(output: *Buffer): X64_Deferred_Value {
+    buffer_push_byte(output, 15);
+    buffer_push_byte(output, 133);
+
+    var deferred: X64_Deferred_Value = @build(X64_Deferred_Value, output.index, 4, 0 - output.index - 4);
+
+    buffer_push_uint32(output, 0);
+
+    return deferred;
+}
+
+proc x64_push_jmp_deferred(output: *Buffer): X64_Deferred_Value {
+    buffer_push_byte(output, 233);
+
+    var deferred: X64_Deferred_Value = @build(X64_Deferred_Value, output.index, 4, 0 - output.index - 4);
+
+    buffer_push_uint32(output, 0);
+
+    return deferred;
 }

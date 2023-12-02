@@ -12,7 +12,8 @@ char* read_file_to_string(char* path) {
     fseek(file, 0, SEEK_SET);
 
     char* buffer = malloc(file_size + 1);
-    fread(buffer,1, file_size, file);
+    buffer[file_size] = 0;
+    fread(buffer, 1, file_size, file);
 
     return buffer;
 }

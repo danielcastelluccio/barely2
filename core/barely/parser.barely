@@ -276,13 +276,31 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
         result.kind = String;
         result.data.string = string;
     } else if kind == Identifier {
-        var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_identifier(parser);
-        result.kind = Retrieve;
-        result.data.retrieve = retrieve;
+        var value: String = barely_peek_token_data(parser);
+
+        if string_equal(value, string_new("true")) || string_equal(value, string_new("false")) {
+            var boolean: Barely_Ast_Boolean = barely_parse_boolean(parser);
+            result.kind = Boolean;
+            result.data.boolean = boolean;
+        } else {
+            var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_identifier(parser);
+            result.kind = Retrieve;
+            result.data.retrieve = retrieve;
+        };
     } else if kind == Ampersand {
         var reference: Barely_Ast_Reference = barely_parse_reference(parser);
         result.kind = Reference;
         result.data.reference = reference;
+    } else if kind == Keyword {
+        var keyword: String = barely_peek_token_data(parser);
+
+        if string_equal(keyword, string_new("if")) {
+            var if_: Barely_Ast_If = barely_parse_if(parser);
+            result.kind = If;
+            result.data.if_ = if_;
+        } else {
+            unreachable(@file, @line);
+        };
     } else {
         unreachable(@file, @line);
     };
@@ -309,6 +327,21 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
             result.data.retrieve = retrieve;
             continue = true;
         };
+    };
+
+    return result;
+}
+
+proc barely_parse_if(parser: *Parser): Barely_Ast_If {
+    barely_consume_check_token(parser, Keyword);
+    var result: Barely_Ast_If = @init(Barely_Ast_If);
+
+    result.condition = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+    result.true_code = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+
+    if barely_peek_token_kind(parser) == Keyword && string_equal(barely_peek_token_data(parser), string_new("else")) {
+        barely_consume_check_token(parser, Keyword);
+        result.false_code = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
     };
 
     return result;
@@ -344,6 +377,15 @@ proc barely_parse_block(parser: *Parser): Barely_Ast_Block {
     return result;
 }
 
+proc barely_parse_boolean(parser: *Parser): Barely_Ast_Boolean {
+    var result: Barely_Ast_Boolean;
+    var data: String = barely_consume_token_data(parser);
+
+    result.value = string_equal(data, string_new("true"));
+
+    return result;
+}
+
 proc barely_parse_number(parser: *Parser): Barely_Ast_Number {
     var result: Barely_Ast_Number;
     var data: String = barely_consume_token_data(parser);
@@ -370,6 +412,9 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
         if string_equal(name, string_new("uint")) {
             result.kind = Internal;
             result.data.internal = Uint;
+        } else if string_equal(name, string_new("bool")) {
+            result.kind = Internal;
+            result.data.internal = Bool;
         } else {
             result.kind = Identifier;
             result.data.identifier = name;
@@ -475,10 +520,12 @@ proc barely_parse_statement(parser: *Parser): Barely_Ast_Statement {
             var declaration: Barely_Ast_Declaration = barely_parse_declaration(parser);
             result.kind = Declaration;
             result.data.declaration = declaration;
-        } else {
+        } else if string_equal(keyword, string_new("return")) {
             var return_: Barely_Ast_Return = barely_parse_return(parser);
             result.kind = Return;
             result.data.return_ = return_;
+        } else {
+            result = barely_parse_statement_expression_or_assign(parser);
         };
     } else {
         unreachable(@file, @line);

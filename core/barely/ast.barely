@@ -83,7 +83,9 @@ type Barely_Ast_Expression : struct {
         String,
         Syscall,
         Multiple,
-        Reference
+        Reference,
+        Boolean,
+        If
     },
     data: union {
         block: Barely_Ast_Block,
@@ -93,7 +95,9 @@ type Barely_Ast_Expression : struct {
         string: Barely_Ast_String,
         syscall: Barely_Ast_Syscall,
         multiple: Barely_Ast_Multiple,
-        reference: Barely_Ast_Reference
+        reference: Barely_Ast_Reference,
+        boolean: Barely_Ast_Boolean,
+        if_: Barely_Ast_If,
     },
 }
 
@@ -148,7 +152,8 @@ type Barely_Ast_Type_Union : struct {
 
 type Barely_Ast_Type_Internal : enum {
     Uint,
-    Byte
+    Byte,
+    Bool
 }
 
 type Barely_Ast_Block : struct {
@@ -186,6 +191,16 @@ type Barely_Ast_Invoke : struct {
     procedure: *Barely_Ast_Expression,
     arguments: Dynamic_Array, // Barely_Ast_Expression
     procedure_type: Barely_Ast_Type
+}
+
+type Barely_Ast_If : struct {
+    condition: *Barely_Ast_Expression,
+    true_code: *Barely_Ast_Expression,
+    false_code: *Barely_Ast_Expression
+}
+
+type Barely_Ast_Boolean : struct {
+    value: bool
 }
 
 type Barely_Ast_Number : struct {

@@ -612,7 +612,9 @@ Ast_Statement parse_statement(Parser_State* state) {
             } else if (kind == Token_RightCurlyBrace) {
                 node.skip_stack_check = true;
             } else {
-                assert(false);
+                print_token_error_stub(&state->tokens->elements[state->index]);
+                printf("Unexpected token!\n");
+                exit(1);
             }
 
             result.statement_end_location = state->tokens->elements[state->index - 1].location;
@@ -1295,7 +1297,11 @@ Ast_Item parse_item(Parser_State* state) {
             break;
         }
         default:
-            assert(false);
+            print_token_error_stub(&state->tokens->elements[state->index]);
+            printf("Unexpected token ");
+            print_token(&state->tokens->elements[state->index - 1], false);
+            printf("\n");
+            exit(1);
     }
 
     return result;
