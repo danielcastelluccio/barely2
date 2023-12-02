@@ -328,6 +328,8 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
         barely_elf_linux_x64_gen_multiple(state, &expression.data.multiple);
     } else if expression.kind == Reference {
         barely_elf_linux_x64_gen_reference(state, &expression.data.reference);
+    } else if expression.kind == Operator {
+        barely_elf_linux_x64_gen_operator(state, &expression.data.operator);
     } else {
         unreachable(@file, @line);
     };
@@ -543,6 +545,26 @@ proc barely_elf_linux_x64_gen_invoke(state: *Barely_Elf_Linux_X64_State, invoke:
             returns_size = returns_size + return_type_size;
             i = i + 1;
         };
+    };
+}
+
+proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, operator: *Barely_Ast_Operator) {
+    var i: uint = 0;
+    while i < operator.arguments.count {
+        var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&operator.arguments, i, $type Barely_Ast_Expression);
+        barely_elf_linux_x64_gen_expression(state, argument);
+        i = i + 1;
+    };
+
+    if operator.kind == Add {
+        if operator.operand_type.kind == Internal && operator.operand_type.data.internal == Uint {
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_pop_register64(&state.code_buffer, RBX);
+            x64_push_add_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_push_register64(&state.code_buffer, RAX);
+        };
+    } else {
+        unreachable(@file, @line);
     };
 }
 

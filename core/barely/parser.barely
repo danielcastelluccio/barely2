@@ -40,6 +40,12 @@ proc barely_consume_token_data(parser: *Parser): String {
     return result;
 }
 
+proc barely_consume_token_kind(parser: *Parser): Barely_Token_Kind {
+    var result: Barely_Token_Kind = dynamic_array_get!(parser.tokens, parser.tokens_index, $type Barely_Token).kind;
+    parser.tokens_index = parser.tokens_index + 1;
+    return result;
+}
+
 proc barely_peek_token_data(parser: *Parser): String {
     return dynamic_array_get!(parser.tokens, parser.tokens_index, $type Barely_Token).data;
 }
@@ -327,6 +333,13 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
             result.data.retrieve = retrieve;
             continue = true;
         };
+
+        if barely_peek_token_kind(parser) == Plus {
+            var operator: Barely_Ast_Operator = barely_parse_operator(parser, &result);
+            result.kind = Operator;
+            result.data.operator = operator;
+            continue = true;
+        };
     };
 
     return result;
@@ -358,6 +371,26 @@ proc barely_parse_retrieve_identifier(parser: *Parser): Barely_Ast_Retrieve {
     var result: Barely_Ast_Retrieve;
     result.kind = Identifier;
     result.data.identifier = barely_consume_token_data(parser);
+    return result;
+}
+
+proc barely_parse_operator(parser: *Parser, first: *Barely_Ast_Expression): Barely_Ast_Operator {
+    var result: Barely_Ast_Operator = @init(Barely_Ast_Operator);
+    result.arguments = dynamic_array_new!(2, parser.allocator, null, $type Barely_Ast_Expression);
+
+    if first != null {
+        dynamic_array_append!(&result.arguments, first.*, $type Barely_Ast_Expression);
+    };
+
+    var token_kind: Barely_Token_Kind = barely_consume_token_kind(parser);
+    if token_kind == Plus {
+        result.kind = Add;
+    } else {
+        unreachable(@file, @line);
+    };
+
+    dynamic_array_append!(&result.arguments, barely_parse_expression(parser), $type Barely_Ast_Expression);
+
     return result;
 }
 

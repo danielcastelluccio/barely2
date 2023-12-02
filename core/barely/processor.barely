@@ -61,6 +61,8 @@ proc barely_process_expression(state: *Barely_Process_State, expression: *Barely
         barely_process_multiple(state, &expression.data.multiple);
     } else if expression.kind == Reference {
         barely_process_reference(state, &expression.data.reference);
+    } else if expression.kind == Operator {
+        barely_process_operator(state, &expression.data.operator);
     } else {
         unreachable(@file, @line);
     };
@@ -186,6 +188,17 @@ proc barely_process_invoke(state: *Barely_Process_State, invoke: *Barely_Ast_Inv
     invoke.procedure_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
 }
 
+proc barely_process_operator(state: *Barely_Process_State, operator: *Barely_Ast_Operator) {
+    var i: uint = 0;
+    while i < operator.arguments.count {
+        var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&operator.arguments, i, $type Barely_Ast_Expression);
+        barely_process_expression(state, argument);
+        i = i + 1;
+    };
+
+    operator.operand_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+}
+
 proc barely_process_syscall(state: *Barely_Process_State, syscall: *Barely_Ast_Syscall) {
     var i: uint = 0;
     while i < syscall.arguments.count {
@@ -225,6 +238,11 @@ proc barely_process_boolean(state: *Barely_Process_State, boolean: *Barely_Ast_B
 }
 
 proc barely_process_number(state: *Barely_Process_State, number: *Barely_Ast_Number) {
+    var type_: Barely_Ast_Type;
+    type_.kind = Internal;
+    type_.data.internal = Uint;
+
+    dynamic_array_append!(&state.stack, type_, $type Barely_Ast_Type);
 }
 
 proc barely_process_string(state: *Barely_Process_State, string: *Barely_Ast_String) {

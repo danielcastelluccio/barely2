@@ -85,7 +85,8 @@ type Barely_Ast_Expression : struct {
         Multiple,
         Reference,
         Boolean,
-        If
+        If,
+        Operator
     },
     data: union {
         block: Barely_Ast_Block,
@@ -98,6 +99,7 @@ type Barely_Ast_Expression : struct {
         reference: Barely_Ast_Reference,
         boolean: Barely_Ast_Boolean,
         if_: Barely_Ast_If,
+        operator: Barely_Ast_Operator
     },
 }
 
@@ -197,6 +199,14 @@ type Barely_Ast_If : struct {
     condition: *Barely_Ast_Expression,
     true_code: *Barely_Ast_Expression,
     false_code: *Barely_Ast_Expression
+}
+
+type Barely_Ast_Operator : struct {
+    arguments: Dynamic_Array, // Barely_Ast_Expression
+    kind: enum {
+        Add
+    },
+    operand_type: Barely_Ast_Type
 }
 
 type Barely_Ast_Boolean : struct {
