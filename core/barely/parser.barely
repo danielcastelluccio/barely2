@@ -315,26 +315,28 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
     while continue {
         continue = false;
 
-        if barely_peek_token_kind(parser) == Left_Parenthesis {
+        var token_kind: Barely_Token_Kind = barely_peek_token_kind(parser);
+
+        if token_kind == Left_Parenthesis {
             result = barely_parse_invoke_like(parser, result);
             continue = true;
         };
 
-        if barely_peek_token_kind(parser) == Period {
+        if token_kind == Period {
             var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_parent(parser, result);
             result.kind = Retrieve;
             result.data.retrieve = retrieve;
             continue = true;
         };
 
-        if barely_peek_token_kind(parser) == Left_Brace {
+        if token_kind == Left_Brace {
             var retrieve: Barely_Ast_Retrieve = barely_parse_retrieve_array(parser, result);
             result.kind = Retrieve;
             result.data.retrieve = retrieve;
             continue = true;
         };
 
-        if barely_peek_token_kind(parser) == Plus {
+        if token_kind == Plus || token_kind == Minus || token_kind == Asterisk || token_kind == Slash {
             var operator: Barely_Ast_Operator = barely_parse_operator(parser, &result);
             result.kind = Operator;
             result.data.operator = operator;
@@ -385,6 +387,12 @@ proc barely_parse_operator(parser: *Parser, first: *Barely_Ast_Expression): Bare
     var token_kind: Barely_Token_Kind = barely_consume_token_kind(parser);
     if token_kind == Plus {
         result.kind = Add;
+    } else if token_kind == Minus {
+        result.kind = Subtract;
+    } else if token_kind == Asterisk {
+        result.kind = Multiply;
+    } else if token_kind == Slash {
+        result.kind = Divide;
     } else {
         unreachable(@file, @line);
     };

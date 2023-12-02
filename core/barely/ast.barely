@@ -204,7 +204,10 @@ type Barely_Ast_If : struct {
 type Barely_Ast_Operator : struct {
     arguments: Dynamic_Array, // Barely_Ast_Expression
     kind: enum {
-        Add
+        Add,
+        Subtract,
+        Multiply,
+        Divide
     },
     operand_type: Barely_Ast_Type
 }

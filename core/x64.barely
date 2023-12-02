@@ -208,3 +208,15 @@ proc x64_push_jmp_deferred(output: *Buffer): X64_Deferred_Value {
 
     return deferred;
 }
+
+proc x64_push_mul_register64(output: *Buffer, register: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 247);
+    buffer_push_byte(output, 224 + x64_register64_to_index(register));
+}
+
+proc x64_push_div_register64(output: *Buffer, register: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 247);
+    buffer_push_byte(output, 240 + x64_register64_to_index(register));
+}
