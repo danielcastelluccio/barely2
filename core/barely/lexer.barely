@@ -218,6 +218,8 @@ proc barely_is_keyword(string: String): bool {
         return true;
     } else if string_equal(string, string_new("union")) {
         return true;
+    } else if string_equal(string, string_new("enum")) {
+        return true;
     } else if string_equal(string, string_new("return")) {
         return true;
     };

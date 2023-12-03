@@ -151,7 +151,7 @@ proc barely_parse_procedure_item(parser: *Parser): Barely_Ast_Item_Procedure {
 proc barely_get_special_invoke_name(procedure: Barely_Ast_Expression): bool, String {
     if procedure.kind == Retrieve {
         if procedure.data.retrieve.kind == Identifier {
-            var name: String = procedure.data.retrieve.data.identifier;
+            var name: String = procedure.data.retrieve.data.identifier.identifier;
             if string_equal_length(name, string_new("@"), 1) {
                 return true, name;
             };
@@ -372,7 +372,7 @@ proc barely_parse_reference(parser: *Parser): Barely_Ast_Reference {
 proc barely_parse_retrieve_identifier(parser: *Parser): Barely_Ast_Retrieve {
     var result: Barely_Ast_Retrieve;
     result.kind = Identifier;
-    result.data.identifier = barely_consume_token_data(parser);
+    result.data.identifier = @build(Barely_Ast_Retrieve_Assign_Identifier, barely_consume_token_data(parser), @init(Barely_Ast_Type));
     return result;
 }
 
@@ -513,6 +513,26 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
 
             result.kind = Union;
             result.data.union_ = union_;
+        } else if string_equal(keyword, string_new("enum")) {
+            var enum_: Barely_Ast_Type_Enum;
+            barely_consume_check_token(parser, Left_Curly_Brace);
+
+            enum_.items = dynamic_array_new!(2, parser.allocator, null, $type String);
+
+            while barely_peek_token_kind(parser) != Right_Curly_Brace {
+                if barely_peek_token_kind(parser) == Comma {
+                    barely_consume_check_token(parser, Comma);
+                } else {
+                    barely_peek_check_token(parser, Identifier);
+                    var item_name: String = barely_consume_token_data(parser);
+                    dynamic_array_append!(&enum_.items, item_name, $type String);
+                };
+            };
+
+            barely_consume_check_token(parser, Right_Curly_Brace);
+
+            result.kind = Enum;
+            result.data.enum_ = enum_;
         } else {
             unreachable(@file, @line);
         };

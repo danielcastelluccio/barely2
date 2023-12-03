@@ -84,6 +84,8 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
         };
 
         unreachable(@file, @line);
+    } else if type_.kind == Enum {
+        return 8;
     } else if type_.kind == Pointer {
         return 8;
     };
@@ -153,7 +155,8 @@ proc barely_elf_linux_x64_gen(file: Barely_Ast_File, allocator: Allocator) {
             hash_map_new!(0, allocator, hash_string, $type String, $type Barely_Ast_Type),
             false,
             allocator
-            dynamic_array_new!(16, allocator, null, $type Barely_Ast_Type)),
+            dynamic_array_new!(16, allocator, null, $type Barely_Ast_Type),
+            @init(Barely_Ast_Type)),
         buffer_create(1024, allocator), 
         buffer_create(1024, allocator), 
         dynamic_array_new!(256, allocator, null, $type Barely_Elf_Linux_X64_String_Reference), 
@@ -369,7 +372,7 @@ proc barely_elf_linux_x64_resolve_argument_location_big(state: *Barely_Elf_Linux
 
 proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retrieve: *Barely_Ast_Retrieve) {
     if retrieve.kind == Identifier {
-        var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(&state.process, retrieve.data.identifier);
+        var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(&state.process, retrieve.data.identifier.identifier);
         if valid {
             if resolved.kind == Procedure {
                 var deferred: X64_Deferred_Value = x64_push_mov_register64_literal64_deferred(&state.code_buffer, RAX);
@@ -377,15 +380,15 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
 
                 var procedure_ref: Barely_Elf_Linux_X64_Procedure_Reference = @build(Barely_Elf_Linux_X64_Procedure_Reference,
                     deferred,
-                    retrieve.data.identifier);
+                    retrieve.data.identifier.identifier);
                 dynamic_array_append!(&state.procedure_references, procedure_ref, $type Barely_Elf_Linux_X64_Procedure_Reference);
                 return;
             };
         };
 
-        var local_index: uint, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier, $type String, $type uint);
+        var local_index: uint, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier.identifier, $type String, $type uint);
         if found {
-            var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.process.local_variables, retrieve.data.identifier, $type String, $type Barely_Ast_Type);
+            var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.process.local_variables, retrieve.data.identifier.identifier, $type String, $type Barely_Ast_Type);
             var size: uint = barely_elf_linux_x64_get_size(state, local_type);
             if state.process.in_reference || size > 8 {
                 x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (local_index + 8)));
@@ -399,13 +402,13 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
             return;
         };
 
-        var argument_type: Barely_Ast_Type, found: bool = barely_resolve_argument(&state.process, retrieve.data.identifier);
+        var argument_type: Barely_Ast_Type, found: bool = barely_resolve_argument(&state.process, retrieve.data.identifier.identifier);
         if found {
-            var argument_location: uint = barely_elf_linux_x64_resolve_argument_location(state, retrieve.data.identifier);
+            var argument_location: uint = barely_elf_linux_x64_resolve_argument_location(state, retrieve.data.identifier.identifier);
 
             var size: uint = barely_elf_linux_x64_get_size(state, argument_type);
             if size > 8 {
-                var argument_location_big: uint = barely_elf_linux_x64_resolve_argument_location_big(state, retrieve.data.identifier);
+                var argument_location_big: uint = barely_elf_linux_x64_resolve_argument_location_big(state, retrieve.data.identifier.identifier);
                 x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (argument_location_big + 8)));
                 x64_push_push_register64(&state.code_buffer, RAX);
             } else {
@@ -419,6 +422,17 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
                 };
             };
             state.process.in_reference = false;
+            return;
+        };
+
+        if retrieve.data.identifier.type_.kind == Enum {
+            var i: uint = 0;
+            while !string_equal(dynamic_array_get!(&retrieve.data.identifier.type_.data.enum_.items, i, $type String), retrieve.data.identifier.identifier) {
+                i = i + 1;
+            };
+
+            x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, i));
+            x64_push_push_register64(&state.code_buffer, RAX);
             return;
         };
     } else if retrieve.kind == Parent {
@@ -587,7 +601,8 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
             unreachable(@file, @line);
         };
     } else if operator.kind == Equals {
-        if operator.operand_type.kind == Internal && operator.operand_type.data.internal == Uint {
+        if (operator.operand_type.kind == Internal && operator.operand_type.data.internal == Uint)
+            || barely_is_enum_type(&state.process, operator.operand_type) {
             x64_push_pop_register64(&state.code_buffer, RBX);
             x64_push_pop_register64(&state.code_buffer, RAX);
             x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
@@ -810,9 +825,9 @@ proc barely_elf_linux_x64_gen_assign(state: *Barely_Elf_Linux_X64_State, assign:
 
 proc barely_elf_linux_x64_gen_assign_part(state: *Barely_Elf_Linux_X64_State, assign_part: *Barely_Ast_Assign_Part) {
     if assign_part.kind == Identifier {
-        var local_index: uint, found: bool = hash_map_get!(&state.local_variables, assign_part.data.identifier, $type String, $type uint);
+        var local_index: uint, found: bool = hash_map_get!(&state.local_variables, assign_part.data.identifier.identifier, $type String, $type uint);
         if found {
-            var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.process.local_variables, assign_part.data.identifier, $type String, $type Barely_Ast_Type);
+            var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.process.local_variables, assign_part.data.identifier.identifier, $type String, $type Barely_Ast_Type);
             var size: uint = barely_elf_linux_x64_get_size(state, local_type);
             if size > 8 {
                 x64_push_pop_register64(&state.code_buffer, RAX);

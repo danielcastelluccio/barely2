@@ -5,6 +5,7 @@ type Barely_Process_State : struct {
     in_reference: bool,
     allocator: Allocator,
     stack: Dynamic_Array, // Barely_Ast_Type
+    wanted_type: Barely_Ast_Type
 }
 
 proc barely_process(file: Barely_Ast_File, allocator: Allocator) {
@@ -14,7 +15,8 @@ proc barely_process(file: Barely_Ast_File, allocator: Allocator) {
         hash_map_new!(0, allocator, hash_string, $type String, $type Barely_Ast_Type),
         false,
         allocator,
-        dynamic_array_new!(16, allocator, null, $type Barely_Ast_Type));
+        dynamic_array_new!(16, allocator, null, $type Barely_Ast_Type),
+        @init(Barely_Ast_Type));
 
     var i: uint = 0;
     while i < file.items.count {
@@ -106,9 +108,39 @@ proc barely_resolve_argument(state: *Barely_Process_State, name: String): Barely
     return @init(Barely_Ast_Type), false;
 }
 
+proc barely_is_enum_type(state: *Barely_Process_State, type_: Barely_Ast_Type): bool {
+    if (type_.kind == Identifier) {
+        var found: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, type_.data.identifier);
+        if found {
+            if resolved.kind == Type {
+                return barely_is_enum_type(state, resolved.data.type_.type_);
+            };
+        };
+    } else if type_.kind == Enum {
+        return true;
+    };
+
+    return false;
+}
+
+proc barely_resolve_enum_type(state: *Barely_Process_State, type_: Barely_Ast_Type): bool, Barely_Ast_Type {
+    if (type_.kind == Identifier) {
+        var found: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, type_.data.identifier);
+        if found {
+            if resolved.kind == Type {
+                return barely_resolve_enum_type(state, resolved.data.type_.type_);
+            };
+        };
+    } else if type_.kind == Enum {
+        return true, type_;
+    };
+
+    return false, @init(Barely_Ast_Type);
+}
+
 proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast_Retrieve) {
     if retrieve.kind == Identifier {
-        var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, retrieve.data.identifier);
+        var valid: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, retrieve.data.identifier.identifier);
         if valid {
             if resolved.kind == Procedure {
                 var procedure_type: Barely_Ast_Type_Procedure = @build(
@@ -137,7 +169,7 @@ proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast
             };
         };
 
-        var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier, $type String, $type Barely_Ast_Type);
+        var local_type: Barely_Ast_Type, found: bool = hash_map_get!(&state.local_variables, retrieve.data.identifier.identifier, $type String, $type Barely_Ast_Type);
         if found {
             dynamic_array_append!(&state.stack, local_type, $type Barely_Ast_Type);
             if state.in_reference {
@@ -149,7 +181,7 @@ proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast
             return;
         };
 
-        var argument_type: Barely_Ast_Type, found: bool = barely_resolve_argument(state, retrieve.data.identifier);
+        var argument_type: Barely_Ast_Type, found: bool = barely_resolve_argument(state, retrieve.data.identifier.identifier);
         if found {
             dynamic_array_append!(&state.stack, argument_type, $type Barely_Ast_Type);
             if state.in_reference {
@@ -159,6 +191,19 @@ proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast
             };
             state.in_reference = false;
             return;
+        };
+
+        var found: bool, enum_type: Barely_Ast_Type = barely_resolve_enum_type(state, state.wanted_type);
+        if found {
+            var i: uint = 0;
+            while i < enum_type.data.enum_.items.count {
+                var item: String = dynamic_array_get!(&enum_type.data.enum_.items, i, $type String);
+                if string_equal(item, retrieve.data.identifier.identifier) {
+                    retrieve.data.identifier.type_ = enum_type;
+                    return;
+                };
+                i = i + 1;
+            };
         };
     } else if retrieve.kind == Parent {
         barely_process_expression(state, retrieve.data.parent.parent);
@@ -297,6 +342,7 @@ proc barely_process_declaration(state: *Barely_Process_State, declaration: *Bare
     var expression: *Barely_Ast_Expression = declaration.expression;
 
     if expression != null {
+        state.wanted_type = dynamic_array_get_ref!(&declaration.declarations, 0, $type Barely_Ast_Name_Type).type_;
         barely_process_expression(state, expression);
     };
 
@@ -326,7 +372,7 @@ proc barely_process_assign(state: *Barely_Process_State, assign: *Barely_Ast_Ass
 
 proc barely_process_assign_part(state: *Barely_Process_State, assign_part: *Barely_Ast_Assign_Part) {
     if assign_part.kind == Identifier {
-        var _: Barely_Ast_Type, found: bool = hash_map_get!(&state.local_variables, assign_part.data.identifier, $type String, $type Barely_Ast_Type);
+        var _: Barely_Ast_Type, found: bool = hash_map_get!(&state.local_variables, assign_part.data.identifier.identifier, $type String, $type Barely_Ast_Type);
         if found {
             return;
         };
