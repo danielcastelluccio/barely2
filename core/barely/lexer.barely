@@ -12,7 +12,7 @@ type Barely_Token_Kind : enum {
     Double_Period,
     Comma,
     Equals,
-    Double_Equal,
+    Double_Equals,
     Plus,
     Minus,
     Asterisk,
@@ -136,7 +136,7 @@ proc barely_lex(file: String, contents: String, allocator: Allocator): Dynamic_A
             };
         } else {
             if      character == '|' && next_character == '|' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Bar, 2)
-            else if character == '=' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Equal, 2)
+            else if character == '=' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Equals, 2)
             else if character == '!' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Exclamation_Equal, 2)
             else if character == '<' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less_Equal, 2)
             else if character == '>' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater_Equal, 2)

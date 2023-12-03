@@ -336,7 +336,7 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
             continue = true;
         };
 
-        if token_kind == Plus || token_kind == Minus || token_kind == Asterisk || token_kind == Slash {
+        if token_kind == Plus || token_kind == Minus || token_kind == Asterisk || token_kind == Slash || token_kind == Double_Equals {
             var operator: Barely_Ast_Operator = barely_parse_operator(parser, &result);
             result.kind = Operator;
             result.data.operator = operator;
@@ -393,6 +393,8 @@ proc barely_parse_operator(parser: *Parser, first: *Barely_Ast_Expression): Bare
         result.kind = Multiply;
     } else if token_kind == Slash {
         result.kind = Divide;
+    } else if token_kind == Double_Equals {
+        result.kind = Equals;
     } else {
         unreachable(@file, @line);
     };

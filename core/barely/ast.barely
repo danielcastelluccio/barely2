@@ -207,7 +207,8 @@ type Barely_Ast_Operator : struct {
         Add,
         Subtract,
         Multiply,
-        Divide
+        Divide,
+        Equals
     },
     operand_type: Barely_Ast_Type
 }

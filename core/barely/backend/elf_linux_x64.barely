@@ -586,6 +586,18 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
         } else {
             unreachable(@file, @line);
         };
+    } else if operator.kind == Equals {
+        if operator.operand_type.kind == Internal && operator.operand_type.data.internal == Uint {
+            x64_push_pop_register64(&state.code_buffer, RBX);
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
+            x64_push_mov_register64_literal64(&state.code_buffer, RBX, 1);
+            x64_push_cmove_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_push_register64(&state.code_buffer, RAX);
+        } else {
+            unreachable(@file, @line);
+        };
     } else {
         unreachable(@file, @line);
     };

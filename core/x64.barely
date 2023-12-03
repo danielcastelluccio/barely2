@@ -220,3 +220,10 @@ proc x64_push_div_register64(output: *Buffer, register: X64_Register64) {
     buffer_push_byte(output, 247);
     buffer_push_byte(output, 240 + x64_register64_to_index(register));
 }
+
+proc x64_push_cmove_register64_register64(output: *Buffer, register1: X64_Register64, register2: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 15);
+    buffer_push_byte(output, 68);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register1) * 8 + x64_register64_to_index(register2));
+}
