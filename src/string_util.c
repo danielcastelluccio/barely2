@@ -12,8 +12,13 @@ Dynamic_Array_Impl(char, String_Buffer, stringbuffer_)
 
 char* copy_string(char* string) {
     size_t length = strlen(string);
+    return copy_string_length(string, length);
+}
+
+char* copy_string_length(char* string, size_t length) {
     char* result = malloc(length + 1);
     memcpy(result, string, length + 1);
+    result[length] = 0;
     return result;
 }
 

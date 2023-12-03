@@ -129,7 +129,7 @@ void check_append_string_token(Tokens* tokens, String_Buffer* buffer, char* file
         kind = Token_Identifier;
     }
 
-    tokens_append(tokens, (Token) { kind, copy_string(buffer_contents), (Location) { file, *row, *col } });
+    tokens_append(tokens, (Token) { kind, copy_string_length(buffer_contents, buffer->count), (Location) { file, *row, *col } });
     *col += buffer->count;
     stringbuffer_clear(buffer);
 }
@@ -146,6 +146,7 @@ Tokens tokenize(char* file, char* contents) {
     };
 
     String_Buffer buffer = stringbuffer_new(32);
+    stringbuffer_clear(&buffer);
 
     size_t row = 1;
     size_t col = 1;
