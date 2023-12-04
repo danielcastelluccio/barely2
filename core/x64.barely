@@ -18,7 +18,18 @@ type X64_Register64 : enum {
     R12,
     R13,
     R14,
-    R15,
+    R15
+}
+
+type X64_Register32 : enum {
+    EAX,
+    EBX,
+    ECX,
+    EDX,
+    ESI,
+    EDI,
+    ESP,
+    EBP
 }
 
 proc x64_register64_to_index(register: X64_Register64): byte {
@@ -53,6 +64,29 @@ proc x64_register64_to_index(register: X64_Register64): byte {
     } else if register == R14 {
         return 6;
     } else if register == R15 {
+        return 7;
+    };
+
+    assert_(false, @file, @line);
+    return 0;
+}
+
+proc x64_register32_to_index(register: X64_Register32): byte {
+    if register == EAX {
+        return 0;
+    } else if register == ECX {
+        return 1;
+    } else if register == EDX {
+        return 2;
+    } else if register == EBX {
+        return 3;
+    } else if register == ESP {
+        return 4;
+    } else if register == EBP {
+        return 5;
+    } else if register == ESI {
+        return 6;
+    } else if register == EDI {
         return 7;
     };
 
@@ -182,6 +216,11 @@ proc x64_push_add_register64_register64(output: *Buffer, register: X64_Register6
     buffer_push_byte(output, 192 + x64_register64_to_index(register) + x64_register64_to_index(other_register) * 8);
 }
 
+proc x64_push_add_register32_register32(output: *Buffer, register: X64_Register32, other_register: X64_Register32) {
+    buffer_push_byte(output, 1);
+    buffer_push_byte(output, 192 + x64_register32_to_index(register) + x64_register32_to_index(other_register) * 8);
+}
+
 proc x64_push_cmp_register64_register64(output: *Buffer, register1: X64_Register64, register2: X64_Register64) {
     buffer_push_byte(output, 72);
     buffer_push_byte(output, 57);
@@ -225,5 +264,33 @@ proc x64_push_cmove_register64_register64(output: *Buffer, register1: X64_Regist
     buffer_push_byte(output, 72);
     buffer_push_byte(output, 15);
     buffer_push_byte(output, 68);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register1) * 8 + x64_register64_to_index(register2));
+}
+
+proc x64_push_cmova_register64_register64(output: *Buffer, register1: X64_Register64, register2: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 15);
+    buffer_push_byte(output, 71);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register1) * 8 + x64_register64_to_index(register2));
+}
+
+proc x64_push_cmovb_register64_register64(output: *Buffer, register1: X64_Register64, register2: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 15);
+    buffer_push_byte(output, 66);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register1) * 8 + x64_register64_to_index(register2));
+}
+
+proc x64_push_cmovae_register64_register64(output: *Buffer, register1: X64_Register64, register2: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 15);
+    buffer_push_byte(output, 67);
+    buffer_push_byte(output, 192 + x64_register64_to_index(register1) * 8 + x64_register64_to_index(register2));
+}
+
+proc x64_push_cmovbe_register64_register64(output: *Buffer, register1: X64_Register64, register2: X64_Register64) {
+    buffer_push_byte(output, 72);
+    buffer_push_byte(output, 15);
+    buffer_push_byte(output, 70);
     buffer_push_byte(output, 192 + x64_register64_to_index(register1) * 8 + x64_register64_to_index(register2));
 }

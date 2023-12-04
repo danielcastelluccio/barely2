@@ -336,7 +336,7 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
             continue = true;
         };
 
-        if token_kind == Plus || token_kind == Minus || token_kind == Asterisk || token_kind == Slash || token_kind == Double_Equals {
+        if token_kind == Plus || token_kind == Minus || token_kind == Asterisk || token_kind == Slash || token_kind == Double_Equals || token_kind == Greater || token_kind == Less || token_kind == Greater_Equals || token_kind == Less_Equals {
             var operator: Barely_Ast_Operator = barely_parse_operator(parser, &result);
             result.kind = Operator;
             result.data.operator = operator;
@@ -395,6 +395,14 @@ proc barely_parse_operator(parser: *Parser, first: *Barely_Ast_Expression): Bare
         result.kind = Divide;
     } else if token_kind == Double_Equals {
         result.kind = Equals;
+    } else if token_kind == Greater {
+        result.kind = Greater;
+    } else if token_kind == Less {
+        result.kind = Less;
+    } else if token_kind == Greater_Equals {
+        result.kind = Greater_Equals;
+    } else if token_kind == Less_Equals {
+        result.kind = Less_Equals;
     } else {
         unreachable(@file, @line);
     };
@@ -455,6 +463,9 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
         if string_equal(name, string_new("uint")) {
             result.kind = Internal;
             result.data.internal = Uint;
+        } else if string_equal(name, string_new("uint32")) {
+            result.kind = Internal;
+            result.data.internal = Uint32;
         } else if string_equal(name, string_new("bool")) {
             result.kind = Internal;
             result.data.internal = Bool;

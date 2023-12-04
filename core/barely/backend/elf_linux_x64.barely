@@ -34,6 +34,8 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
         var internal: Barely_Ast_Type_Internal = type_.data.internal;
         if internal == Uint {
             return 8;
+        } else if internal == Uint32 {
+            return 8;
         } else if internal == Bool {
             return 8;
         } else {
@@ -569,6 +571,11 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
             x64_push_pop_register64(&state.code_buffer, RAX);
             x64_push_add_register64_register64(&state.code_buffer, RAX, RBX);
             x64_push_push_register64(&state.code_buffer, RAX);
+        } else if operator.operand_type.kind == Internal && operator.operand_type.data.internal == Uint32 {
+            x64_push_pop_register64(&state.code_buffer, RBX);
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_add_register32_register32(&state.code_buffer, EAX, EBX);
+            x64_push_push_register64(&state.code_buffer, RAX);
         } else {
             unreachable(@file, @line);
         };
@@ -601,7 +608,8 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
             unreachable(@file, @line);
         };
     } else if operator.kind == Equals {
-        if (operator.operand_type.kind == Internal && operator.operand_type.data.internal == Uint)
+        if (operator.operand_type.kind == Internal &&
+            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32))
             || barely_is_enum_type(&state.process, operator.operand_type) {
             x64_push_pop_register64(&state.code_buffer, RBX);
             x64_push_pop_register64(&state.code_buffer, RAX);
@@ -609,6 +617,58 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
             x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
             x64_push_mov_register64_literal64(&state.code_buffer, RBX, 1);
             x64_push_cmove_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_push_register64(&state.code_buffer, RAX);
+        } else {
+            unreachable(@file, @line);
+        };
+    } else if operator.kind == Greater {
+        if (operator.operand_type.kind == Internal &&
+            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            x64_push_pop_register64(&state.code_buffer, RBX);
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
+            x64_push_mov_register64_literal64(&state.code_buffer, RBX, 1);
+            x64_push_cmova_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_push_register64(&state.code_buffer, RAX);
+        } else {
+            unreachable(@file, @line);
+        };
+    } else if operator.kind == Less {
+        if (operator.operand_type.kind == Internal &&
+            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            x64_push_pop_register64(&state.code_buffer, RBX);
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
+            x64_push_mov_register64_literal64(&state.code_buffer, RBX, 1);
+            x64_push_cmovb_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_push_register64(&state.code_buffer, RAX);
+        } else {
+            unreachable(@file, @line);
+        };
+    } else if operator.kind == Greater_Equals {
+        if (operator.operand_type.kind == Internal &&
+            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            x64_push_pop_register64(&state.code_buffer, RBX);
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
+            x64_push_mov_register64_literal64(&state.code_buffer, RBX, 1);
+            x64_push_cmovae_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_push_register64(&state.code_buffer, RAX);
+        } else {
+            unreachable(@file, @line);
+        };
+    } else if operator.kind == Less_Equals {
+        if (operator.operand_type.kind == Internal &&
+            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            x64_push_pop_register64(&state.code_buffer, RBX);
+            x64_push_pop_register64(&state.code_buffer, RAX);
+            x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
+            x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
+            x64_push_mov_register64_literal64(&state.code_buffer, RBX, 1);
+            x64_push_cmovbe_register64_register64(&state.code_buffer, RAX, RBX);
             x64_push_push_register64(&state.code_buffer, RAX);
         } else {
             unreachable(@file, @line);
@@ -680,8 +740,17 @@ proc barely_elf_linux_x64_gen_boolean(state: *Barely_Elf_Linux_X64_State, boolea
 }
 
 proc barely_elf_linux_x64_gen_number(state: *Barely_Elf_Linux_X64_State, number: *Barely_Ast_Number) {
-    x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
-    x64_push_push_register64(&state.code_buffer, RAX);
+    assert_(number.wanted_type.kind == Internal, @file, @line);
+
+    var internal: Barely_Ast_Type_Internal = number.wanted_type.data.internal;
+
+    if internal == Uint {
+        x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
+        x64_push_push_register64(&state.code_buffer, RAX);
+    } else if internal == Uint32 {
+        x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
+        x64_push_push_register64(&state.code_buffer, RAX);
+    };
 }
 
 proc barely_elf_linux_x64_gen_string(state: *Barely_Elf_Linux_X64_State, string: *Barely_Ast_String) {

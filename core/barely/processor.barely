@@ -233,11 +233,34 @@ proc barely_process_invoke(state: *Barely_Process_State, invoke: *Barely_Ast_Inv
     invoke.procedure_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
 }
 
+proc barely_is_literal(state: *Barely_Process_State, expression: *Barely_Ast_Expression): bool {
+    return expression.kind == Number;
+}
+
 proc barely_process_operator(state: *Barely_Process_State, operator: *Barely_Ast_Operator) {
+    if operator.arguments.count == 2 {
+        var argument1: *Barely_Ast_Expression = dynamic_array_get_ref!(&operator.arguments, 0, $type Barely_Ast_Expression);
+        var argument2: *Barely_Ast_Expression = dynamic_array_get_ref!(&operator.arguments, 1, $type Barely_Ast_Expression);
+
+        if barely_is_literal(state, argument1) {
+            barely_process_expression(state, argument2);
+            state.wanted_type = dynamic_array_get!(&state.stack, state.stack.count - 1, $type Barely_Ast_Type);
+
+            barely_process_expression(state, argument1);
+        } else {
+            barely_process_expression(state, argument1);
+            state.wanted_type = dynamic_array_get!(&state.stack, state.stack.count - 1, $type Barely_Ast_Type);
+
+            barely_process_expression(state, argument2);
+        };
+    } else if operator.arguments.count == 1 {
+        barely_process_expression(state, dynamic_array_get_ref!(&operator.arguments, 0, $type Barely_Ast_Expression));
+    } else {
+        unreachable(@file, @line);
+    };
     var i: uint = 0;
     while i < operator.arguments.count {
         var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&operator.arguments, i, $type Barely_Ast_Expression);
-        barely_process_expression(state, argument);
         i = i + 1;
     };
 
@@ -283,6 +306,8 @@ proc barely_process_boolean(state: *Barely_Process_State, boolean: *Barely_Ast_B
 }
 
 proc barely_process_number(state: *Barely_Process_State, number: *Barely_Ast_Number) {
+    number.wanted_type = state.wanted_type;
+
     var type_: Barely_Ast_Type;
     type_.kind = Internal;
     type_.data.internal = Uint;

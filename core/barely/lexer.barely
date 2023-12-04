@@ -24,9 +24,9 @@ type Barely_Token_Kind : enum {
     Exclamation,
     Exclamation_Equal,
     Less,
-    Less_Equal,
+    Less_Equals,
     Greater,
-    Greater_Equal,
+    Greater_Equals,
 
     Identifier,
     Keyword,
@@ -138,8 +138,8 @@ proc barely_lex(file: String, contents: String, allocator: Allocator): Dynamic_A
             if      character == '|' && next_character == '|' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Bar, 2)
             else if character == '=' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Equals, 2)
             else if character == '!' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Exclamation_Equal, 2)
-            else if character == '<' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less_Equal, 2)
-            else if character == '>' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater_Equal, 2)
+            else if character == '<' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less_Equals, 2)
+            else if character == '>' && next_character == '=' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater_Equals, 2)
             else if character == '&' && next_character == '&' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Ampersand, 2)
             else if character == '.' && next_character == '.' barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Double_Period, 2)
             else if character == '('  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Left_Parenthesis, 1)
@@ -158,8 +158,8 @@ proc barely_lex(file: String, contents: String, allocator: Allocator): Dynamic_A
             else if character == '%'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Percent, 1)
             else if character == '!'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Exclamation, 1)
             else if character == '='  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Equals, 2)
-            else if character == '<'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater, 2)
-            else if character == '>'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less, 2)
+            else if character == '>'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Greater, 2)
+            else if character == '<'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Less, 2)
             else if character == '&'  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Ampersand, 1)
             else if character == ' '  barely_handle_lex_token(contents, &tokens, &buffer_start, &i, file, &row, &column, Invalid, 1)
             else if character == '\n' {

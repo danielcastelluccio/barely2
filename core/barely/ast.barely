@@ -160,6 +160,7 @@ type Barely_Ast_Type_Enum : struct {
 
 type Barely_Ast_Type_Internal : enum {
     Uint,
+    Uint32,
     Byte,
     Bool
 }
@@ -219,7 +220,11 @@ type Barely_Ast_Operator : struct {
         Subtract,
         Multiply,
         Divide,
-        Equals
+        Equals,
+        Greater,
+        Less,
+        Greater_Equals,
+        Less_Equals,
     },
     operand_type: Barely_Ast_Type
 }
@@ -236,6 +241,7 @@ type Barely_Ast_Number : struct {
     data: union {
         integer: uint,
     },
+    wanted_type: Barely_Ast_Type
 }
 
 type Barely_Ast_String : struct {
