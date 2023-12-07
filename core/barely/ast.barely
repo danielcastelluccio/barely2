@@ -86,6 +86,7 @@ type Barely_Ast_Expression : struct {
         Reference,
         Boolean,
         If,
+        While,
         Operator,
         Init,
         Build
@@ -103,6 +104,7 @@ type Barely_Ast_Expression : struct {
         reference: Barely_Ast_Reference,
         boolean: Barely_Ast_Boolean,
         if_: Barely_Ast_If,
+        while_: Barely_Ast_While,
         operator: Barely_Ast_Operator
     },
 }
@@ -215,6 +217,11 @@ type Barely_Ast_If : struct {
     condition: *Barely_Ast_Expression,
     true_code: *Barely_Ast_Expression,
     false_code: *Barely_Ast_Expression
+}
+
+type Barely_Ast_While : struct {
+    condition: *Barely_Ast_Expression,
+    code: *Barely_Ast_Expression
 }
 
 type Barely_Ast_Operator : struct {

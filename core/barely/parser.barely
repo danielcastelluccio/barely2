@@ -327,6 +327,10 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
             var if_: Barely_Ast_If = barely_parse_if(parser);
             result.kind = If;
             result.data.if_ = if_;
+        } else if string_equal(keyword, string_new("while")) {
+            var while_: Barely_Ast_While = barely_parse_while(parser);
+            result.kind = While;
+            result.data.while_ = while_;
         } else {
             unreachable(@file, @line);
         };
@@ -381,6 +385,16 @@ proc barely_parse_if(parser: *Parser): Barely_Ast_If {
         barely_consume_check_token(parser, Keyword);
         result.false_code = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
     };
+
+    return result;
+}
+
+proc barely_parse_while(parser: *Parser): Barely_Ast_While {
+    barely_consume_check_token(parser, Keyword);
+    var result: Barely_Ast_While = @init(Barely_Ast_While);
+
+    result.condition = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
+    result.code = allocate_value!(parser.allocator, barely_parse_expression(parser), $type Barely_Ast_Expression);
 
     return result;
 }

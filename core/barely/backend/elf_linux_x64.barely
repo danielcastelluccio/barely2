@@ -329,6 +329,8 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
         barely_elf_linux_x64_gen_boolean(state, &expression.data.boolean);
     } else if expression.kind == If {
         barely_elf_linux_x64_gen_if(state, &expression.data.if_);
+    } else if expression.kind == While {
+        barely_elf_linux_x64_gen_while(state, &expression.data.while_);
     } else if expression.kind == String {
         barely_elf_linux_x64_gen_string(state, &expression.data.string);
     } else if expression.kind == Multiple {
@@ -805,6 +807,22 @@ proc barely_elf_linux_x64_gen_if(state: *Barely_Elf_Linux_X64_State, if_: *Barel
     };
 
     x64_deferred_value_set_uint32(&jmp_deferred, &state.code_buffer, @cast(uint32, jmp_deferred.offset + state.code_buffer.index));
+}
+
+proc barely_elf_linux_x64_gen_while(state: *Barely_Elf_Linux_X64_State, while_: *Barely_Ast_While) {
+    var start_offset: uint32 = @cast(uint32, state.code_buffer.index);
+    barely_elf_linux_x64_gen_expression(state, while_.condition);
+    x64_push_pop_register64(&state.code_buffer, RAX);
+    x64_push_mov_register64_literal64(&state.code_buffer, RBX, 1);
+    x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
+
+    var jne_deferred: X64_Deferred_Value = x64_push_jne_deferred(&state.code_buffer);
+
+    barely_elf_linux_x64_gen_expression(state, while_.code);
+
+    var jmp_deferred: X64_Deferred_Value = x64_push_jmp_deferred(&state.code_buffer);
+    x64_deferred_value_set_uint32(&jmp_deferred, &state.code_buffer, @cast(uint32, @cast(uint32, jmp_deferred.offset) + start_offset));
+    x64_deferred_value_set_uint32(&jne_deferred, &state.code_buffer, @cast(uint32, jne_deferred.offset + state.code_buffer.index));
 }
 
 proc barely_elf_linux_x64_gen_boolean(state: *Barely_Elf_Linux_X64_State, boolean: *Barely_Ast_Boolean) {
