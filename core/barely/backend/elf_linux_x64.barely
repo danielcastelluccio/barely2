@@ -319,6 +319,10 @@ proc barely_elf_linux_x64_gen_expression(state: *Barely_Elf_Linux_X64_State, exp
         barely_elf_linux_x64_gen_invoke(state, &expression.data.invoke);
     } else if expression.kind == Syscall {
         barely_elf_linux_x64_gen_syscall(state, &expression.data.syscall);
+    } else if expression.kind == Init {
+        barely_elf_linux_x64_gen_init(state, &expression.data.init);
+    } else if expression.kind == Build {
+        barely_elf_linux_x64_gen_build(state, &expression.data.build);
     } else if expression.kind == Number {
         barely_elf_linux_x64_gen_number(state, &expression.data.number);
     } else if expression.kind == Boolean {
@@ -712,6 +716,75 @@ proc barely_elf_linux_x64_gen_syscall(state: *Barely_Elf_Linux_X64_State, syscal
 
     x64_push_pop_register64(&state.code_buffer, RAX);
     x64_push_syscall(&state.code_buffer);
+}
+
+proc barely_elf_linux_x64_gen_init(state: *Barely_Elf_Linux_X64_State, init: *Barely_Ast_Init) {
+    var size: uint = barely_elf_linux_x64_get_size(state, init.type_);
+
+    var i: uint = 0;
+    while i < size {
+        if i + 8 <= size {
+            x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
+            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (8 + state.local_variable_index)), RAX);
+
+            i = i + 8;
+        } else {
+            unreachable(@file, @line);
+        };
+    };
+}
+
+proc barely_elf_linux_x64_gen_build(state: *Barely_Elf_Linux_X64_State, build: *Barely_Ast_Build) {
+    var i: uint = 0;
+    while i < build.arguments.count {
+        var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&build.arguments, i, $type Barely_Ast_Expression);
+        barely_elf_linux_x64_gen_expression(state, argument);
+        i = i + 1;
+    };
+
+    var resolved: Barely_Ast_Type = barely_resolve_type(&state.process, build.type_);
+    if resolved.kind == Struct {
+        var struct_: *Barely_Ast_Type_Struct = &resolved.data.struct_;
+        var struct_size: uint = barely_elf_linux_x64_get_size(state, resolved);
+
+        state.local_variable_index = state.local_variable_index + struct_size;
+        x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (state.local_variable_index + 8)));
+
+        var counting_size: uint = 0;
+
+        var i: uint = 0;
+        while i < struct_.items.count {
+            var type_: Barely_Ast_Type = dynamic_array_get_ref!(&struct_.items, i, $type Barely_Ast_Name_Type).type_;
+            var size: uint = barely_elf_linux_x64_get_size(state, type_);
+
+            if size > 8 {
+                x64_push_pop_register64(&state.code_buffer, RBX);
+
+                var j: uint = 0;
+                while j < size {
+                    if j + 8 <= size {
+                        x64_push_mov_register64_register64_pointer_offset(&state.code_buffer, RCX, RBX, @cast(uint32, j));
+                        x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, struct_size - counting_size - size + j), RCX);
+
+                        j = j + 8;
+                    } else {
+                        unreachable(@file, @line);
+                    };
+                };
+                counting_size = counting_size + size;
+            } else {
+                assert_(size == 8, @file, @line);
+                x64_push_pop_register64(&state.code_buffer, RBX);
+                x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, struct_size - counting_size - 8), RBX);
+                counting_size = counting_size + 8;
+            };
+            i = i + 1;
+        };
+
+        x64_push_push_register64(&state.code_buffer, RAX);
+    } else {
+        unreachable(@file, @line);
+    };
 }
 
 proc barely_elf_linux_x64_gen_if(state: *Barely_Elf_Linux_X64_State, if_: *Barely_Ast_If) {

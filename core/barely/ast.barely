@@ -86,7 +86,9 @@ type Barely_Ast_Expression : struct {
         Reference,
         Boolean,
         If,
-        Operator
+        Operator,
+        Init,
+        Build
     },
     data: union {
         block: Barely_Ast_Block,
@@ -95,6 +97,8 @@ type Barely_Ast_Expression : struct {
         number: Barely_Ast_Number,
         string: Barely_Ast_String,
         syscall: Barely_Ast_Syscall,
+        init: Barely_Ast_Init,
+        build: Barely_Ast_Build,
         multiple: Barely_Ast_Multiple,
         reference: Barely_Ast_Reference,
         boolean: Barely_Ast_Boolean,
@@ -245,12 +249,21 @@ type Barely_Ast_Number : struct {
 }
 
 type Barely_Ast_String : struct {
-    value: String,
+    value: String
 }
 
 type Barely_Ast_Syscall : struct {
     arg_count: uint,
-    arguments: Dynamic_Array, // Barely_Ast_Expression
+    arguments: Dynamic_Array // Barely_Ast_Expression
+}
+
+type Barely_Ast_Init : struct {
+    type_: Barely_Ast_Type
+}
+
+type Barely_Ast_Build : struct {
+    type_: Barely_Ast_Type,
+    arguments: Dynamic_Array // Barely_Ast_Expression
 }
 
 type Barely_Ast_Multiple : struct {

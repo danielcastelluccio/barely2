@@ -169,17 +169,40 @@ proc barely_parse_invoke_like(parser: *Parser, procedure: Barely_Ast_Expression)
         if string_equal_length(special_name, string_new("@syscall"), 8) {
             var syscall: Barely_Ast_Syscall;
             syscall.arg_count = @cast(uint, @cast(uint8, special_name.pointer[special_name.length - 1]) - 48);
+            barely_consume_check_token(parser, Left_Parenthesis);
             syscall.arguments = barely_parse_invoke_expression_arguments(parser);
+            barely_consume_check_token(parser, Right_Parenthesis);
 
             result.kind = Syscall;
             result.data.syscall = syscall;
+        } else if string_equal(special_name, string_new("@init")) {
+            var init: Barely_Ast_Init;
+            barely_consume_check_token(parser, Left_Parenthesis);
+            init.type_ = barely_parse_type(parser);
+            barely_consume_check_token(parser, Right_Parenthesis);
+
+
+            result.kind = Init;
+            result.data.init = init;
+        } else if string_equal(special_name, string_new("@build")) {
+            var build: Barely_Ast_Build;
+            barely_consume_check_token(parser, Left_Parenthesis);
+            build.type_ = barely_parse_type(parser);
+            build.arguments = barely_parse_invoke_expression_arguments(parser);
+            barely_consume_check_token(parser, Right_Parenthesis);
+
+
+            result.kind = Build;
+            result.data.build = build;
         } else {
             unreachable(@file, @line);
         };
     } else {
         var invoke: Barely_Ast_Invoke;
         invoke.procedure = allocate_value!(parser.allocator, procedure, $type Barely_Ast_Expression);
+        barely_consume_check_token(parser, Left_Parenthesis);
         invoke.arguments = barely_parse_invoke_expression_arguments(parser);
+        barely_consume_check_token(parser, Right_Parenthesis);
 
         result.kind = Invoke;
         result.data.invoke = invoke;
@@ -225,8 +248,6 @@ proc barely_parse_retrieve_parent(parser: *Parser, parent: Barely_Ast_Expression
 proc barely_parse_invoke_expression_arguments(parser: *Parser): Dynamic_Array {
     var result: Dynamic_Array = dynamic_array_new!(1, parser.allocator, null, $type Barely_Ast_Expression);
 
-    barely_consume_check_token(parser, Left_Parenthesis);
-
     while barely_peek_token_kind(parser) != Right_Parenthesis {
         if barely_peek_token_kind(parser) == Comma {
             barely_consume_check_token(parser, Comma);
@@ -235,8 +256,6 @@ proc barely_parse_invoke_expression_arguments(parser: *Parser): Dynamic_Array {
             dynamic_array_append!(&result, expression, $type Barely_Ast_Expression);
         };
     };
-
-    barely_consume_check_token(parser, Right_Parenthesis);
 
     return result;
 }
@@ -273,6 +292,10 @@ proc barely_parse_expression(parser: *Parser): Barely_Ast_Expression {
         var block: Barely_Ast_Block = barely_parse_block(parser);
         result.kind = Block;
         result.data.block = block;
+    } else if kind == Left_Parenthesis {
+        barely_consume_check_token(parser, Left_Parenthesis);
+        result = barely_parse_expression(parser);
+        barely_consume_check_token(parser, Right_Parenthesis);
     } else if kind == Number {
         var number: Barely_Ast_Number = barely_parse_number(parser);
         result.kind = Number;

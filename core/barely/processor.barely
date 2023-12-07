@@ -51,6 +51,10 @@ proc barely_process_expression(state: *Barely_Process_State, expression: *Barely
         barely_process_invoke(state, &expression.data.invoke);
     } else if expression.kind == Syscall {
         barely_process_syscall(state, &expression.data.syscall);
+    } else if expression.kind == Init {
+        barely_process_init(state, &expression.data.init);
+    } else if expression.kind == Build {
+        barely_process_build(state, &expression.data.build);
     } else if expression.kind == Number {
         barely_process_number(state, &expression.data.number);
     } else if expression.kind == Boolean {
@@ -109,33 +113,29 @@ proc barely_resolve_argument(state: *Barely_Process_State, name: String): Barely
 }
 
 proc barely_is_enum_type(state: *Barely_Process_State, type_: Barely_Ast_Type): bool {
-    if (type_.kind == Identifier) {
-        var found: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, type_.data.identifier);
-        if found {
-            if resolved.kind == Type {
-                return barely_is_enum_type(state, resolved.data.type_.type_);
-            };
-        };
-    } else if type_.kind == Enum {
-        return true;
-    };
-
-    return false;
+    var type_: Barely_Ast_Type = barely_resolve_type(state, type_);
+    return type_.kind == Enum;
 }
 
 proc barely_resolve_enum_type(state: *Barely_Process_State, type_: Barely_Ast_Type): bool, Barely_Ast_Type {
+    var type_: Barely_Ast_Type = barely_resolve_type(state, type_);
+    if type_.kind == Enum {
+        return true, type_;
+    };
+    return false, @init(Barely_Ast_Type);
+}
+
+proc barely_resolve_type(state: *Barely_Process_State, type_: Barely_Ast_Type): Barely_Ast_Type {
     if (type_.kind == Identifier) {
         var found: bool, resolved: *Barely_Ast_Item = barely_resolve_identifier_global(state, type_.data.identifier);
         if found {
             if resolved.kind == Type {
-                return barely_resolve_enum_type(state, resolved.data.type_.type_);
+                return barely_resolve_type(state, resolved.data.type_.type_);
             };
         };
-    } else if type_.kind == Enum {
-        return true, type_;
     };
 
-    return false, @init(Barely_Ast_Type);
+    return type_;
 }
 
 proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast_Retrieve) {
@@ -207,7 +207,22 @@ proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast
         };
     } else if retrieve.kind == Parent {
         barely_process_expression(state, retrieve.data.parent.parent);
-        retrieve.data.parent.parent_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+        var parent_type: Barely_Ast_Type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+        retrieve.data.parent.parent_type = parent_type;
+
+        var resolved: Barely_Ast_Type = barely_resolve_type(state, parent_type);
+        if resolved.kind == Struct {
+            var i: uint = 0;
+            while i < resolved.data.struct_.items.count {
+                var item: Barely_Ast_Name_Type = dynamic_array_get!(&resolved.data.struct_.items, i, $type Barely_Ast_Name_Type);
+                if string_equal(item.name, retrieve.data.parent.item) {
+                    dynamic_array_append!(&state.stack, item.type_, $type Barely_Ast_Type);
+                };
+                i = i + 1;
+            };
+        } else {
+            unreachable(@file, @line);
+        };
         return;
     } else if retrieve.kind == Array {
         barely_process_expression(state, retrieve.data.array.array);
@@ -292,6 +307,29 @@ proc barely_process_syscall(state: *Barely_Process_State, syscall: *Barely_Ast_S
 
     if syscall.arg_count > 0 {
     };
+}
+
+proc barely_process_init(state: *Barely_Process_State, init: *Barely_Ast_Init) {
+    dynamic_array_append!(&state.stack, init.type_, $type Barely_Ast_Type);
+}
+
+proc barely_process_build(state: *Barely_Process_State, build: *Barely_Ast_Build) {
+    var resolved_type: Barely_Ast_Type = barely_resolve_type(state, build.type_);
+
+    var i: uint = 0;
+    while i < build.arguments.count {
+        if resolved_type.kind == Struct {
+            state.wanted_type = dynamic_array_get_ref!(&resolved_type.data.struct_.items, i, $type Barely_Ast_Name_Type).type_;
+        } else {
+            unreachable(@file, @line);
+        };
+
+        var argument: *Barely_Ast_Expression = dynamic_array_get_ref!(&build.arguments, i, $type Barely_Ast_Expression);
+        barely_process_expression(state, argument);
+        i = i + 1;
+    };
+
+    dynamic_array_append!(&state.stack, build.type_, $type Barely_Ast_Type);
 }
 
 proc barely_process_if(state: *Barely_Process_State, if_: *Barely_Ast_If) {
