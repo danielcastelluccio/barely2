@@ -10,7 +10,11 @@ proc barely_parser_create(tokens: *Dynamic_Array, allocator: Allocator): Parser 
 }
 
 proc barely_peek_token_kind(parser: *Parser): Barely_Token_Kind {
-    return dynamic_array_get!(parser.tokens, parser.tokens_index, $type Barely_Token).kind;
+    if parser.tokens_index < parser.tokens.count {
+        return dynamic_array_get!(parser.tokens, parser.tokens_index, $type Barely_Token).kind;
+    };
+
+    return Invalid;
 }
 
 proc barely_peek_token(parser: *Parser): Barely_Token {

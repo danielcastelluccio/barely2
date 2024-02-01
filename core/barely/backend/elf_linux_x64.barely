@@ -749,17 +749,22 @@ proc barely_elf_linux_x64_gen_syscall(state: *Barely_Elf_Linux_X64_State, syscal
 proc barely_elf_linux_x64_gen_init(state: *Barely_Elf_Linux_X64_State, init: *Barely_Ast_Init) {
     var size: uint = barely_elf_linux_x64_get_size(state, init.type_);
 
+    state.local_variable_index = state.local_variable_index + size;
+    x64_push_lea_register64_register64_pointer_offset(&state.code_buffer, RAX, RBP, @cast(uint32, 0 - (state.local_variable_index + 8)));
+
     var i: uint = 0;
     while i < size {
         if i + 8 <= size {
-            x64_push_mov_register64_literal64(&state.code_buffer, RAX, 0);
-            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RBP, @cast(uint32, 0 - (8 + state.local_variable_index)), RAX);
+            x64_push_mov_register64_literal64(&state.code_buffer, RBX, 0);
+            x64_push_mov_register64_pointer_offset_register64(&state.code_buffer, RAX, @cast(uint32, i), RBX);
 
             i = i + 8;
         } else {
             unreachable(@file, @line);
         };
     };
+
+    x64_push_push_register64(&state.code_buffer, RAX);
 }
 
 proc barely_elf_linux_x64_gen_build(state: *Barely_Elf_Linux_X64_State, build: *Barely_Ast_Build) {
@@ -864,9 +869,20 @@ proc barely_elf_linux_x64_gen_number(state: *Barely_Elf_Linux_X64_State, number:
     if internal == Uint {
         x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
         x64_push_push_register64(&state.code_buffer, RAX);
+    } else if internal == Uint64 {
+        x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
+        x64_push_push_register64(&state.code_buffer, RAX);
     } else if internal == Uint32 {
         x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
         x64_push_push_register64(&state.code_buffer, RAX);
+    } else if internal == Uint16 {
+        x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
+        x64_push_push_register64(&state.code_buffer, RAX);
+    } else if internal == Uint8 {
+        x64_push_mov_register64_literal64(&state.code_buffer, RAX, @cast(uint64, number.data.integer));
+        x64_push_push_register64(&state.code_buffer, RAX);
+    } else {
+        unreachable(@file, @line);
     };
 }
 

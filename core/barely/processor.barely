@@ -430,6 +430,13 @@ proc barely_process_declaration(state: *Barely_Process_State, declaration: *Bare
 }
 
 proc barely_process_assign(state: *Barely_Process_State, assign: *Barely_Ast_Assign) {
+    var i: uint = 0;
+    while i < assign.parts.count {
+        var assign_part: *Barely_Ast_Assign_Part = dynamic_array_get_ref!(&assign.parts, i, $type Barely_Ast_Assign_Part);
+        barely_process_assign_part_pre(state, assign_part);
+        i = i + 1;
+    };
+
     barely_process_expression(state, assign.expression);
 
     var i: uint = 0;
@@ -438,6 +445,24 @@ proc barely_process_assign(state: *Barely_Process_State, assign: *Barely_Ast_Ass
         barely_process_assign_part(state, assign_part);
         i = i + 1;
     };
+}
+
+proc barely_process_assign_part_pre(state: *Barely_Process_State, assign_part: *Barely_Ast_Assign_Part) {
+    if assign_part.kind == Identifier {
+        unreachable(@file, @line);
+        return;
+    } else if assign_part.kind == Parent {
+        unreachable(@file, @line);
+        return;
+    } else if assign_part.kind == Array {
+        barely_process_expression(state, assign_part.data.array.array);
+        assign_part.data.array.array_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+
+        state.wanted_type = assign_part.data.array.array_type.data.array.inner.*;
+        return;
+    };
+
+    unreachable(@file, @line);
 }
 
 proc barely_process_assign_part(state: *Barely_Process_State, assign_part: *Barely_Ast_Assign_Part) {
@@ -453,6 +478,10 @@ proc barely_process_assign_part(state: *Barely_Process_State, assign_part: *Bare
     } else if assign_part.kind == Array {
         barely_process_expression(state, assign_part.data.array.array);
         assign_part.data.array.array_type = dynamic_array_pop!(&state.stack, $type Barely_Ast_Type);
+
+        state.wanted_type.kind = Internal;
+        state.wanted_type.data.internal = Uint;
+
         barely_process_expression(state, assign_part.data.array.item);
         return;
     };
