@@ -44,6 +44,8 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
             return 8;
         } else if internal == Bool {
             return 8;
+        } else if internal == Ptr {
+            return 8;
         } else {
             unreachable(@file, @line);
         };
@@ -108,6 +110,10 @@ type Barely_Elf_Linux_X64_Item_Storage : struct {
 }
 
 proc barely_elf_linux_x64_get_item_storage(state: *Barely_Elf_Linux_X64_State, parent_type: *Barely_Ast_Type, item_name: String): Barely_Elf_Linux_X64_Item_Storage {
+    if string_equal(item_name, string_new("*")) {
+        return @build(Barely_Elf_Linux_X64_Item_Storage, 0, barely_elf_linux_x64_get_size(state, parent_type.*));
+    };
+
     if parent_type.kind == Identifier {
         var found: bool, item: *Barely_Ast_Item = barely_resolve_identifier_global(&state.process, parent_type.data.identifier);
         if !found {
@@ -751,6 +757,8 @@ proc barely_elf_linux_x64_gen_syscall(state: *Barely_Elf_Linux_X64_State, syscal
 
     x64_push_pop_register64(&state.code_buffer, RAX);
     x64_push_syscall(&state.code_buffer);
+
+    x64_push_push_register64(&state.code_buffer, RAX);
 }
 
 proc barely_elf_linux_x64_gen_init(state: *Barely_Elf_Linux_X64_State, init: *Barely_Ast_Init) {

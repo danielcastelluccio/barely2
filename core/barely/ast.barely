@@ -178,7 +178,8 @@ type Barely_Ast_Type_Internal : enum {
     Uint16,
     Uint8,
     Byte,
-    Bool
+    Bool,
+    Ptr
 }
 
 type Barely_Ast_Block : struct {

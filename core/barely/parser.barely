@@ -258,8 +258,14 @@ proc barely_parse_retrieve_parent(parser: *Parser, parent: Barely_Ast_Expression
 
     barely_consume_check_token(parser, Period);
 
-    barely_peek_check_token(parser, Identifier);
-    var item: String = barely_consume_token_data(parser);
+    var item: String;
+    if barely_peek_token_kind(parser) == Asterisk {
+        barely_consume_check_token(parser, Asterisk);
+        item = string_new("*");
+    } else {
+        barely_peek_check_token(parser, Identifier);
+        item = barely_consume_token_data(parser);
+    };
 
     result.kind = Parent;
     result.data.parent = @build(Barely_Ast_Retrieve_Assign_Parent,
@@ -539,6 +545,9 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
         } else if string_equal(name, string_new("bool")) {
             result.kind = Internal;
             result.data.internal = Bool;
+        } else if string_equal(name, string_new("ptr")) {
+            result.kind = Internal;
+            result.data.internal = Ptr;
         } else {
             result.kind = Identifier;
             result.data.identifier = name;
