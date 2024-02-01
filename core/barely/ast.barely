@@ -166,7 +166,10 @@ type Barely_Ast_Type_Enum : struct {
 
 type Barely_Ast_Type_Internal : enum {
     Uint,
+    Uint64,
     Uint32,
+    Uint16,
+    Uint8,
     Byte,
     Bool
 }

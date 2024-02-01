@@ -500,9 +500,18 @@ proc barely_parse_type(parser: *Parser): Barely_Ast_Type {
         if string_equal(name, string_new("uint")) {
             result.kind = Internal;
             result.data.internal = Uint;
+        } else if string_equal(name, string_new("uint64")) {
+            result.kind = Internal;
+            result.data.internal = Uint64;
         } else if string_equal(name, string_new("uint32")) {
             result.kind = Internal;
             result.data.internal = Uint32;
+        } else if string_equal(name, string_new("uint16")) {
+            result.kind = Internal;
+            result.data.internal = Uint16;
+        } else if string_equal(name, string_new("uint8")) {
+            result.kind = Internal;
+            result.data.internal = Uint8;
         } else if string_equal(name, string_new("bool")) {
             result.kind = Internal;
             result.data.internal = Bool;

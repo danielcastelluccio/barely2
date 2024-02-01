@@ -34,7 +34,13 @@ proc barely_elf_linux_x64_get_size(state: *Barely_Elf_Linux_X64_State, type_: Ba
         var internal: Barely_Ast_Type_Internal = type_.data.internal;
         if internal == Uint {
             return 8;
+        } else if internal == Uint64 {
+            return 8;
         } else if internal == Uint32 {
+            return 8;
+        } else if internal == Uint16 {
+            return 8;
+        } else if internal == Uint8 {
             return 8;
         } else if internal == Bool {
             return 8;
@@ -615,7 +621,11 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
         };
     } else if operator.kind == Equals {
         if (operator.operand_type.kind == Internal &&
-            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32))
+            (operator.operand_type.data.internal == Uint
+                || operator.operand_type.data.internal == Uint64
+                || operator.operand_type.data.internal == Uint32
+                || operator.operand_type.data.internal == Uint16
+                || operator.operand_type.data.internal == Uint8))
             || barely_is_enum_type(&state.process, operator.operand_type) {
             x64_push_pop_register64(&state.code_buffer, RBX);
             x64_push_pop_register64(&state.code_buffer, RAX);
@@ -629,7 +639,11 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
         };
     } else if operator.kind == Greater {
         if (operator.operand_type.kind == Internal &&
-            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            (operator.operand_type.data.internal == Uint
+                || operator.operand_type.data.internal == Uint64
+                || operator.operand_type.data.internal == Uint32
+                || operator.operand_type.data.internal == Uint16
+                || operator.operand_type.data.internal == Uint8)) {
             x64_push_pop_register64(&state.code_buffer, RBX);
             x64_push_pop_register64(&state.code_buffer, RAX);
             x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
@@ -642,7 +656,11 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
         };
     } else if operator.kind == Less {
         if (operator.operand_type.kind == Internal &&
-            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            (operator.operand_type.data.internal == Uint
+                || operator.operand_type.data.internal == Uint64
+                || operator.operand_type.data.internal == Uint32
+                || operator.operand_type.data.internal == Uint16
+                || operator.operand_type.data.internal == Uint8)) {
             x64_push_pop_register64(&state.code_buffer, RBX);
             x64_push_pop_register64(&state.code_buffer, RAX);
             x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
@@ -655,7 +673,11 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
         };
     } else if operator.kind == Greater_Equals {
         if (operator.operand_type.kind == Internal &&
-            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            (operator.operand_type.data.internal == Uint
+                || operator.operand_type.data.internal == Uint64
+                || operator.operand_type.data.internal == Uint32
+                || operator.operand_type.data.internal == Uint16
+                || operator.operand_type.data.internal == Uint8)) {
             x64_push_pop_register64(&state.code_buffer, RBX);
             x64_push_pop_register64(&state.code_buffer, RAX);
             x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
@@ -668,7 +690,11 @@ proc barely_elf_linux_x64_gen_operator(state: *Barely_Elf_Linux_X64_State, opera
         };
     } else if operator.kind == Less_Equals {
         if (operator.operand_type.kind == Internal &&
-            (operator.operand_type.data.internal == Uint || operator.operand_type.data.internal == Uint32)) {
+            (operator.operand_type.data.internal == Uint
+                || operator.operand_type.data.internal == Uint64
+                || operator.operand_type.data.internal == Uint32
+                || operator.operand_type.data.internal == Uint16
+                || operator.operand_type.data.internal == Uint8)) {
             x64_push_pop_register64(&state.code_buffer, RBX);
             x64_push_pop_register64(&state.code_buffer, RAX);
             x64_push_cmp_register64_register64(&state.code_buffer, RAX, RBX);
