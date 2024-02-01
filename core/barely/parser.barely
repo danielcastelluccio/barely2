@@ -80,12 +80,32 @@ proc barely_parse_item(parser: *Parser): Barely_Ast_Item {
             var type_: Barely_Ast_Item_Type  = barely_parse_type_item(parser);
             result.kind = Type;
             result.data.type_ = type_;
+        } else if string_equal(keyword, string_new("const")) {
+            var constant: Barely_Ast_Item_Constant  = barely_parse_constant_item(parser);
+            result.kind = Constant;
+            result.data.constant = constant;
         } else {
             unreachable(@file, @line);
         };
     } else {
         unreachable(@file, @line);
     };
+
+    return result;
+}
+
+proc barely_parse_constant_item(parser: *Parser): Barely_Ast_Item_Constant {
+    var result: Barely_Ast_Item_Constant;
+
+    barely_consume_check_token(parser, Keyword);
+
+    barely_peek_check_token(parser, Identifier);
+    result.name = barely_consume_token_data(parser);
+
+    barely_consume_check_token(parser, Colon);
+
+    var expression: Barely_Ast_Expression = barely_parse_expression(parser);
+    result.expression = expression.data.number;
 
     return result;
 }

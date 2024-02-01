@@ -16,12 +16,19 @@ type Barely_Ast_File : struct {
 type Barely_Ast_Item : struct {
     kind: enum {
         Procedure,
-        Type
+        Type,
+        Constant
     },
     data: union {
         procedure: Barely_Ast_Item_Procedure,
-        type_: Barely_Ast_Item_Type
+        type_: Barely_Ast_Item_Type,
+        constant: Barely_Ast_Item_Constant
     },
+}
+
+type Barely_Ast_Item_Constant : struct {
+    name: String,
+    expression: Barely_Ast_Number
 }
 
 type Barely_Ast_Item_Type : struct {

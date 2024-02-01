@@ -30,6 +30,7 @@ proc barely_process_item(state: *Barely_Process_State, item: *Barely_Ast_Item) {
     if item.kind == Procedure {
         barely_process_procedure(state, &item.data.procedure);
     } else if item.kind == Type {
+    } else if item.kind == Constant {
     } else {
         unreachable(@file, @line);
     };
@@ -88,6 +89,10 @@ proc barely_resolve_identifier_global(state: *Barely_Process_State, identifier: 
             };
         } else if item.kind == Type {
             if string_equal(item.data.type_.name, identifier) {
+                found = true;
+            };
+        } else if item.kind == Constant {
+            if string_equal(item.data.constant.name, identifier) {
                 found = true;
             };
         };
@@ -166,6 +171,11 @@ proc barely_process_retrieve(state: *Barely_Process_State, retrieve: *Barely_Ast
                 type_.kind = Procedure;
                 type_.data.procedure = procedure_type;
 
+                dynamic_array_append!(&state.stack, type_, $type Barely_Ast_Type);
+                return;
+            } else if resolved.kind == Constant {
+                var type_: Barely_Ast_Type = state.wanted_type;
+                retrieve.data.identifier.type_ = type_;
                 dynamic_array_append!(&state.stack, type_, $type Barely_Ast_Type);
                 return;
             };

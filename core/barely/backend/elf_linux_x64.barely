@@ -253,6 +253,7 @@ proc barely_elf_linux_x64_gen_item(state: *Barely_Elf_Linux_X64_State, item: *Ba
     if item.kind == Procedure {
         barely_elf_linux_x64_gen_procedure(state, &item.data.procedure);
     } else if item.kind == Type {
+    } else if item.kind == Constant {
     } else {
         unreachable(@file, @line);
     };
@@ -396,6 +397,12 @@ proc barely_elf_linux_x64_gen_retrieve(state: *Barely_Elf_Linux_X64_State, retri
                     deferred,
                     retrieve.data.identifier.identifier);
                 dynamic_array_append!(&state.procedure_references, procedure_ref, $type Barely_Elf_Linux_X64_Procedure_Reference);
+                return;
+            } else if resolved.kind == Constant {
+                // This is pretty hacky, it would probably be better to have some
+                // other way of specifying the type
+                resolved.data.constant.expression.wanted_type = retrieve.data.identifier.type_;
+                barely_elf_linux_x64_gen_number(state, &resolved.data.constant.expression);
                 return;
             };
         };
